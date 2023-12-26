@@ -28,6 +28,10 @@ import random
 import asyncio
 import argparse
 from model.model_tracker import ModelTracker
+from model.model_updater import ModelUpdater
+from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
+from model.storage.disk.disk_model_store import DiskModelStore
+from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
 import pretrain
 import traceback
 import threading
@@ -38,7 +42,7 @@ from multiprocessing import Value
 
 import bittensor as bt
 import pretrain as pt
-from vali_utils.miner_iterator import MinerIterator
+from utils.miner_iterator import MinerIterator
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -209,10 +213,6 @@ class Validator:
         # Setup a model tracker to track which miner is using which model id.
         self.model_tracker = ModelTracker()
 
-        # Setup a miner iterator to ensure we update all miners.
-        # This subnet does not differentiate between miner and validators so this is passed all uids.
-        self.miner_iterator = MinerIterator(self.metagraph.uids.tolist())
-
         # Load the state of the validator from file.
         filepath = os.path.join(
             self.config.neuron.full_path, Validator.TRACKER_FILENAME
@@ -222,6 +222,27 @@ class Validator:
             bt.logging.warning("No state file found. Starting from scratch.")
 
         self.model_tracker.load_state(filepath)
+
+        # Setup a miner iterator to ensure we update all miners.
+        # This subnet does not differentiate between miner and validators so this is passed all uids.
+        self.miner_iterator = MinerIterator(self.metagraph.uids.tolist())
+
+        # Setup a ModelMetadataStore
+        self.metadata_store = ChainModelMetadataStore(self.subtensor, self.wallet)
+
+        # Setup a RemoteModelStore
+        self.remote_store = HuggingFaceModelStore()
+
+        # Setup a LocalModelStore
+        self.local_store = DiskModelStore()
+
+        # Setup a model updater to download models as needed to match the latest provided miner metadata.
+        self.model_updater = ModelUpdater(
+            metadata_store=self.metadata_store,
+            remote_store=self.remote_store,
+            local_store=self.local_store,
+            model_tracker=self.model_tracker,
+        )
 
         # == Initialize the update thread ==
         self.stop_event = threading.Event()
@@ -271,15 +292,14 @@ class Validator:
                 # Get their hotkey from the metagraph.
                 hotkey = self.metagraph.hotkeys[next_uid]
 
+                self.model_updater.sync_model(hotkey, self.loc)
+
                 # Compare that to what our model tracker has.
 
                 # If different then we pull the new model from Hugging Face.
 
             except Exception as e:
                 bt.logging.error(f"Error in update loop: {e}")
-
-            # Wait 5 minutes after we have gone through each uid approximately once.
-            time.sleep(300)
 
     def try_get_block(self, ttl: int):
         def get_block(endpoint, queue):

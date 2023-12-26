@@ -19,14 +19,14 @@ class HuggingFaceModelStore(RemoteModelStore):
 
         # PreTrainedModel.save_pretrained only saves locally
         commit_info = model.pt_model.push_to_hub(
-            repo_id=model.id.path + "/" + model.id.name,
+            repo_id=model.id.namespace + "/" + model.id.name,
             token=token,
             safe_serialization=True,
         )
 
         # Return a new ModelId with the uploaded commit.
         return ModelId(
-            path=model.id.path,
+            namespace=model.id.namespace,
             name=model.id.name,
             hash=model.id.hash,
             commit=commit_info.oid,
@@ -40,7 +40,7 @@ class HuggingFaceModelStore(RemoteModelStore):
 
         # Transformers library can pick up a model based on the hugging face path (username/model) + rev.
         model = AutoModel.from_pretrained(
-            pretrained_model_name_or_path=model_id.path + "/" + model_id.name,
+            pretrained_model_name_or_path=model_id.namespace + "/" + model_id.name,
             revision=model_id.commit,
             cache_dir=local_path,
             use_safetensors=True,
@@ -53,7 +53,7 @@ async def test_roundtrip_model():
     """Verifies that the HuggingFaceModelStore can roundtrip a model in hugging face."""
     hf_name = os.getenv("HF_NAME")
     model_id = ModelId(
-        path=hf_name,
+        namespace=hf_name,
         name="TestModel",
         hash="TestHash1",
         commit="main",
@@ -74,7 +74,7 @@ async def test_roundtrip_model():
     # Retrieve the model from hf.
     retrieved_model = await hf_model_store.download_model(
         model_id=model.id,
-        local_path=utils.get_local_model_dir("hotkey0", model.id),
+        local_path=utils.get_local_model_dir("local-models", "hotkey0", model.id),
     )
 
     # Check that they match.
@@ -87,7 +87,7 @@ async def test_roundtrip_model():
 async def test_retrieve_model():
     """Verifies that the HuggingFaceModelStore can retrieve a model."""
     model_id = ModelId(
-        path="pszemraj",
+        namespace="pszemraj",
         name="distilgpt2-HC3",
         hash="TestHash1",
         commit="6f9ad47",
@@ -97,7 +97,8 @@ async def test_retrieve_model():
 
     # Retrieve the model from hf (first run) or cache.
     model = await hf_model_store.download_model(
-        model_id=model_id, local_path=utils.get_local_model_dir("hotkey0", model_id)
+        model_id=model_id,
+        local_path=utils.get_local_model_dir("local-models", "hotkey0", model_id),
     )
 
     print(f"Finished retrieving the model with id: {model.id}")

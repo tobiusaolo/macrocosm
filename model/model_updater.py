@@ -1,5 +1,6 @@
 from model.data import Model, ModelId, ModelMetadata
 from model.model_tracker import ModelTracker
+from model.storage.local_model_store import LocalModelStore
 from model.storage.model_metadata_store import ModelMetadataStore
 from model.storage.remote_model_store import RemoteModelStore
 from utils import utils
@@ -11,10 +12,12 @@ class ModelUpdater:
         self,
         metadata_store: ModelMetadataStore,
         remote_store: RemoteModelStore,
+        local_store: LocalModelStore,
         model_tracker: ModelTracker,
     ):
         self.metadata_store = metadata_store
         self.remote_store = remote_store
+        self.local_store = local_store
         self.model_tracker = model_tracker
 
     def _get_metadata(self, hotkey: str, ttl: int) -> ModelMetadata:
@@ -30,14 +33,17 @@ class ModelUpdater:
         partial = functools.partial(self.metadata_store.retrieve_model_metadata, hotkey)
         return utils.run_in_subprocess(partial, ttl)
 
-    def sync_model(self, hotkey: str, local_path: str):
-        # Get the metadata for the miner
+    def sync_model(self, hotkey: str):
+        # Get the metadata for the miner.
         metadata = self._get_metadata(hotkey)
 
-        # Check what model id the model tracker currently has for this hotkey
+        # Check what model id the model tracker currently has for this hotkey.
         tracker_model_id = self.model_tracker.get_model_id_for_miner_hotkey(hotkey)
         if metadata.id == tracker_model_id:
             return
 
+        # Get the local path based on the local store.
+        path = self.local_store.get_path(hotkey, metadata.id)
+
         # Otherwise we need to read the new model (which stores locally) based on the metadata.
-        self.remote_store.download_model(metadata.id, local_path)
+        self.remote_store.download_model(metadata.id, path)

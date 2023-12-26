@@ -55,7 +55,7 @@ class ChainModelMetadataStore(ModelMetadataStore):
 async def test_store_model_metadata():
     """Verifies that the ChainModelMetadataStore can store data on the chain."""
     model_id = ModelId(
-        path="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
+        namespace="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
     )
 
     # Use a different subnet that does not leverage chain storage to avoid conflicts.
@@ -82,7 +82,7 @@ async def test_store_model_metadata():
 async def test_retrieve_model_metadata():
     """Verifies that the ChainModelMetadataStore can retrieve data from the chain."""
     expected_model_id = ModelId(
-        path="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
+        namespace="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
     )
 
     # Use a different subnet that does not leverage chain storage to avoid conflicts.
@@ -91,7 +91,7 @@ async def test_retrieve_model_metadata():
 
     # Uses .env configured hotkey/uid for the test.
     net_uid = int(os.getenv("TEST_SUBNET_UID"))
-    hotkey = os.getenv("TEST_HOTKEY")
+    hotkey_address = os.getenv("TEST_HOTKEY_ADDRESS")
 
     # Do not require a wallet for retrieving data.
     metadata_store = ChainModelMetadataStore(
@@ -99,7 +99,7 @@ async def test_retrieve_model_metadata():
     )
 
     # Retrieve the metadata from the chain.
-    model_metadata = await metadata_store.retrieve_model_metadata(hotkey)
+    model_metadata = await metadata_store.retrieve_model_metadata(hotkey_address)
 
     print(f"Expecting matching model id: {expected_model_id == model_metadata.id}")
 
@@ -108,7 +108,7 @@ async def test_retrieve_model_metadata():
 async def test_roundtrip_model_metadata():
     """Verifies that the ChainModelMetadataStore can roundtrip data on the chain."""
     model_id = ModelId(
-        path="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
+        namespace="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
     )
 
     # Use a different subnet that does not leverage chain storage to avoid conflicts.
