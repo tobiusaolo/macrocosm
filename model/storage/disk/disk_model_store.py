@@ -2,24 +2,28 @@ import asyncio
 import shutil
 from model.data import Model, ModelId
 from model.storage import utils
-from model.storage.model_store import ModelStore
+from model.storage.local_model_store import LocalModelStore
 from transformers import AutoModel, DistilBertModel, DistilBertConfig
 
 
-class LocalModelStore(ModelStore):
-    """Local storage based implementation for storing and retrieving a model."""
+class DiskModelStore(LocalModelStore):
+    """Local storage based implementation for storing and retrieving a model on disk."""
 
-    async def clear_miner_directory(self, hotkey: str):
-        """Clears out the directory for a given uid."""
+    def delete_models(self, hotkey: str):
+        """Deletes all models for a given hotkey."""
         shutil.rmtree(path=utils.get_local_miner_dir(hotkey), ignore_errors=True)
 
-    async def clear_model_directory(self, hotkey: str, model_id: ModelId):
-        """Clears out the directory for a given model."""
+    def delete_model(self, hotkey: str, model_id: ModelId):
+        """Delete the given model."""
         shutil.rmtree(
             path=utils.get_local_model_dir(hotkey, model_id), ignore_errors=True
         )
 
-    async def store_model(self, hotkey: str, model: Model) -> ModelId:
+    def get_path(self, hotkey: str, model_id: ModelId) -> str:
+        """Returns the path to where this store would locate this model."""
+        return utils.get_local_model_dir(hotkey, model_id)
+
+    def store_model(self, hotkey: str, model: Model) -> ModelId:
         """Stores a trained model locally."""
 
         model.pt_model.save_pretrained(
@@ -30,8 +34,7 @@ class LocalModelStore(ModelStore):
         # Return the same model id used as we do not edit the commit information.
         return model.id
 
-    # TODO actually make this asynchronous with threadpools etc.
-    async def retrieve_model(self, hotkey: str, model_id: ModelId) -> Model:
+    def retrieve_model(self, hotkey: str, model_id: ModelId) -> Model:
         """Retrieves a trained model locally."""
 
         model = AutoModel.from_pretrained(
@@ -59,16 +62,16 @@ async def test_roundtrip_model():
     )
 
     model = Model(id=model_id, pt_model=pt_model)
-    local_model_store = LocalModelStore()
+    disk_model_store = DiskModelStore()
 
     # Clear the local storage
-    await local_model_store.clear_model_directory(hotkey="hotkey0", model_id=model_id)
+    disk_model_store.delete_model(hotkey="hotkey0", model_id=model_id)
 
     # Store the model locally.
-    await local_model_store.store_model(hotkey="hotkey0", model=model)
+    disk_model_store.store_model(hotkey="hotkey0", model=model)
 
     # Retrieve the model locally.
-    retrieved_model = await local_model_store.retrieve_model(
+    retrieved_model = disk_model_store.retrieve_model(
         hotkey="hotkey0", model_id=model_id
     )
 
