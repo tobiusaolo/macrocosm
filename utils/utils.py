@@ -1,7 +1,5 @@
 import functools
 import multiprocessing
-import bittensor as bt
-from typing import Any, Callable
 
 
 def run_in_subprocess(func: functools.partial, ttl: int):
@@ -27,8 +25,7 @@ def run_in_subprocess(func: functools.partial, ttl: int):
     if process.is_alive():
         process.terminate()
         process.join()
-        bt.logging.error(f"Failed to {func.func.__name__} after {ttl} seconds")
-        return None
+        raise TimeoutError(f"Failed to {func.func.__name__} after {ttl} seconds")
 
     result = queue.get()
     return result

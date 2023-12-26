@@ -1,10 +1,13 @@
 import asyncio
+import functools
 import bittensor as bt
 import os
 from model.data import ModelId, ModelMetadata
 from model.storage.chain import constants
 from model.storage.model_metadata_store import ModelMetadataStore
 from typing import Optional
+
+from utils import utils
 
 
 class ChainModelMetadataStore(ModelMetadataStore):
@@ -29,17 +32,23 @@ class ChainModelMetadataStore(ModelMetadataStore):
             raise ValueError("No wallet available to write to the chain.")
 
         # TODO: Confirm that the hotkey matches the wallet
-        self.subtensor.commit(
-            wallet=self.wallet,
-            netuid=self.subnet_uid,
-            data=model_id.to_compressed_str(),
+        # Wrap calls to the subtensor in a subprocess with a timeout to handle potential hangs.
+        partial = functools.partial(
+            self.subtensor.commit,
+            self.wallet,
+            self.subnet_uid,
+            model_id.to_compressed_str(),
         )
+        utils.run_in_subprocess(partial, 60)
 
     async def retrieve_model_metadata(self, hotkey: str) -> ModelMetadata:
         """Retrieves model metadata on this subnet for specific hotkey"""
-        metadata = bt.extrinsics.serving.get_metadata(
-            self.subtensor, self.subnet_uid, hotkey
+
+        # Wrap calls to the subtensor in a subprocess with a timeout to handle potential hangs.
+        partial = functools.partial(
+            bt.extrinsics.serving.get_metadata, self.subtensor, self.subnet_uid, hotkey
         )
+        metadata = utils.run_in_subprocess(partial, 60)
 
         commitment = metadata["info"]["fields"][0]
         hex_data = commitment[list(commitment.keys())[0]][2:]
