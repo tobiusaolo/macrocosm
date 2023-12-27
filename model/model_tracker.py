@@ -53,12 +53,13 @@ class ModelTracker:
             return None
 
     def on_hotkeys_updated(self, incoming_hotkeys: Set[str]):
-        """Notified the tracker which hotkeys are currently being tracked on the metagraph."""
+        """Notifies the tracker which hotkeys are currently being tracked on the metagraph."""
 
         with self.lock:
             existing_hotkeys = set(self.miner_hotkey_to_model_id_dict.keys())
             for hotkey in existing_hotkeys - incoming_hotkeys:
                 del self.miner_hotkey_to_model_id_dict[hotkey]
+                bt.logging.trace(f"Removed outdated hotkey: {hotkey} from ModelTracker")
 
     def on_miner_model_updated(
         self,
