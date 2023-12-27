@@ -1,13 +1,14 @@
-from model.data import Model, ModelId, ModelMetadata
+import asyncio
+from model.data import ModelMetadata
 from model.model_tracker import ModelTracker
 from model.storage.local_model_store import LocalModelStore
 from model.storage.model_metadata_store import ModelMetadataStore
 from model.storage.remote_model_store import RemoteModelStore
-from utils import utils
-import functools
 
 
 class ModelUpdater:
+    """Checks if the currently tracked model for a hotkey matches what the miner committed to the chain."""
+
     def __init__(
         self,
         metadata_store: ModelMetadataStore,
@@ -20,22 +21,14 @@ class ModelUpdater:
         self.local_store = local_store
         self.model_tracker = model_tracker
 
-    def _get_metadata(self, hotkey: str, ttl: int) -> ModelMetadata:
-        """Get metadata in a wrapper with a ttl to ensure we avoid hangs.
+    async def _get_metadata(self, hotkey: str) -> ModelMetadata:
+        """Get metadata about a model by hotkey"""
+        return await self.metadata_store.retrieve_model_metadata(hotkey)
 
-        Args:
-            hotkey (str): Hotkey of the miner to fetch metadata for.
-            ttl (int): How long to wait on reading the metadata.
-
-        Returns:
-            ModelMetadata: Metadata about a model.
-        """
-        partial = functools.partial(self.metadata_store.retrieve_model_metadata, hotkey)
-        return utils.run_in_subprocess(partial, ttl)
-
-    def sync_model(self, hotkey: str):
+    async def sync_model(self, hotkey: str):
+        """Updates local model for a hotkey if out of sync."""
         # Get the metadata for the miner.
-        metadata = self._get_metadata(hotkey)
+        metadata = await self._get_metadata(hotkey)
 
         # Check what model id the model tracker currently has for this hotkey.
         tracker_model_id = self.model_tracker.get_model_id_for_miner_hotkey(hotkey)
@@ -46,4 +39,7 @@ class ModelUpdater:
         path = self.local_store.get_path(hotkey, metadata.id)
 
         # Otherwise we need to read the new model (which stores locally) based on the metadata.
-        self.remote_store.download_model(metadata.id, path)
+        model = await self.remote_store.download_model(metadata.id, path)
+
+        # Update the tracker
+        self.model_tracker.on_miner_model_updated(hotkey, model.id)

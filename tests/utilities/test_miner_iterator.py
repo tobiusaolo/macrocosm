@@ -1,4 +1,4 @@
-from utils.miner_iterator import MinerIterator
+from utilities.miner_iterator import MinerIterator
 import unittest
 
 

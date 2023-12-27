@@ -32,7 +32,7 @@ class ModelId(BaseModel):
         return cls(
             namespace=tokens[0],
             name=tokens[1],
-            commit=tokens[2],
+            commit=tokens[2] if tokens[2] != "None" else None,
             hash=tokens[3],
         )
 

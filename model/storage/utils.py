@@ -2,7 +2,6 @@ import os
 from model.data import ModelId
 
 
-# TODO make this configurable.
 def get_local_miner_dir(base_dir: str, hotkey: str) -> str:
     return os.path.join(base_dir, "models", hotkey)
 

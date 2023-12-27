@@ -42,7 +42,7 @@ from multiprocessing import Value
 
 import bittensor as bt
 import pretrain as pt
-from utils.miner_iterator import MinerIterator
+from utilities.miner_iterator import MinerIterator
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -288,15 +288,11 @@ class Validator:
                     # If we have seen it within 5 minutes then sleep until it has been at least 5 minutes.
                     time.sleep((dt.timedelta(minutes=5) - time_diff).total_seconds())
 
-                # Look up what they have published to chain metadata for their miner id.
                 # Get their hotkey from the metagraph.
                 hotkey = self.metagraph.hotkeys[next_uid]
 
-                self.model_updater.sync_model(hotkey, self.loc)
-
-                # Compare that to what our model tracker has.
-
-                # If different then we pull the new model from Hugging Face.
+                # Compare metadata and tracker, syncing new model from remote store to local if necessary.
+                asyncio.run(self.model_updater.sync_model(hotkey, self.loc))
 
             except Exception as e:
                 bt.logging.error(f"Error in update loop: {e}")

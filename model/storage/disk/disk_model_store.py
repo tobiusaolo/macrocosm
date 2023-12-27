@@ -70,7 +70,7 @@ async def test_roundtrip_model():
     )
 
     model = Model(id=model_id, pt_model=pt_model)
-    disk_model_store = DiskModelStore("local-models")
+    disk_model_store = DiskModelStore("test-models")
 
     # Clear the local storage
     disk_model_store.delete_model(hotkey="hotkey0", model_id=model_id)

@@ -1,3 +1,4 @@
+import copy
 import threading
 from typing import Dict, List, Optional, Set
 import pickle
@@ -41,7 +42,7 @@ class ModelTracker:
 
         # Return a copy to ensure outside code can't modify the scores.
         with self.lock:
-            return self.miner_hotkey_to_model_id_dict.clone()
+            return copy.deepcopy(self.miner_hotkey_to_model_id_dict)
 
     def get_model_id_for_miner_hotkey(self, hotkey: str) -> Optional[ModelId]:
         """Returns the model id for a given hotkey if any."""

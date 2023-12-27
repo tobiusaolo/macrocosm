@@ -7,18 +7,24 @@ def run_in_subprocess(func: functools.partial, ttl: int):
 
     Args:
         func (functools.partial): Function to be run.
-        ttl (int): How long to try for.
+        ttl (int): How long to try for in seconds.
 
     Returns:
         _type_: _description_
     """
 
     def wrapped_func(func: functools.partial, queue: multiprocessing.Queue):
-        result = func()
-        queue.put(result)
+        try:
+            result = func()
+            queue.put(result)
+        except Exception as e:
+            # Catch exceptions here to add them to the queue.
+            queue.put(e)
+            pass
 
     queue = multiprocessing.Queue()
     process = multiprocessing.Process(target=wrapped_func, args=[func, queue])
+
     process.start()
     process.join(timeout=ttl)
 
@@ -28,4 +34,9 @@ def run_in_subprocess(func: functools.partial, ttl: int):
         raise TimeoutError(f"Failed to {func.func.__name__} after {ttl} seconds")
 
     result = queue.get()
+
+    # If we put an exception on the queue then raise instead of returning.
+    if isinstance(result, Exception):
+        raise result
+
     return result

@@ -7,7 +7,7 @@ from model.storage.chain import constants
 from model.storage.model_metadata_store import ModelMetadataStore
 from typing import Optional
 
-from utils import utils
+from utilities import utils
 
 
 class ChainModelMetadataStore(ModelMetadataStore):

@@ -74,7 +74,7 @@ async def test_roundtrip_model():
     # Retrieve the model from hf.
     retrieved_model = await hf_model_store.download_model(
         model_id=model.id,
-        local_path=utils.get_local_model_dir("local-models", "hotkey0", model.id),
+        local_path=utils.get_local_model_dir("test-models", "hotkey0", model.id),
     )
 
     # Check that they match.
@@ -98,7 +98,7 @@ async def test_retrieve_model():
     # Retrieve the model from hf (first run) or cache.
     model = await hf_model_store.download_model(
         model_id=model_id,
-        local_path=utils.get_local_model_dir("local-models", "hotkey0", model_id),
+        local_path=utils.get_local_model_dir("test-models", "hotkey0", model_id),
     )
 
     print(f"Finished retrieving the model with id: {model.id}")
