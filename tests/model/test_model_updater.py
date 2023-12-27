@@ -24,7 +24,7 @@ class TestModelUpdater(unittest.TestCase):
         )
 
     def tearDown(self):
-        self.local_store.delete_models("test_hotkey")
+        self.local_store.delete_unreferenced_models(dict(), 0)
 
     def test_get_metadata(self):
         hotkey = "test_hotkey"

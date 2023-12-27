@@ -2,7 +2,7 @@ import asyncio
 import bittensor as bt
 import os
 from model.data import Model, ModelId
-from model.storage import utils
+from model.storage.disk import utils
 from transformers import AutoModel, DistilBertModel, DistilBertConfig
 
 from model.storage.remote_model_store import RemoteModelStore
