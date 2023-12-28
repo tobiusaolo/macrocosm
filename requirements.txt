@@ -1,8 +1,9 @@
 bittensor
+matplotlib
+numpy
+pydantic==1.10
+rich
+safetensors
 torch
 transformers==4.34.1
 wandb
-rich
-matplotlib
-safetensors
-pydantic==1.10
