@@ -1,10 +1,13 @@
 import asyncio
+import functools
 import bittensor as bt
 import os
 from model.data import ModelId, ModelMetadata
 from model.storage.chain import constants
 from model.storage.model_metadata_store import ModelMetadataStore
 from typing import Optional
+
+from utilities import utils
 
 
 class ChainModelMetadataStore(ModelMetadataStore):
@@ -29,17 +32,23 @@ class ChainModelMetadataStore(ModelMetadataStore):
             raise ValueError("No wallet available to write to the chain.")
 
         # TODO: Confirm that the hotkey matches the wallet
-        self.subtensor.commit(
-            wallet=self.wallet,
-            netuid=self.subnet_uid,
-            data=model_id.to_compressed_str(),
+        # Wrap calls to the subtensor in a subprocess with a timeout to handle potential hangs.
+        partial = functools.partial(
+            self.subtensor.commit,
+            self.wallet,
+            self.subnet_uid,
+            model_id.to_compressed_str(),
         )
+        utils.run_in_subprocess(partial, 60)
 
     async def retrieve_model_metadata(self, hotkey: str) -> ModelMetadata:
         """Retrieves model metadata on this subnet for specific hotkey"""
-        metadata = bt.extrinsics.serving.get_metadata(
-            self.subtensor, self.subnet_uid, hotkey
+
+        # Wrap calls to the subtensor in a subprocess with a timeout to handle potential hangs.
+        partial = functools.partial(
+            bt.extrinsics.serving.get_metadata, self.subtensor, self.subnet_uid, hotkey
         )
+        metadata = utils.run_in_subprocess(partial, 60)
 
         commitment = metadata["info"]["fields"][0]
         hex_data = commitment[list(commitment.keys())[0]][2:]
@@ -55,7 +64,7 @@ class ChainModelMetadataStore(ModelMetadataStore):
 async def test_store_model_metadata():
     """Verifies that the ChainModelMetadataStore can store data on the chain."""
     model_id = ModelId(
-        path="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
+        namespace="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
     )
 
     # Use a different subnet that does not leverage chain storage to avoid conflicts.
@@ -82,7 +91,7 @@ async def test_store_model_metadata():
 async def test_retrieve_model_metadata():
     """Verifies that the ChainModelMetadataStore can retrieve data from the chain."""
     expected_model_id = ModelId(
-        path="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
+        namespace="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
     )
 
     # Use a different subnet that does not leverage chain storage to avoid conflicts.
@@ -91,7 +100,7 @@ async def test_retrieve_model_metadata():
 
     # Uses .env configured hotkey/uid for the test.
     net_uid = int(os.getenv("TEST_SUBNET_UID"))
-    hotkey = os.getenv("TEST_HOTKEY")
+    hotkey_address = os.getenv("TEST_HOTKEY_ADDRESS")
 
     # Do not require a wallet for retrieving data.
     metadata_store = ChainModelMetadataStore(
@@ -99,7 +108,7 @@ async def test_retrieve_model_metadata():
     )
 
     # Retrieve the metadata from the chain.
-    model_metadata = await metadata_store.retrieve_model_metadata(hotkey)
+    model_metadata = await metadata_store.retrieve_model_metadata(hotkey_address)
 
     print(f"Expecting matching model id: {expected_model_id == model_metadata.id}")
 
@@ -108,7 +117,7 @@ async def test_retrieve_model_metadata():
 async def test_roundtrip_model_metadata():
     """Verifies that the ChainModelMetadataStore can roundtrip data on the chain."""
     model_id = ModelId(
-        path="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
+        namespace="TestPath", name="TestModel", hash="TestHash1", commit="1.0"
     )
 
     # Use a different subnet that does not leverage chain storage to avoid conflicts.

@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import datetime as dt
 import os
 import tqdm
 import json
@@ -26,6 +27,11 @@ import typing
 import random
 import asyncio
 import argparse
+from model.model_tracker import ModelTracker
+from model.model_updater import ModelUpdater
+from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
+from model.storage.disk.disk_model_store import DiskModelStore
+from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
 import pretrain
 import traceback
 import threading
@@ -36,14 +42,67 @@ from multiprocessing import Value
 
 import bittensor as bt
 import pretrain as pt
+from utilities.miner_iterator import MinerIterator
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 
 class Validator:
+    TRACKER_FILENAME = "model_tracker.pickle"
+
     @staticmethod
     def config():
         parser = argparse.ArgumentParser()
+        parser.add_argument(
+            "--device",
+            type=str,
+            default="cuda" if torch.cuda.is_available() else "cpu",
+            help="Device name.",
+        )
+        parser.add_argument(
+            "--wandb.off",
+            dest="wandb.on",
+            action="store_false",
+            help="Turn off wandb logging.",
+        )
+        parser.add_argument(
+            "--blocks_per_epoch",
+            type=int,
+            default=50,
+            help="Number of blocks to wait before setting weights.",
+        )
+        parser.add_argument(
+            "--pages_per_eval",
+            type=int,
+            default=3,
+            help="Number of pages used to eval each step.",
+        )
+        parser.add_argument(
+            "--sample_min",
+            type=int,
+            default=30,
+            help="Number of uids to eval each step.",
+        )
+        parser.add_argument(
+            "--reset_wandb",
+            action="store_true",
+            help="Creates a new wandb run instead of using an older on.",
+        )
+        parser.add_argument(
+            "--dont_set_weights",
+            action="store_true",
+            help="Validator does not set weights on the chain.",
+        )
+        parser.add_argument(
+            "--offline",
+            action="store_true",
+            help="Does not launch a wandb run, does not set weights, does not check that your key is registered.",
+        )
+        parser.add_argument(
+            "--test",
+            action="store_true",
+            help="Runs steps with max 3 uids to eval for faster testing.",
+        )
         parser.add_argument(
             "--device",
             type=str,
@@ -151,6 +210,40 @@ class Validator:
         self.uids_to_eval = set(self.uids_to_eval)
         self.pending_uids_to_eval = set()
 
+        # Setup a model tracker to track which miner is using which model id.
+        self.model_tracker = ModelTracker()
+
+        # Load the state of the validator from file.
+        filepath = os.path.join(
+            self.config.neuron.full_path, Validator.TRACKER_FILENAME
+        )
+
+        if not os.path.exists(filepath):
+            bt.logging.warning("No state file found. Starting from scratch.")
+
+        self.model_tracker.load_state(filepath)
+
+        # Setup a miner iterator to ensure we update all miners.
+        # This subnet does not differentiate between miner and validators so this is passed all uids.
+        self.miner_iterator = MinerIterator(self.metagraph.uids.tolist())
+
+        # Setup a ModelMetadataStore
+        self.metadata_store = ChainModelMetadataStore(self.subtensor, self.wallet)
+
+        # Setup a RemoteModelStore
+        self.remote_store = HuggingFaceModelStore()
+
+        # Setup a LocalModelStore
+        self.local_store = DiskModelStore()
+
+        # Setup a model updater to download models as needed to match the latest provided miner metadata.
+        self.model_updater = ModelUpdater(
+            metadata_store=self.metadata_store,
+            remote_store=self.remote_store,
+            local_store=self.local_store,
+            model_tracker=self.model_tracker,
+        )
+
         # == Initialize the update thread ==
         self.stop_event = threading.Event()
         self.update_thread = threading.Thread(target=self.update_models, daemon=True)
@@ -161,29 +254,46 @@ class Validator:
             self.stop_event.set()
             self.update_thread.join()
 
+    def save_state(self):
+        """Saves the state of the validator to a file."""
+        bt.logging.trace("Saving validator state.")
+
+        if not os.path.exists(self.config.neuron.full_path):
+            os.makedirs(self.config.neuron.full_path)
+
+        # Save the state of the validator to file.
+        self.model_tracker.save_state(
+            os.path.join(self.config.neuron.full_path, Validator.TRACKER_FILENAME)
+        )
+
     def update_models(self):
+        # Track how recently we updated each uid
+        uid_last_checked = dict()
+
         # The below loop iterates across all miner uids and checks to see
         # if they should be updated.
-        last_uid_update = -1
         while not self.stop_event.is_set():
             try:
-                if self.stop_event.is_set():
-                    return
-                block = self.try_get_block(10)
-                if block == None:
-                    continue
-                uid = block % 256
-                if uid == last_uid_update:
-                    time.sleep(1)
-                    continue
-                last_uid_update = uid
-                bt.logging.success(f"Syncing miner for uid: {uid} and block: {block}")
-                if pt.graph.sync(uid, self.metagraph):
-                    bt.logging.success(f"Pulled new model for uid: {uid}")
-                else:
-                    bt.logging.success(f"Model up to date for uid: {uid}")
-                bt.logging.trace(f"adding {uid} to pending uids to eval.")
-                self.pending_uids_to_eval.add(uid)
+                # Get the next uid to check
+                next_uid = next(self.miner_iterator)
+
+                # Confirm that we haven't checked it in the last 5 minutes.
+                time_diff = (
+                    uid_last_checked[next_uid] - dt.now()
+                    if next_uid in uid_last_checked
+                    else None
+                )
+
+                if time_diff and time_diff < dt.timedelta(minutes=5):
+                    # If we have seen it within 5 minutes then sleep until it has been at least 5 minutes.
+                    time.sleep((dt.timedelta(minutes=5) - time_diff).total_seconds())
+
+                # Get their hotkey from the metagraph.
+                hotkey = self.metagraph.hotkeys[next_uid]
+
+                # Compare metadata and tracker, syncing new model from remote store to local if necessary.
+                asyncio.run(self.model_updater.sync_model(hotkey, self.loc))
+
             except Exception as e:
                 bt.logging.error(f"Error in update loop: {e}")
 
@@ -244,6 +354,7 @@ class Validator:
         def sync_metagraph(endpoint):
             metagraph = bt.subtensor(endpoint).metagraph(pt.NETUID)
             metagraph.save()
+            self.miner_iterator.set_miner_uids(metagraph.uids.tolist())
 
         process = multiprocessing.Process(
             target=sync_metagraph, args=(self.subtensor.chain_endpoint,)
@@ -471,6 +582,7 @@ class Validator:
                 ):
                     await self.try_run_step(ttl=60 * 20)
                     await self.try_sync_metagraph(ttl=60)
+                    self.save_state()
                     bt.logging.debug(
                         f"{self.metagraph.block.item() - self.last_epoch } / {self.config.blocks_per_epoch} blocks until next epoch."
                     )

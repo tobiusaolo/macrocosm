@@ -12,27 +12,27 @@ class ModelId(BaseModel):
         extra = "forbid"
 
     # TODO add pydantic validations on underlying fields.
-    path: str = Field(
-        description="Path to where this model can be found. ex. a huggingface.io repo."
+    namespace: str = Field(
+        description="Namespace where the model can be found. ex. Hugging Face username/org."
     )
     name: str = Field(description="Name of the model.")
     commit: Optional[str] = Field(
-        description="Commit of the model. May be empty if not yet commited."
+        description="Commit of the model. May be empty if not yet committed."
     )
     hash: str = Field(description="Hash of the trained model.")
 
     def to_compressed_str(self) -> str:
         """Returns a compressed string representation."""
-        return f"{self.path}:{self.name}:{self.commit}:{self.hash}"
+        return f"{self.namespace}:{self.name}:{self.commit}:{self.hash}"
 
     @classmethod
     def from_compressed_str(cls, cs: str) -> Type["ModelId"]:
         """Returns an instance of this class from a compressed string representation"""
         tokens = cs.split(":")
         return cls(
-            path=tokens[0],
+            namespace=tokens[0],
             name=tokens[1],
-            commit=tokens[2],
+            commit=tokens[2] if tokens[2] != "None" else None,
             hash=tokens[3],
         )
 
