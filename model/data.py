@@ -16,9 +16,13 @@ class ModelId(BaseModel):
         description="Namespace where the model can be found. ex. Hugging Face username/org."
     )
     name: str = Field(description="Name of the model.")
+
+    # When handling a model locally the commit and hash are not necessary.
+    # Commit must be filled when trying to download from a remote store.
     commit: Optional[str] = Field(
         description="Commit of the model. May be empty if not yet committed."
     )
+    # Hash is filled automatically when uploading to or downloading from a remote store.
     hash: Optional[str] = Field(description="Hash of the trained model.")
 
     def to_compressed_str(self) -> str:

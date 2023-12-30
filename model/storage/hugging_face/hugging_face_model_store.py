@@ -1,5 +1,5 @@
 import asyncio
-import shutil
+import tempfile
 import bittensor as bt
 import os
 from model.data import Model, ModelId
@@ -13,7 +13,7 @@ class HuggingFaceModelStore(RemoteModelStore):
     """Hugging Face based implementation for storing and retrieving a model."""
 
     async def upload_model(self, model: Model) -> ModelId:
-        """Uploads a trained model to Hugging Face and also roundtrips it locally."""
+        """Uploads a trained model to Hugging Face."""
         token = os.getenv("HF_ACCESS_TOKEN")
         if not token:
             raise ValueError("No Hugging Face access token found to write to the hub.")
@@ -34,12 +34,10 @@ class HuggingFaceModelStore(RemoteModelStore):
 
         # TODO consider skipping the redownload if a hash is already provided.
         # To get the hash we need to redownload it at a local tmp directory after which it can be deleted.
-        tmp_path = "sn9_tmp"
-        model_with_hash = await self.download_model(model_id_with_commit, tmp_path)
-        shutil.rmtree(path=tmp_path, ignore_errors=True)
-
-        # Return a ModelId with both the correct commit and hash.
-        return model_with_hash.id
+        with tempfile.TemporaryDirectory() as temp_dir:
+            model_with_hash = await self.download_model(model_id_with_commit, temp_dir)
+            # Return a ModelId with both the correct commit and hash.
+            return model_with_hash.id
 
     # TODO actually make this asynchronous with threadpools etc.
     async def download_model(self, model_id: ModelId, local_path: str) -> Model:

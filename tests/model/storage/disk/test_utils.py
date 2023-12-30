@@ -1,3 +1,4 @@
+import base64
 import datetime
 import shutil
 import time
@@ -115,10 +116,8 @@ class TestUtils(unittest.TestCase):
         file.write("test text.")
         file.close()
 
-        # Obtained by running sha256sum test.txt
-        expected_file_hash = (
-            "b57343bc7573a98211894c74aef2be339f8bbb838bce17cf247fa07fb1ef09e0"
-        )
+        # Obtained by running openssl dgst -sha256 -binary test.txt | base64
+        expected_file_hash = "tXNDvHVzqYIRiUx0rvK+M5+Lu4OLzhfPJH+gf7HvCeA="
         actual_file_hash = utils.get_hash_of_file(path)
 
         self.assertEqual(actual_file_hash, expected_file_hash)

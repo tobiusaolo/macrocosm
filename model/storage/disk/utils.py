@@ -1,3 +1,4 @@
+import base64
 import datetime
 import hashlib
 import os
@@ -48,14 +49,14 @@ def remove_dir_out_of_grace(path: str, grace_period_seconds: int):
 
 def get_hash_of_file(path: str) -> str:
     blocksize = 64 * 1024
-    sha = hashlib.sha256()
+    file_hash = hashlib.sha256()
     with open(path, "rb") as fp:
         while True:
             data = fp.read(blocksize)
             if not data:
                 break
-            sha.update(data)
-    return sha.hexdigest()
+            file_hash.update(data)
+    return base64.b64encode(file_hash.digest()).decode("utf-8")
 
 
 def get_hash_of_directory(path: str) -> str:
@@ -71,4 +72,4 @@ def get_hash_of_directory(path: str) -> str:
             file_hash = get_hash_of_file(path)
             dir_hash.update(file_hash.encode())
 
-    return dir_hash.hexdigest()
+    return base64.b64encode(dir_hash.digest()).decode("utf-8")
