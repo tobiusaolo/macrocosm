@@ -33,7 +33,7 @@ def run_in_subprocess(func: functools.partial, ttl: int) -> Any:
     """Runs the provided function on a subprocess with 'ttl' seconds to complete.
 
     Args:
-        func (functools.partial): Function to be run. MUST NOT BE A NESTED FUNCTION
+        func (functools.partial): Function to be run.
         ttl (int): How long to try for in seconds.
 
     Returns:

@@ -163,7 +163,7 @@ async def load_starting_model(
         # Get the best UID be incentive and load it.
         best_uid = pt.graph.best_uid(metagraph)
         model = await actions.load_remote_model(best_uid, metagraph, model_dir)
-        bt.logging.success(f"Training with best uid: {best_uid}")
+        bt.logging.success(f"Training with model from best uid: {best_uid}")
         return model
 
     # Initialize the model based on a passed uid.

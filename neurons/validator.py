@@ -40,7 +40,6 @@ from multiprocessing import Value
 import bittensor as bt
 import pretrain as pt
 from utilities.miner_iterator import MinerIterator
-from pretrain import constants
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -122,14 +121,14 @@ class Validator:
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
         self.dendrite = bt.dendrite(wallet=self.wallet)
-        self.metagraph = self.subtensor.metagraph(pt.NETUID)
+        self.metagraph = self.subtensor.metagraph(pt.SUBNET_UID)
         torch.backends.cudnn.benchmark = True
 
         # Dont check registration status if offline.
         if not self.config.offline:
             if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
                 raise Exception(
-                    f"You are not registered. Use `btcli s register --netuid {pt.NETUID}` to register."
+                    f"You are not registered. Use `btcli s register --netuid {pt.SUBNET_UID}` to register."
                 )
             self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
             bt.logging.success(
@@ -238,7 +237,7 @@ class Validator:
 
                 # Confirm that we haven't checked it in the last 5 minutes.
                 time_diff = (
-                    uid_last_checked[next_uid] - dt.now()
+                    uid_last_checked[next_uid] - dt.datetime.now()
                     if next_uid in uid_last_checked
                     else None
                 )
@@ -302,7 +301,7 @@ class Validator:
             try:
                 self.weights.nan_to_num(0.0)
                 self.subtensor.set_weights(
-                    netuid=pt.NETUID,
+                    netuid=pt.SUBNET_UID,
                     wallet=self.wallet,
                     uids=self.metagraph.uids,
                     weights=self.weights,
@@ -329,7 +328,7 @@ class Validator:
 
     async def try_sync_metagraph(self, ttl: int):
         def sync_metagraph(endpoint):
-            metagraph = bt.subtensor(endpoint).metagraph(pt.NETUID)
+            metagraph = bt.subtensor(endpoint).metagraph(pt.SUBNET_UID)
             metagraph.save()
             self.miner_iterator.set_miner_uids(metagraph.uids.tolist())
 
