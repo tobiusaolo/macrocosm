@@ -7,7 +7,7 @@ from model.model_updater import ModelUpdater
 from model.storage.disk.disk_model_store import DiskModelStore
 from tests.model.storage.fake_model_metadata_store import FakeModelMetadataStore
 from tests.model.storage.fake_remote_model_store import FakeRemoteModelStore
-from transformers import DistilBertModel, DistilBertConfig
+from pretrain.model import get_model
 
 
 class TestModelUpdater(unittest.TestCase):
@@ -65,11 +65,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        pt_model = DistilBertModel(
-            config=DistilBertConfig(
-                vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-            )
-        )
+        pt_model = get_model()
         model = Model(id=model_id, pt_model=pt_model)
 
         # Setup the metadata, local, and model_tracker to match.
@@ -93,11 +89,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        pt_model = DistilBertModel(
-            config=DistilBertConfig(
-                vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-            )
-        )
+        pt_model = get_model()
         model = Model(id=model_id, pt_model=pt_model)
 
         # Setup the metadata and remote store but not local or the model_tracker.

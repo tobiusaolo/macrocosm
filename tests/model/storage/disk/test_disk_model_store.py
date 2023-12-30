@@ -1,9 +1,9 @@
 import unittest
 
 from model.data import ModelId, Model
-from transformers import DistilBertModel, DistilBertConfig
-
 from model.storage.disk.disk_model_store import DiskModelStore
+from pretrain.model import get_model
+
 import model.storage.disk.utils as utils
 
 
@@ -37,11 +37,7 @@ class TestDiskModelStore(unittest.TestCase):
             commit="TestCommit",
         )
 
-        pt_model = DistilBertModel(
-            config=DistilBertConfig(
-                vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-            )
-        )
+        pt_model = get_model()
 
         model = Model(id=model_id, pt_model=pt_model)
 
@@ -71,11 +67,7 @@ class TestDiskModelStore(unittest.TestCase):
             commit="TestCommit2",
         )
 
-        pt_model = DistilBertModel(
-            config=DistilBertConfig(
-                vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-            )
-        )
+        pt_model = get_model()
 
         model_1 = Model(id=model_id_1, pt_model=pt_model)
         model_2 = Model(id=model_id_2, pt_model=pt_model)
@@ -117,11 +109,7 @@ class TestDiskModelStore(unittest.TestCase):
             commit="TestCommit2",
         )
 
-        pt_model = DistilBertModel(
-            config=DistilBertConfig(
-                vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-            )
-        )
+        pt_model = get_model()
 
         model_1 = Model(id=model_id_1, pt_model=pt_model)
         model_2 = Model(id=model_id_2, pt_model=pt_model)
@@ -162,11 +150,7 @@ class TestDiskModelStore(unittest.TestCase):
             commit="TestCommit2",
         )
 
-        pt_model = DistilBertModel(
-            config=DistilBertConfig(
-                vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-            )
-        )
+        pt_model = get_model()
 
         model_1 = Model(id=model_id_1, pt_model=pt_model)
         model_2 = Model(id=model_id_2, pt_model=pt_model)
@@ -208,11 +192,7 @@ class TestDiskModelStore(unittest.TestCase):
             commit="TestCommit2",
         )
 
-        pt_model = DistilBertModel(
-            config=DistilBertConfig(
-                vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-            )
-        )
+        pt_model = get_model()
 
         model_1 = Model(id=model_id_1, pt_model=pt_model)
         model_2 = Model(id=model_id_2, pt_model=pt_model)
