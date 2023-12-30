@@ -1,4 +1,5 @@
 import asyncio
+import shutil
 import bittensor as bt
 import os
 from model.data import Model, ModelId
@@ -11,7 +12,7 @@ from model.storage.remote_model_store import RemoteModelStore
 class HuggingFaceModelStore(RemoteModelStore):
     """Hugging Face based implementation for storing and retrieving a model."""
 
-    async def upload_model(self, model: Model, local_path: str) -> ModelId:
+    async def upload_model(self, model: Model) -> ModelId:
         """Uploads a trained model to Hugging Face and also roundtrips it locally."""
         token = os.getenv("HF_ACCESS_TOKEN")
         if not token:
@@ -31,8 +32,11 @@ class HuggingFaceModelStore(RemoteModelStore):
             commit=commit_info.oid,
         )
 
-        # To get the hash we need to redownload it at a provided local_path
-        model_with_hash = await self.download_model(model_id_with_commit, local_path)
+        # TODO consider skipping the redownload if a hash is already provided.
+        # To get the hash we need to redownload it at a local tmp directory after which it can be deleted.
+        tmp_path = "sn9_tmp"
+        model_with_hash = await self.download_model(model_id_with_commit, tmp_path)
+        shutil.rmtree(path=tmp_path, ignore_errors=True)
 
         # Return a ModelId with both the correct commit and hash.
         return model_with_hash.id
@@ -69,8 +73,6 @@ async def test_roundtrip_model():
     model_id = ModelId(
         namespace=hf_name,
         name="TestModel",
-        hash="TestHash1",
-        commit="main",
     )
 
     pt_model = DistilBertModel(
@@ -83,14 +85,12 @@ async def test_roundtrip_model():
     hf_model_store = HuggingFaceModelStore()
 
     # Store the model in hf getting back the id with commit and hash.
-    model.id = await hf_model_store.upload_model(
-        model, utils.get_local_model_dir("test-models", "hotkey00", model.id)
-    )
+    model.id = await hf_model_store.upload_model(model)
 
-    # Retrieve the model from hf. Store at a different hotkey to avoid overwriting.
+    # Retrieve the model from hf.
     retrieved_model = await hf_model_store.download_model(
         model_id=model.id,
-        local_path=utils.get_local_model_dir("test-models", "hotkey01", model.id),
+        local_path=utils.get_local_model_dir("test-models", "hotkey0", model.id),
     )
 
     # Check that they match.

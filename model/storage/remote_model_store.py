@@ -6,8 +6,8 @@ class RemoteModelStore(abc.ABC):
     """An abstract base class for storing and retrieving a pre trained model."""
 
     @abc.abstractmethod
-    async def upload_model(self, model: Model, local_path: str) -> ModelId:
-        """Uploads a trained model in the appropriate location based on implementation and stores a copy at the given path."""
+    async def upload_model(self, model: Model) -> ModelId:
+        """Uploads a trained model in the appropriate location based on implementation."""
         pass
 
     @abc.abstractmethod

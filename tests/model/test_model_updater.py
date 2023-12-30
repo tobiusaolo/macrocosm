@@ -102,7 +102,7 @@ class TestModelUpdater(unittest.TestCase):
 
         # Setup the metadata and remote store but not local or the model_tracker.
         asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_id))
-        asyncio.run(self.remote_store.upload_model(model, "test-models"))
+        asyncio.run(self.remote_store.upload_model(model))
 
         self.assertIsNone(self.model_tracker.get_model_id_for_miner_hotkey(hotkey))
 
