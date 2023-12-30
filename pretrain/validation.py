@@ -26,62 +26,58 @@ import traceback
 import bittensor as bt
 
 
-def iswin(loss_i, loss_j, time_i, time_j):
+def iswin(loss_i, loss_j, block_i, block_j):
     """
     Determines the winner between two models based on the epsilon adjusted loss.
 
     Parameters:
         loss_i (float): Loss of uid i on batch
         loss_j (float): Loss of uid j on batch.
-        time_i (float): Timestamp of uid i.
-        time_j (float): Timestamp of uid j.
+        block_i (int): Block of uid i.
+        block_j (int): Block of uid j.
     Returns:
         bool: True if loss i is better, False otherwise.
     """
     # Adjust loss based on timestamp and pretrain epsilon
-    loss_i = (1 - pretrain.timestamp_epsilon) * loss_i if time_i < time_j else loss_i
-    loss_j = (1 - pretrain.timestamp_epsilon) * loss_j if time_j < time_i else loss_j
+    loss_i = (1 - pretrain.timestamp_epsilon) * loss_i if block_i < block_j else loss_i
+    loss_j = (1 - pretrain.timestamp_epsilon) * loss_j if block_j < block_i else loss_j
     return loss_i < loss_j
 
 
 def compute_wins(
     uids: typing.List[int],
-    losses: typing.Dict[int, typing.List[float]],
+    losses_per_uid: typing.Dict[int, typing.List[float]],
     batches: typing.List[torch.FloatTensor],
-    timestamps: typing.Dict[int, float],
+    uid_to_block: typing.Dict[int, int],
 ):
     """
     Computes the wins and win rate for each model based on loss comparison.
 
     Parameters:
-        losses (dict): A dictionary of losses for each uid.
-        batches (dict): A dictionary of data batches.
-        timestamps (dict): A dictionary of timestamps for each uid.
+        uids (list): A list of uids to compare.
+        losses_per_uid (dict): A dictionary of losses for each uid by batch.
+        batches (List): A list of data batches.
+        uid_to_block (dict): A dictionary of blocks for each uid.
 
     Returns:
         tuple: A tuple containing two dictionaries, one for wins and one for win rates.
     """
-    uids = losses.keys()
     wins = {uid: 0 for uid in uids}
     win_rate = {uid: 0 for uid in uids}
-
-    # Iterate over each pair of models
-    for i in uids:
-        time_i = timestamps[i]
-        loss_i = losses[i]
+    for i, uid_i in enumerate(uids):
         total_matches = 0
-        for j in uids:
+        block_i = uid_to_block[uid_i]
+        for j, uid_j in enumerate(uids):
             if i == j:
                 continue
-            time_j = timestamps[i]
-            loss_j = losses[i]
-            for b, _ in enumerate(batches):
-                # Increment wins for model i if it's better than model j
-                wins[i] += 1 if iswin(loss_i, loss_j, time_i, time_j) else 0
+            block_j = uid_to_block[uid_j]
+            for batch_idx, _ in enumerate(batches):
+                loss_i = losses_per_uid[uid_i][batch_idx]
+                loss_j = losses_per_uid[uid_j][batch_idx]
+                wins[uid_i] += 1 if iswin(loss_i, loss_j, block_i, block_j) else 0
                 total_matches += 1
-
-        # Calculate win rate for model i
-        win_rate[i] = wins[i] / total_matches if total_matches > 0 else 0
+        # Calculate win rate for uid i
+        win_rate[uid_i] = wins[uid_i] / total_matches if total_matches > 0 else 0
 
     return wins, win_rate
 
