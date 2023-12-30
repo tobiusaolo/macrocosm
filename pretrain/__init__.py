@@ -53,3 +53,6 @@ ROOT_DIR = Path(__file__).parent.parent
 from . import dataset
 from . import mining
 from . import model
+
+# The maximum bytes for the hugging face repo (1 Gigabyte).
+MAX_HUGGING_FACE_BYTES = 1 * 1024 * 1024 * 1024

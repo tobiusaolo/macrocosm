@@ -2,12 +2,14 @@ import asyncio
 import tempfile
 import bittensor as bt
 import os
+from huggingface_hub import HfApi
 from model.data import Model, ModelId
 from model.storage.disk import utils
 from transformers import AutoModelForCausalLM
 
 from model.storage.remote_model_store import RemoteModelStore
 from pretrain.model import get_model
+import pretrain
 
 
 class HuggingFaceModelStore(RemoteModelStore):
@@ -51,9 +53,22 @@ class HuggingFaceModelStore(RemoteModelStore):
         if not model_id.commit:
             raise ValueError("No Hugging Face commit id found to read from the hub.")
 
+        repo_id = model_id.namespace + "/" + model_id.name
+
+        # Check ModelInfo for the size of model.safetensors file before downloading.
+        api = HfApi()
+        model_info = api.model_info(
+            repo_id=repo_id, revision=model_id.commit, timeout=10, files_metadata=True
+        )
+        size = sum(repo_file.size for repo_file in model_info.siblings)
+        if size > pretrain.MAX_HUGGING_FACE_BYTES:
+            raise ValueError(
+                f"Hugging Face repo over maximum size limit. Size {size}. Limit {pretrain.MAX_HUGGING_FACE_BYTES}."
+            )
+
         # Transformers library can pick up a model based on the hugging face path (username/model) + rev.
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name_or_path=model_id.namespace + "/" + model_id.name,
+            pretrained_model_name_or_path=repo_id,
             revision=model_id.commit,
             cache_dir=local_path,
             use_safetensors=True,
@@ -120,6 +135,27 @@ async def test_retrieve_model():
     print(f"Finished retrieving the model with id: {model.id}")
 
 
+async def test_retrieve_oversized_model():
+    """Verifies that the HuggingFaceModelStore can raise an exception if the model is too big."""
+    model_id = ModelId(
+        namespace="microsoft",
+        name="phi-2",
+        hash="TestHash1",
+        commit="d318676",
+    )
+
+    hf_model_store = HuggingFaceModelStore()
+
+    try:
+        model = await hf_model_store.download_model(
+            model_id=model_id,
+            local_path=utils.get_local_model_dir("test-models", "hotkey0", model_id),
+        )
+    except ValueError as ve:
+        print(f"Caught expected exception for downloading too large of a model: {ve}")
+
+
 if __name__ == "__main__":
     asyncio.run(test_retrieve_model())
     asyncio.run(test_roundtrip_model())
+    asyncio.run(test_retrieve_oversized_model())
