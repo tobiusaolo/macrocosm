@@ -12,5 +12,5 @@ class RemoteModelStore(abc.ABC):
 
     @abc.abstractmethod
     async def download_model(self, model_id: ModelId, local_path: str) -> Model:
-        """Retrieves a trained model from the appropriate location and stores at the given path based on implementation."""
+        """Retrieves a trained model from the appropriate location and stores at the given path."""
         pass

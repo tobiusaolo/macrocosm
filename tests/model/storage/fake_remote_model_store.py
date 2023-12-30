@@ -11,7 +11,7 @@ class FakeRemoteModelStore(RemoteModelStore):
     async def upload_model(self, model: Model) -> ModelId:
         """Fake uploads a model."""
 
-        # Use provided commit rather than generating a new one.
+        # Use provided commit + hash rather than generating a new one.
         self.remote_models[model.id] = model
 
         return model.id

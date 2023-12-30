@@ -1,4 +1,5 @@
 import asyncio
+import tempfile
 import bittensor as bt
 import os
 from model.data import Model, ModelId
@@ -24,13 +25,19 @@ class HuggingFaceModelStore(RemoteModelStore):
             safe_serialization=True,
         )
 
-        # Return a new ModelId with the uploaded commit.
-        return ModelId(
+        model_id_with_commit = ModelId(
             namespace=model.id.namespace,
             name=model.id.name,
             hash=model.id.hash,
             commit=commit_info.oid,
         )
+
+        # TODO consider skipping the redownload if a hash is already provided.
+        # To get the hash we need to redownload it at a local tmp directory after which it can be deleted.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            model_with_hash = await self.download_model(model_id_with_commit, temp_dir)
+            # Return a ModelId with both the correct commit and hash.
+            return model_with_hash.id
 
     # TODO actually make this asynchronous with threadpools etc.
     async def download_model(self, model_id: ModelId, local_path: str) -> Model:
@@ -46,7 +53,16 @@ class HuggingFaceModelStore(RemoteModelStore):
             use_safetensors=True,
         )
 
-        return Model(id=model_id, pt_model=model)
+        # Compute the hash of the downloaded model.
+        model_hash = utils.get_hash_of_directory(local_path)
+        model_id_with_hash = ModelId(
+            namespace=model_id.namespace,
+            name=model_id.name,
+            commit=model_id.commit,
+            hash=model_hash,
+        )
+
+        return Model(id=model_id_with_hash, pt_model=model)
 
 
 async def test_roundtrip_model():
@@ -55,8 +71,6 @@ async def test_roundtrip_model():
     model_id = ModelId(
         namespace=hf_name,
         name="TestModel",
-        hash="TestHash1",
-        commit="main",
     )
 
     pt_model = DistilBertModel(
@@ -68,8 +82,8 @@ async def test_roundtrip_model():
     model = Model(id=model_id, pt_model=pt_model)
     hf_model_store = HuggingFaceModelStore()
 
-    # Store the model in hf getting back the id with commit.
-    model.id = await hf_model_store.upload_model(model=model)
+    # Store the model in hf getting back the id with commit and hash.
+    model.id = await hf_model_store.upload_model(model)
 
     # Retrieve the model from hf.
     retrieved_model = await hf_model_store.download_model(

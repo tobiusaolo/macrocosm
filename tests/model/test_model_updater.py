@@ -118,24 +118,3 @@ class TestModelUpdater(unittest.TestCase):
         self.assertEqual(
             str(self.local_store.retrieve_model(hotkey, model_id)), str(model)
         )
-
-
-'''
-    def sync_model(self, hotkey: str):
-        """Updates local model for a hotkey if out of sync."""
-        # Get the metadata for the miner.
-        metadata = self._get_metadata(hotkey)
-
-        # Check what model id the model tracker currently has for this hotkey.
-        tracker_model_id = self.model_tracker.get_model_id_for_miner_hotkey(hotkey)
-        if metadata.id == tracker_model_id:
-            return
-
-        # Get the local path based on the local store.
-        path = self.local_store.get_path(hotkey, metadata.id)
-
-        # Otherwise we need to read the new model (which stores locally) based on the metadata.
-        self.remote_store.download_model(metadata.id, path)
-
-
-'''
