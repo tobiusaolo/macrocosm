@@ -1,9 +1,10 @@
-import asyncio
-import shutil
+import bittensor as bt
+from typing import Dict
 from model.data import Model, ModelId
-from model.storage import utils
+from model.storage.disk import utils
 from model.storage.local_model_store import LocalModelStore
-from transformers import AutoModel, DistilBertModel, DistilBertConfig
+from transformers import AutoModel
+from pathlib import Path
 
 
 class DiskModelStore(LocalModelStore):
@@ -11,19 +12,6 @@ class DiskModelStore(LocalModelStore):
 
     def __init__(self, base_dir: str):
         self.base_dir = base_dir
-
-    def delete_models(self, hotkey: str):
-        """Deletes all models for a given hotkey."""
-        shutil.rmtree(
-            path=utils.get_local_miner_dir(self.base_dir, hotkey), ignore_errors=True
-        )
-
-    def delete_model(self, hotkey: str, model_id: ModelId):
-        """Delete the given model."""
-        shutil.rmtree(
-            path=utils.get_local_model_dir(self.base_dir, hotkey, model_id),
-            ignore_errors=True,
-        )
 
     def get_path(self, hotkey: str, model_id: ModelId) -> str:
         """Returns the path to where this store would locate this model."""
@@ -54,41 +42,41 @@ class DiskModelStore(LocalModelStore):
 
         return Model(id=model_id, pt_model=model)
 
+    def delete_unreferenced_models(
+        self, valid_models_by_hotkey: Dict[str, ModelId], grace_period_seconds: int
+    ):
+        """Check across all of local storage and delete unreferenced models out of grace period."""
+        # Create a set of valid model paths.
+        valid_model_paths = set()
+        for hotkey, model_id in valid_models_by_hotkey.items():
+            valid_model_paths.add(
+                utils.get_local_model_dir(self.base_dir, hotkey, model_id)
+            )
 
-async def test_roundtrip_model():
-    """Verifies that the LocalModelStore can roundtrip a model."""
-    model_id = ModelId(
-        namespace="TestPath",
-        name="TestModel",
-        hash="TestHash1",
-    )
+        # For each hotkey path on disk using listdir to go one level deep.
+        miners_dir = Path(utils.get_local_miners_dir(self.base_dir))
+        hotkey_subfolder_names = [d.name for d in miners_dir.iterdir() if d.is_dir]
 
-    pt_model = DistilBertModel(
-        config=DistilBertConfig(
-            vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-        )
-    )
+        for hotkey in hotkey_subfolder_names:
+            # Reconstruct the path from the hotkey
+            hotkey_path = utils.get_local_miner_dir(self.base_dir, hotkey)
 
-    model = Model(id=model_id, pt_model=pt_model)
-    disk_model_store = DiskModelStore("test-models")
+            # If it is not in valid_hotkeys and out of grace period remove it.
+            if hotkey not in valid_models_by_hotkey:
+                bt.logging.trace(
+                    f"Removing directory for unreferenced hotkey: {hotkey} if out of grace."
+                )
+                utils.remove_dir_out_of_grace(hotkey_path, grace_period_seconds)
+            else:
+                # Check all the model subfolder paths.
+                hotkey_dir = Path(hotkey_path)
+                model_subfolder_paths = [
+                    str(d) for d in hotkey_dir.iterdir() if d.is_dir
+                ]
 
-    # Clear the local storage
-    disk_model_store.delete_model(hotkey="hotkey0", model_id=model_id)
-
-    # Store the model locally.
-    disk_model_store.store_model(hotkey="hotkey0", model=model)
-
-    # Retrieve the model locally.
-    retrieved_model = disk_model_store.retrieve_model(
-        hotkey="hotkey0", model_id=model_id
-    )
-
-    # Check that they match.
-    # TODO create appropriate equality check.
-    print(
-        f"Finished the roundtrip and checking that the models match: {str(model) == str(retrieved_model)}"
-    )
-
-
-if __name__ == "__main__":
-    asyncio.run(test_roundtrip_model())
+                for model_path in model_subfolder_paths:
+                    if model_path not in valid_model_paths:
+                        bt.logging.trace(
+                            f"Removing directory for unreferenced model at: {model_path} if out of grace."
+                        )
+                        utils.remove_dir_out_of_grace(model_path, grace_period_seconds)

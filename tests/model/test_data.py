@@ -1,6 +1,6 @@
 import unittest
 from model.data import ModelId
-import model.storage.utils as utils
+import model.storage.disk.utils as utils
 import os
 
 

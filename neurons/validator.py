@@ -249,10 +249,15 @@ class Validator:
         self.update_thread = threading.Thread(target=self.update_models, daemon=True)
         self.update_thread.start()
 
+        # == Initialize the cleaner thread to remove outdated models ==
+        self.clean_thread = threading.Thread(target=self.clean_models, daemon=True)
+        self.clean_thread.start()
+
     def __del__(self):
         if hasattr(self, "stop_event"):
             self.stop_event.set()
             self.update_thread.join()
+            self.clean_thread.join()
 
     def save_state(self):
         """Saves the state of the validator to a file."""
@@ -296,6 +301,24 @@ class Validator:
 
             except Exception as e:
                 bt.logging.error(f"Error in update loop: {e}")
+
+        bt.logging.info("Exiting update models loop.")
+
+    def clean_models(self):
+        # The below loop checks to clear out all models in local storage that are no longer referenced.
+        while not self.stop_event.is_set():
+            try:
+                # Clean out unreferenced models older than 5 mintues.
+                self.local_store.delete_unreferenced_models(
+                    self.model_tracker.get_miner_hotkey_to_model_id_dict(), 300
+                )
+            except Exception as e:
+                bt.logging.error(f"Error in clean loop: {e}")
+
+            # Only check every 5 minutes.
+            time.sleep(dt.timedelta(minutes=5))
+
+        bt.logging.info("Exiting clean models loop.")
 
     def try_get_block(self, ttl: int):
         def get_block(endpoint, queue):

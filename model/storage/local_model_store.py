@@ -1,4 +1,5 @@
 import abc
+from typing import Dict
 from model.data import Model, ModelId
 
 
@@ -21,11 +22,8 @@ class LocalModelStore(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def delete_models(self, hotkey: str):
-        """Deletes all models for a given hotkey."""
-        pass
-
-    @abc.abstractmethod
-    def delete_model(self, hotkey: str, model_id: ModelId):
-        """Delete the given model."""
+    def delete_unreferenced_models(
+        self, valid_models_by_hotkey: Dict[str, ModelId], grace_period_seconds: int
+    ):
+        """Check across all of local storage and delete unreferenced models out of grace period."""
         pass
