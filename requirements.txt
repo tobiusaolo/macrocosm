@@ -2,6 +2,7 @@ bittensor
 matplotlib
 numpy
 pydantic==1.10
+python-dotenv
 rich
 safetensors
 torch

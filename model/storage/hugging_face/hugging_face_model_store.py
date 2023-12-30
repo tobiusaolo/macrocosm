@@ -12,6 +12,12 @@ from model.storage.remote_model_store import RemoteModelStore
 class HuggingFaceModelStore(RemoteModelStore):
     """Hugging Face based implementation for storing and retrieving a model."""
 
+    @classmethod
+    def assert_access_token_exists(cls):
+        """Asserts that the access token exists."""
+        if not os.getenv("HF_ACCESS_TOKEN"):
+            raise ValueError("No Hugging Face access token found to write to the hub.")
+
     async def upload_model(self, model: Model) -> ModelId:
         """Uploads a trained model to Hugging Face."""
         token = os.getenv("HF_ACCESS_TOKEN")

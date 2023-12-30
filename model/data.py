@@ -1,6 +1,8 @@
-from typing import Any, Dict, Optional, Type
+from typing import Any, ClassVar, Dict, Optional, Type
 from transformers import PreTrainedModel
 from pydantic import BaseModel, Field, PositiveInt
+
+import pretrain
 
 
 class ModelId(BaseModel):
@@ -10,6 +12,13 @@ class ModelId(BaseModel):
     class Config:
         frozen = True
         extra = "forbid"
+
+    MAX_REPO_ID_LENGTH: ClassVar[int] = (
+        pretrain.MAX_METADATA_BYTES
+        - pretrain.GIT_COMMIT_LENGTH
+        - pretrain.SHA256_BASE_64_LENGTH
+        - 3  # separators
+    )
 
     # TODO add pydantic validations on underlying fields.
     namespace: str = Field(

@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from utils.perf_monitor import PerfMonitor
+from utilities.perf_monitor import PerfMonitor
 
 
 class TestPerfMonitor(unittest.TestCase):

@@ -2,7 +2,12 @@
 .vscode/
 
 test-models/
+
+# Exclude the Miner's directory for saving the models.
+local-models/
 neurons/pretraining_model/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
