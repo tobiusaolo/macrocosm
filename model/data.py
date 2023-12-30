@@ -2,7 +2,12 @@ from typing import Any, ClassVar, Dict, Optional, Type
 from transformers import PreTrainedModel
 from pydantic import BaseModel, Field, PositiveInt
 
-import pretrain
+# The maximum bytes for metadata on the chain.
+MAX_METADATA_BYTES = 128
+# The length, in bytes, of a git commit hash.
+GIT_COMMIT_LENGTH = 40
+# The length, in bytes, of a base64 encoded sha256 hash.
+SHA256_BASE_64_LENGTH = 44
 
 
 class ModelId(BaseModel):
@@ -14,10 +19,7 @@ class ModelId(BaseModel):
         extra = "forbid"
 
     MAX_REPO_ID_LENGTH: ClassVar[int] = (
-        pretrain.MAX_METADATA_BYTES
-        - pretrain.GIT_COMMIT_LENGTH
-        - pretrain.SHA256_BASE_64_LENGTH
-        - 3  # separators
+        MAX_METADATA_BYTES - GIT_COMMIT_LENGTH - SHA256_BASE_64_LENGTH - 3  # separators
     )
 
     # TODO add pydantic validations on underlying fields.

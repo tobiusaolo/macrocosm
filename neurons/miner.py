@@ -123,6 +123,12 @@ def get_config():
         default=10,
         help="Number of pages trained on per epoch",
     )
+    parser.add_argument(
+        "--netuid",
+        type=str,
+        default=pt.SUBNET_UID,
+        help="The subnet UID.",
+    )
 
     # Include wallet and logging arguments from bittensor
     bt.wallet.add_args(parser)
@@ -135,7 +141,7 @@ def get_config():
     return config
 
 
-def assert_registered(wallet: bt.wallet, metagraph: bt.metagraph) -> int:
+def assert_registered(wallet: bt.wallet, metagraph: bt.metagraph, netuid: int) -> int:
     """Asserts the wallet is a registered miner and returns the miner's UID.
 
     Raises:
@@ -143,7 +149,7 @@ def assert_registered(wallet: bt.wallet, metagraph: bt.metagraph) -> int:
     """
     if wallet.hotkey.ss58_address not in metagraph.hotkeys:
         raise ValueError(
-            f"You are not registered. \nUse: \n`btcli s register --netuid {pt.SUBNET_UID}` to register via burn \n or btcli s pow_register --netuid {pt.SUBNET_UID} to register with a proof of work"
+            f"You are not registered. \nUse: \n`btcli s register --netuid {netuid}` to register via burn \n or btcli s pow_register --netuid {netuid} to register with a proof of work"
         )
     uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
     bt.logging.success(
@@ -163,25 +169,31 @@ async def load_starting_model(
         # Get the best UID be incentive and load it.
         best_uid = pt.graph.best_uid(metagraph)
         model = await actions.load_remote_model(best_uid, metagraph, model_dir)
-        bt.logging.success(f"Training with model from best uid: {best_uid}")
+        bt.logging.success(
+            f"Training with model from best uid: {best_uid}. Model={str(model)}"
+        )
         return model
 
     # Initialize the model based on a passed uid.
     if config.load_uid is not None:
         # Sync the state from the passed uid.
         model = await actions.load_remote_model(config.load_uid, metagraph, model_dir)
-        bt.logging.success(f"Training with model from uid: {config.load_uid}")
+        bt.logging.success(
+            f"Training with model from uid: {config.load_uid}. Model={str(model)}"
+        )
         return model
 
     # Check if we should load a model from a local directory.
     if config.load_model_dir:
         model = actions.load_local_model(config.load_model_dir)
-        bt.logging.success("Training with model from disk")
+        bt.logging.success(f"Training with model from disk. Model={str(model)}")
         return model
 
     # Start from scratch.
-    bt.logging.success("Training from scratch.")
-    return pt.model.get_model()
+    model = pt.model.get_model()
+    bt.logging.success(f"Training from scratch. Model={str(model)}")
+
+    return model
 
 
 async def main(config: bt.config):
@@ -190,14 +202,14 @@ async def main(config: bt.config):
 
     wallet = bt.wallet(config=config)
     subtensor = bt.subtensor(config=config)
-    metagraph = subtensor.metagraph(pt.SUBNET_UID)
+    metagraph = subtensor.metagraph(config.netuid)
 
     # If running online, make sure the miner is registered, has a hugging face access token, and has provided a repo id.
     my_uid = None
     repo_namespace = None
     repo_name = None
     if not config.offline:
-        my_uid = assert_registered(wallet, metagraph)
+        my_uid = assert_registered(wallet, metagraph, config.netuid)
         HuggingFaceModelStore.assert_access_token_exists()
         repo_namespace, repo_name = utils.validate_hf_repo_id(config.hf_repo_id)
 
@@ -210,8 +222,8 @@ async def main(config: bt.config):
 
     # Create a unique run id for this run.
     run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    model_path = pt.mining.model_path(config.model_dir, run_id)
-    os.makedirs(model_path, exist_ok=True)
+    model_dir = pt.mining.model_path(config.model_dir, run_id)
+    os.makedirs(model_dir, exist_ok=True)
 
     use_wandb = False
     if not config.offline:
@@ -229,8 +241,8 @@ async def main(config: bt.config):
     model = model.train()
     model = model.to(config.device)
 
-    bt.logging.success(f"Saving model to path: {model_path}.")
-    miner_actions.save(model, model_path)
+    bt.logging.success(f"Saving model to path: {model_dir}.")
+    miner_actions.save(model, model_dir)
 
     # Build optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=0.01)
@@ -238,10 +250,18 @@ async def main(config: bt.config):
 
     # If using wandb, start a new run.
     if use_wandb:
+        token = os.getenv("WANDB_API_KEY")
+        if not token:
+            raise ValueError(
+                "To use Wandb, you must set WANDB_API_KEY in your .env file"
+            )
+
+        wandb.login(key=token)
+
         wandb_run = wandb.init(
             name=run_id,
-            project=config.wandb_project,
             entity=config.wandb_entity,
+            project=config.wandb_project,
             config={
                 "uid": my_uid,
                 "hotkey": wallet.hotkey.ss58_address,
@@ -249,13 +269,12 @@ async def main(config: bt.config):
                 "version": pt.__version__,
                 "type": "miner",
             },
-            dir=model_path,
             allow_val_change=True,
         )
 
-        # Push the model to wandb, for debugging purposes only.
+        # At the end of the run, upload the model to wandb, for debugging purposes only.
         # This is not seen by validators.
-        wandb_run.save(glob_str=model_path)
+        wandb_run.save(os.path.join(model_dir, "*"), base_path=model_dir, policy="end")
     else:
         bt.logging.warning(
             "Not posting run to wandb. Either --offline is specified or the wandb settings are missing."
@@ -332,12 +351,8 @@ async def main(config: bt.config):
                 bt.logging.success(f"New best average loss: {best_avg_loss}.")
 
                 # Save the model to your mining dir.
-                bt.logging.success(f"Saving model to path: {model_path}.")
-                miner_actions.save(model, model_path)
-
-                # Also upload this better model to wandb, if enabled.
-                if use_wandb:
-                    wandb_run.save(glob_str=model_path)
+                bt.logging.success(f"Saving model to path: {model_dir}.")
+                miner_actions.save(model, model_dir)
 
         bt.logging.success("Finished training")
         # Push the model to your run.
@@ -348,7 +363,7 @@ async def main(config: bt.config):
                 )
 
                 # First, reload the best model from the training run.
-                model_to_upload = miner_actions.load_local_model(model_path)
+                model_to_upload = miner_actions.load_local_model(model_dir)
                 await miner_actions.push(model_to_upload)
             else:
                 bt.logging.success(
