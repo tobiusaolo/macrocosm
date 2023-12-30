@@ -49,9 +49,7 @@ WANDB_PROJECT = "pretraining-subnet"
 SUBNET_UID = 9
 # The root directory of this project.
 ROOT_DIR = Path(__file__).parent.parent
-# The maximum bytes for metadata on the chain.
-MAX_METADATA_BYTES = 128
-# The length, in bytes, of a git commit hash.
-GIT_COMMIT_LENGTH = 40
-# The length, in bytes, of a base64 encoded sha256 hash.
-SHA256_BASE_64_LENGTH = 44
+
+from . import dataset
+from . import mining
+from . import model
