@@ -30,7 +30,6 @@ import bittensor as bt
 from transformers import PreTrainedModel
 from pretrain.mining import Actions
 from utilities import utils
-from pretrain import constants
 import datetime as dt
 
 from dotenv import load_dotenv
@@ -65,18 +64,17 @@ def get_config():
     parser.add_argument(
         "--hf_repo_id",
         type=str,
-        required=True,
         help="The hugging face repo id, which should include the org or user and repo name. E.g. jdoe/pretraining",
     )
     parser.add_argument(
         "--avg_loss_upload_threshold",
         type=float,
-        default=math.inf,
+        default=0,  # Default to never uploading.
         help="The threshold for avg_loss the model must achieve to upload it to hugging face. A miner can only advertise one model, so it should be the best one.",
     )
     parser.add_argument(
         "--model_dir",
-        default=os.path.join(constants.ROOT_DIR, "local-models/"),
+        default=os.path.join(pt.ROOT_DIR, "local-models/"),
         help="Where to download/save models for training",
     )
     parser.add_argument(
@@ -145,7 +143,7 @@ def assert_registered(wallet: bt.wallet, metagraph: bt.metagraph) -> int:
     """
     if wallet.hotkey.ss58_address not in metagraph.hotkeys:
         raise ValueError(
-            f"You are not registered. \nUse: \n`btcli s register --netuid {pt.NETUID}` to register via burn \n or btcli s pow_register --netuid {pt.NETUID} to register with a proof of work"
+            f"You are not registered. \nUse: \n`btcli s register --netuid {pt.SUBNET_UID}` to register via burn \n or btcli s pow_register --netuid {pt.SUBNET_UID} to register with a proof of work"
         )
     uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
     bt.logging.success(
@@ -190,18 +188,18 @@ async def main(config: bt.config):
     # Create bittensor objects.
     bt.logging(config=config)
 
-    # This will raise a ValueError if the repo id is invalid.
-    repo_namespace, repo_name = utils.validate_hf_repo_id(config.hf_repo_id)
-
     wallet = bt.wallet(config=config)
     subtensor = bt.subtensor(config=config)
-    metagraph = subtensor.metagraph(pt.NETUID)
+    metagraph = subtensor.metagraph(pt.SUBNET_UID)
 
-    # If running online, make sure the miner is registered and has a hugging face access token.
+    # If running online, make sure the miner is registered, has a hugging face access token, and has provided a repo id.
     my_uid = None
+    repo_namespace = None
+    repo_name = None
     if not config.offline:
         my_uid = assert_registered(wallet, metagraph)
         HuggingFaceModelStore.assert_access_token_exists()
+        repo_namespace, repo_name = utils.validate_hf_repo_id(config.hf_repo_id)
 
     # Configure the stores and miner actions.
     remote_model_store = HuggingFaceModelStore()
@@ -212,7 +210,8 @@ async def main(config: bt.config):
 
     # Create a unique run id for this run.
     run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    model_path = pt.mining.model_path(config.base_dir, run_id)
+    model_path = pt.mining.model_path(config.model_dir, run_id)
+    os.makedirs(model_path, exist_ok=True)
 
     use_wandb = False
     if not config.offline:
@@ -327,7 +326,7 @@ async def main(config: bt.config):
             epoch_step += 1
 
             # Check if the average loss of this epoch is the best we've seen so far
-            if avg_loss < best_avg_loss * (1 - pt.timestamp_epsilon):
+            if avg_loss < best_avg_loss:
                 best_avg_loss = avg_loss  # Update the best average loss
 
                 bt.logging.success(f"New best average loss: {best_avg_loss}.")

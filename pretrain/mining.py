@@ -53,7 +53,6 @@ class Actions:
             os.makedirs(model_dir, exist_ok=True)
 
         # Save the model state to the specified path.
-        # TODO: Should this be a filepath or a directory?
         model.save_pretrained(
             save_directory=model_dir,
             safe_serialization=True,

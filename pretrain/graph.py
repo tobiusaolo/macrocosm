@@ -31,13 +31,13 @@ from safetensors.torch import load_model, save_model
 
 def best_uid(metagraph: typing.Optional[bt.metagraph] = None):
     if not metagraph:
-        metagraph = bt.subtensor().metagraph(pretrain.NETUID)
+        metagraph = bt.subtensor().metagraph(pretrain.SUBNET_UID)
     return max(range(256), key=lambda uid: metagraph.I[uid].item())
 
 
 def best_model(metagraph: typing.Optional[bt.metagraph] = None, device: str = "cpu "):
     if not metagraph:
-        metagraph = bt.subtensor().metagraph(pretrain.NETUID)
+        metagraph = bt.subtensor().metagraph(pretrain.SUBNET_UID)
     _best_uid = best_uid(metagraph)
     sync(_best_uid, metagraph=metagraph)
     return model(_best_uid, device=device)
