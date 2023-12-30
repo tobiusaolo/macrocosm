@@ -17,7 +17,10 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
+from pathlib import Path
+
+
 version_split = __version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -25,15 +28,13 @@ __spec_version__ = (
     + (1 * int(version_split[2]))
 )
 weights_version_key = 2002
-NETUID = 9
-WANDB_PROJECT = 'pretraining-subnet'
 
 # validator weight moving average term
 alpha = 0.9
 # validator scoring exponential temperature
 temperature = 0.25
 # validator update model timeout (time between checking uids)
-update_model_timeout = 2 # 2 = checks all models every 256 * 2 seconds.
+update_model_timeout = 2  # 2 = checks all models every 256 * 2 seconds.
 # validator score boosting for earlier models.
 timestamp_epsilon = 0.01
 # validators number of pages to eval over miners on each step.
@@ -42,13 +43,15 @@ n_eval_pages = 3
 batch_size = 1
 # validator eval sequence length.
 sequence_length = 1024
-
-import os
-netuid_dir = os.path.expanduser(f'~/.bittensor/miners/netuid{NETUID}/')
-os.makedirs(netuid_dir, exist_ok=True) 
-
-from . import graph as graph
-from . import model as model
-from . import dataset as dataset
-from . import validation as validation
-from . import mining as mining
+# The validator WANDB project.
+WANDB_PROJECT = "pretraining-subnet"
+# The uid for this subnet.
+SUBNET_UID = 9
+# The root directory of this project.
+ROOT_DIR = Path(__file__).parent.parent
+# The maximum bytes for metadata on the chain.
+MAX_METADATA_BYTES = 128
+# The length, in bytes, of a git commit hash.
+GIT_COMMIT_LENGTH = 40
+# The length, in bytes, of a base64 encoded sha256 hash.
+SHA256_BASE_64_LENGTH = 44

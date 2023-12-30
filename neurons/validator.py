@@ -18,12 +18,10 @@
 
 import datetime as dt
 import os
-import tqdm
 import json
 import math
 import time
 import torch
-import typing
 import random
 import asyncio
 import argparse
@@ -32,7 +30,6 @@ from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
 from model.storage.disk.disk_model_store import DiskModelStore
 from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
-import pretrain
 import traceback
 import threading
 import multiprocessing
@@ -104,55 +101,11 @@ class Validator:
             help="Runs steps with max 3 uids to eval for faster testing.",
         )
         parser.add_argument(
-            "--device",
-            type=str,
-            default="cuda" if torch.cuda.is_available() else "cpu",
-            help="Device name.",
+            "--model_dir",
+            default=os.path.join(constants.ROOT_DIR, "model-store/"),
+            help="Where to store downloaded models",
         )
-        parser.add_argument(
-            "--wandb.off",
-            dest="wandb.on",
-            action="store_false",
-            help="Turn off wandb logging.",
-        )
-        parser.add_argument(
-            "--blocks_per_epoch",
-            type=int,
-            default=50,
-            help="Number of blocks to wait before setting weights.",
-        )
-        parser.add_argument(
-            "--pages_per_eval",
-            type=int,
-            default=3,
-            help="Number of pages used to eval each step.",
-        )
-        parser.add_argument(
-            "--sample_min",
-            type=int,
-            default=30,
-            help="Number of uids to eval each step.",
-        )
-        parser.add_argument(
-            "--reset_wandb",
-            action="store_true",
-            help="Creates a new wandb run instead of using an older on.",
-        )
-        parser.add_argument(
-            "--dont_set_weights",
-            action="store_true",
-            help="Validator does not set weights on the chain.",
-        )
-        parser.add_argument(
-            "--offline",
-            action="store_true",
-            help="Does not launch a wandb run, does not set weights, does not check that your key is registered.",
-        )
-        parser.add_argument(
-            "--test",
-            action="store_true",
-            help="Runs steps with max 3 uids to eval for faster testing.",
-        )
+
         bt.subtensor.add_args(parser)
         bt.logging.add_args(parser)
         bt.wallet.add_args(parser)
@@ -168,14 +121,14 @@ class Validator:
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
         self.dendrite = bt.dendrite(wallet=self.wallet)
-        self.metagraph = self.subtensor.metagraph(pt.NETUID)
+        self.metagraph = self.subtensor.metagraph(pt.SUBNET_UID)
         torch.backends.cudnn.benchmark = True
 
         # Dont check registration status if offline.
         if not self.config.offline:
             if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
                 raise Exception(
-                    f"You are not registered. Use `btcli s register --netuid {pt.NETUID}` to register."
+                    f"You are not registered. Use `btcli s register --netuid {pt.SUBNET_UID}` to register."
                 )
             self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
             bt.logging.success(
@@ -234,7 +187,7 @@ class Validator:
         self.remote_store = HuggingFaceModelStore()
 
         # Setup a LocalModelStore
-        self.local_store = DiskModelStore()
+        self.local_store = DiskModelStore(base_dir=self.config.model_dir)
 
         # Setup a model updater to download models as needed to match the latest provided miner metadata.
         self.model_updater = ModelUpdater(
@@ -284,7 +237,7 @@ class Validator:
 
                 # Confirm that we haven't checked it in the last 5 minutes.
                 time_diff = (
-                    uid_last_checked[next_uid] - dt.now()
+                    uid_last_checked[next_uid] - dt.datetime.now()
                     if next_uid in uid_last_checked
                     else None
                 )
@@ -297,7 +250,7 @@ class Validator:
                 hotkey = self.metagraph.hotkeys[next_uid]
 
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
-                asyncio.run(self.model_updater.sync_model(hotkey, self.loc))
+                asyncio.run(self.model_updater.sync_model(hotkey))
 
             except Exception as e:
                 bt.logging.error(f"Error in update loop: {e}")
@@ -348,7 +301,7 @@ class Validator:
             try:
                 self.weights.nan_to_num(0.0)
                 self.subtensor.set_weights(
-                    netuid=pt.NETUID,
+                    netuid=pt.SUBNET_UID,
                     wallet=self.wallet,
                     uids=self.metagraph.uids,
                     weights=self.weights,
@@ -375,7 +328,7 @@ class Validator:
 
     async def try_sync_metagraph(self, ttl: int):
         def sync_metagraph(endpoint):
-            metagraph = bt.subtensor(endpoint).metagraph(pt.NETUID)
+            metagraph = bt.subtensor(endpoint).metagraph(pt.SUBNET_UID)
             metagraph.save()
             self.miner_iterator.set_miner_uids(metagraph.uids.tolist())
 

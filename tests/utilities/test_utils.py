@@ -3,6 +3,7 @@ import time
 import unittest
 
 from utilities.utils import run_in_subprocess
+from utilities import utils
 
 
 class TestUtils(unittest.TestCase):
@@ -51,6 +52,29 @@ class TestUtils(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             result = run_in_subprocess(func=partial, ttl=5)
+
+    def test_validate_hf_repo_id_too_long(self):
+        with self.assertRaises(ValueError) as ve:
+            # Max allowed length is 41 characters
+            utils.validate_hf_repo_id("my-org/" + "a" * 40)
+
+        self.assertRegex(
+            str(ve.exception),
+            "Hugging Face repo id must be between 3 and 41 characters",
+        )
+
+    def test_validate_hf_repo_id_incorrect_format(self):
+        with self.assertRaises(ValueError) as ve:
+            utils.validate_hf_repo_id("my-repo-name-without-a-namespace")
+
+        self.assertRegex(
+            str(ve.exception), "must be in the format <org or user name>/<repo_name>"
+        )
+
+    def test_validate_hf_repo_id_valid(self):
+        namespace, name = utils.validate_hf_repo_id("my-org/my-repo-name")
+        self.assertEqual("my-org", namespace)
+        self.assertEqual("my-repo-name", name)
 
 
 if __name__ == "__main__":

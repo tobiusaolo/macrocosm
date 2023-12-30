@@ -28,3 +28,17 @@ class FakeRemoteModelStore(RemoteModelStore):
         )
 
         return model
+
+    def get_only_model(self) -> Model:
+        """Returns the only uploaded model or raises a ValueError if none or more than one is found."""
+
+        if len(self.remote_models) != 1:
+            raise ValueError(
+                f"There are {len(self.remote_models)} uploaded models. Expected 1."
+            )
+
+        return [i for i in self.remote_models.values()][0]
+
+    def reset(self):
+        """Resets the store to its initial state."""
+        self.remote_models = dict()
