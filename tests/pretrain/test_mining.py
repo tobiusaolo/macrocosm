@@ -5,9 +5,9 @@ import bittensor as bt
 import unittest
 from model.data import Model
 from pretrain.mining import Actions
+from pretrain.model import get_model
 from tests.model.storage.fake_model_metadata_store import FakeModelMetadataStore
 from tests.model.storage.fake_remote_model_store import FakeRemoteModelStore
-from transformers import DistilBertModel, DistilBertConfig
 from tests.utils import assert_model_equality
 
 
@@ -26,11 +26,7 @@ class TestMining(unittest.TestCase):
             model_metadata_store=self.metadata_store,
             remote_model_store=self.remote_store,
         )
-        self.tiny_model = DistilBertModel(
-            config=DistilBertConfig(
-                vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-            )
-        )
+        self.tiny_model = get_model()
 
         self.model_dir = "test-models/test-mining"
         os.makedirs(name=self.model_dir, exist_ok=True)
