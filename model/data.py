@@ -19,7 +19,7 @@ class ModelId(BaseModel):
     commit: Optional[str] = Field(
         description="Commit of the model. May be empty if not yet committed."
     )
-    hash: str = Field(description="Hash of the trained model.")
+    hash: Optional[str] = Field(description="Hash of the trained model.")
 
     def to_compressed_str(self) -> str:
         """Returns a compressed string representation."""
@@ -33,7 +33,7 @@ class ModelId(BaseModel):
             namespace=tokens[0],
             name=tokens[1],
             commit=tokens[2] if tokens[2] != "None" else None,
-            hash=tokens[3],
+            hash=tokens[3] if tokens[3] != "None" else None,
         )
 
 

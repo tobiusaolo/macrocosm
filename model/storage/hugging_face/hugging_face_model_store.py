@@ -11,8 +11,8 @@ from model.storage.remote_model_store import RemoteModelStore
 class HuggingFaceModelStore(RemoteModelStore):
     """Hugging Face based implementation for storing and retrieving a model."""
 
-    async def upload_model(self, model: Model) -> ModelId:
-        """Uploads a trained model to Hugging Face."""
+    async def upload_model(self, model: Model, local_path: str) -> ModelId:
+        """Uploads a trained model to Hugging Face and also roundtrips it locally."""
         token = os.getenv("HF_ACCESS_TOKEN")
         if not token:
             raise ValueError("No Hugging Face access token found to write to the hub.")
@@ -24,13 +24,18 @@ class HuggingFaceModelStore(RemoteModelStore):
             safe_serialization=True,
         )
 
-        # Return a new ModelId with the uploaded commit.
-        return ModelId(
+        model_id_with_commit = ModelId(
             namespace=model.id.namespace,
             name=model.id.name,
             hash=model.id.hash,
             commit=commit_info.oid,
         )
+
+        # To get the hash we need to redownload it at a provided local_path
+        model_with_hash = await self.download_model(model_id_with_commit, local_path)
+
+        # Return a ModelId with both the correct commit and hash.
+        return model_with_hash.id
 
     # TODO actually make this asynchronous with threadpools etc.
     async def download_model(self, model_id: ModelId, local_path: str) -> Model:
@@ -46,7 +51,16 @@ class HuggingFaceModelStore(RemoteModelStore):
             use_safetensors=True,
         )
 
-        return Model(id=model_id, pt_model=model)
+        # Compute the hash of the downloaded model.
+        model_hash = utils.get_hash_of_directory(local_path)
+        model_id_with_hash = ModelId(
+            namespace=model_id.namespace,
+            name=model_id.name,
+            commit=model_id.commit,
+            hash=model_hash,
+        )
+
+        return Model(id=model_id_with_hash, pt_model=model)
 
 
 async def test_roundtrip_model():
@@ -68,13 +82,15 @@ async def test_roundtrip_model():
     model = Model(id=model_id, pt_model=pt_model)
     hf_model_store = HuggingFaceModelStore()
 
-    # Store the model in hf getting back the id with commit.
-    model.id = await hf_model_store.upload_model(model=model)
+    # Store the model in hf getting back the id with commit and hash.
+    model.id = await hf_model_store.upload_model(
+        model, utils.get_local_model_dir("test-models", "hotkey00", model.id)
+    )
 
-    # Retrieve the model from hf.
+    # Retrieve the model from hf. Store at a different hotkey to avoid overwriting.
     retrieved_model = await hf_model_store.download_model(
         model_id=model.id,
-        local_path=utils.get_local_model_dir("test-models", "hotkey0", model.id),
+        local_path=utils.get_local_model_dir("test-models", "hotkey01", model.id),
     )
 
     # Check that they match.

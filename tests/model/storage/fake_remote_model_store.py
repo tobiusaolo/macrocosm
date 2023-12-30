@@ -8,7 +8,7 @@ class FakeRemoteModelStore(RemoteModelStore):
     def __init__(self):
         self.remote_models = dict()
 
-    async def upload_model(self, model: Model) -> ModelId:
+    async def upload_model(self, model: Model, local_path: str) -> ModelId:
         """Fake uploads a model."""
 
         # Use provided commit rather than generating a new one.
