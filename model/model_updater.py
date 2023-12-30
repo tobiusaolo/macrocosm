@@ -25,21 +25,25 @@ class ModelUpdater:
         """Get metadata about a model by hotkey"""
         return await self.metadata_store.retrieve_model_metadata(hotkey)
 
-    async def sync_model(self, hotkey: str):
-        """Updates local model for a hotkey if out of sync."""
+    async def sync_model(self, hotkey: str) -> bool:
+        """Updates local model for a hotkey if out of sync and returns if it was updated."""
         # Get the metadata for the miner.
         metadata = await self._get_metadata(hotkey)
 
         # Check what model id the model tracker currently has for this hotkey.
-        tracker_model_id = self.model_tracker.get_model_id_for_miner_hotkey(hotkey)
-        if metadata.id == tracker_model_id:
-            return
+        tracker_model_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
+            hotkey
+        )
+        if metadata == tracker_model_metadata:
+            return False
 
         # Get the local path based on the local store.
         path = self.local_store.get_path(hotkey, metadata.id)
 
-        # Otherwise we need to read the new model (which stores locally) based on the metadata.
-        model = await self.remote_store.download_model(metadata.id, path)
+        # Otherwise we need to downaload the new model based on the metadata.
+        await self.remote_store.download_model(metadata.id, path)
 
         # Update the tracker
-        self.model_tracker.on_miner_model_updated(hotkey, model.id)
+        self.model_tracker.on_miner_model_updated(hotkey, metadata)
+
+        return True

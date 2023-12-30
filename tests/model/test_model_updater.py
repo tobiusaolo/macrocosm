@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from model.data import Model, ModelId
+from model.data import Model, ModelId, ModelMetadata
 from model.model_tracker import ModelTracker
 
 from model.model_updater import ModelUpdater
@@ -65,6 +65,8 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
+        model_metadata = ModelMetadata(id=model_id, block=1)
+
         pt_model = DistilBertModel(
             config=DistilBertConfig(
                 vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
@@ -76,13 +78,14 @@ class TestModelUpdater(unittest.TestCase):
         asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_id))
         self.local_store.store_model(hotkey, model)
 
-        self.model_tracker.on_miner_model_updated(hotkey, model_id)
+        self.model_tracker.on_miner_model_updated(hotkey, model_metadata)
 
         asyncio.run(self.model_updater.sync_model(hotkey))
 
         # Tracker information did not change.
         self.assertEqual(
-            self.model_tracker.get_model_id_for_miner_hotkey(hotkey), model_id
+            self.model_tracker.get_model_metadata_for_miner_hotkey(hotkey),
+            model_metadata,
         )
 
     def test_sync_model_new_metadata(self):
@@ -93,6 +96,8 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
+        model_metadata = ModelMetadata(id=model_id, block=1)
+
         pt_model = DistilBertModel(
             config=DistilBertConfig(
                 vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
@@ -104,7 +109,9 @@ class TestModelUpdater(unittest.TestCase):
         asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_id))
         asyncio.run(self.remote_store.upload_model(model))
 
-        self.assertIsNone(self.model_tracker.get_model_id_for_miner_hotkey(hotkey))
+        self.assertIsNone(
+            self.model_tracker.get_model_metadata_for_miner_hotkey(hotkey)
+        )
 
         # Our local store raises an exception from the Transformers.from_pretrained method if not found.
         with self.assertRaises(Exception):
@@ -113,7 +120,8 @@ class TestModelUpdater(unittest.TestCase):
         asyncio.run(self.model_updater.sync_model(hotkey))
 
         self.assertEqual(
-            self.model_tracker.get_model_id_for_miner_hotkey(hotkey), model_id
+            self.model_tracker.get_model_metadata_for_miner_hotkey(hotkey),
+            model_metadata,
         )
         self.assertEqual(
             str(self.local_store.retrieve_model(hotkey, model_id)), str(model)
