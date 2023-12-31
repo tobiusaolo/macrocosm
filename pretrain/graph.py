@@ -22,6 +22,7 @@ import json
 import wandb
 import torch
 import typing
+import constants
 import pretrain
 import bittensor as bt
 from datetime import datetime
@@ -31,13 +32,13 @@ from safetensors.torch import load_model, save_model
 
 def best_uid(metagraph: typing.Optional[bt.metagraph] = None):
     if not metagraph:
-        metagraph = bt.subtensor().metagraph(pretrain.SUBNET_UID)
+        metagraph = bt.subtensor().metagraph(constants.SUBNET_UID)
     return max(range(256), key=lambda uid: metagraph.I[uid].item())
 
 
 def best_model(metagraph: typing.Optional[bt.metagraph] = None, device: str = "cpu "):
     if not metagraph:
-        metagraph = bt.subtensor().metagraph(pretrain.SUBNET_UID)
+        metagraph = bt.subtensor().metagraph(constants.SUBNET_UID)
     _best_uid = best_uid(metagraph)
     sync(_best_uid, metagraph=metagraph)
     return model(_best_uid, device=device)
@@ -58,9 +59,7 @@ def timestamp(uid: int) -> typing.Optional[int]:
 def run(uid: int) -> typing.Optional["wandb.run"]:
     try:
         api = wandb.Api(timeout=100)
-        run = api.run(
-            f"opentensor-dev/{pretrain.WANDB_PROJECT}/{metadata(uid)['runid']}"
-        )
+        run = api.run(f"opentensor-dev/{constants.WANDB_PROJECT}/{metadata(uid)['runid']}")
         return run
     except Exception as e:
         bt.logging.debug(
@@ -440,7 +439,7 @@ def check_run_exists(uid, metadata: dict, metagraph):
     try:
         expected_runid = metadata["runid"]
         api = wandb.Api(timeout=100)
-        run = api.run(f"opentensor-dev/{pretrain.WANDB_PROJECT}/{expected_runid}")
+        run = api.run(f"opentensor-dev/{constants.WANDB_PROJECT}/{expected_runid}")
         assert run.config["uid"] == uid
         assert run.config["hotkey"] == metagraph.hotkeys[uid]
         return True
@@ -476,7 +475,7 @@ def get_run_for_uid(
 
     # Retrieve runs from the wandb project for this uid
     runs = api.runs(
-        f"opentensor-dev/{pretrain.WANDB_PROJECT}",
+        f"opentensor-dev/{constants.WANDB_PROJECT}",
         filters={
             "config.version": pretrain.__version__,
             "config.type": "miner",

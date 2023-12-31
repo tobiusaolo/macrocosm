@@ -23,6 +23,7 @@ import wandb
 import torch
 import random
 import argparse
+import constants
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
 from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
 import pretrain as pt
@@ -76,7 +77,7 @@ def get_config():
     )
     parser.add_argument(
         "--model_dir",
-        default=os.path.join(pt.ROOT_DIR, "local-models/"),
+        default=os.path.join(constants.ROOT_DIR, "local-models/"),
         help="Where to download/save models for training",
     )
     parser.add_argument(
@@ -116,9 +117,11 @@ def get_config():
         help="Number of training epochs (-1 is infinite)",
     )
     parser.add_argument("--lr", type=float, default=0.00001, help="Learning rate.")
-    parser.add_argument("--bs", type=int, default=pt.batch_size, help="Batch size")
     parser.add_argument(
-        "--sl", type=int, default=pt.sequence_length, help="Sequence length"
+        "--bs", type=int, default=constants.batch_size, help="Batch size"
+    )
+    parser.add_argument(
+        "--sl", type=int, default=constants.sequence_length, help="Sequence length"
     )
     parser.add_argument(
         "--accumulation_steps",
@@ -135,7 +138,7 @@ def get_config():
     parser.add_argument(
         "--netuid",
         type=str,
-        default=pt.SUBNET_UID,
+        default=constants.SUBNET_UID,
         help="The subnet UID.",
     )
 
@@ -223,21 +226,12 @@ async def main(config: bt.config):
 
     # If running online, make sure the miner is registered, has a hugging face access token, and has provided a repo id.
     my_uid = None
-    repo_namespace = None
-    repo_name = None
     if not config.offline:
         my_uid = assert_registered(wallet, metagraph, config.netuid)
         HuggingFaceModelStore.assert_access_token_exists()
-        repo_namespace, repo_name = utils.validate_hf_repo_id(config.hf_repo_id)
 
     # Configure the stores and miner actions.
-    remote_model_store = HuggingFaceModelStore()
-    chain_model_store = ChainModelMetadataStore(
-        subtensor, wallet, subnet_uid=config.netuid
-    )
-    miner_actions = pt.mining.Actions(
-        wallet, repo_namespace, repo_name, chain_model_store, remote_model_store
-    )
+    miner_actions = pt.mining.Actions.create(config, wallet, subtensor)
 
     # Create a unique run id for this run.
     run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -247,7 +241,7 @@ async def main(config: bt.config):
     use_wandb = False
     if not config.offline:
         if config.wandb_project is None or config.wandb_entity is None:
-            bt.logging.error(
+            bt.logging.warning(
                 "Wandb project or entity not specified. This run will not be logged to wandb"
             )
         else:

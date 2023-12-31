@@ -3,7 +3,7 @@ import functools
 import bittensor as bt
 import os
 from model.data import ModelId, ModelMetadata
-import pretrain as pt
+import constants
 from model.storage.model_metadata_store import ModelMetadataStore
 from typing import Optional
 
@@ -17,7 +17,7 @@ class ChainModelMetadataStore(ModelMetadataStore):
         self,
         subtensor: bt.subtensor,
         wallet: Optional[bt.wallet] = None,
-        subnet_uid: int = pt.SUBNET_UID,
+        subnet_uid: int = constants.SUBNET_UID,
     ):
         self.subtensor = subtensor
         self.wallet = (
