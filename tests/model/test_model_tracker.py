@@ -167,3 +167,7 @@ class TestModelTracker(unittest.TestCase):
         self.model_tracker.on_hotkeys_updated(set(["extra_hotkey"]))
 
         self.assertEqual(len(self.model_tracker.miner_hotkey_to_model_metadata_dict), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
