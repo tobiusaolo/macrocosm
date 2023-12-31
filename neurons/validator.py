@@ -628,6 +628,8 @@ class Validator:
                     self.metagraph.block.item() - self.last_epoch
                     < self.config.blocks_per_epoch
                 ):
+                    # TODO REMOVE THIS
+                    time.sleep(30)
                     await self.try_run_step(ttl=60 * 20)
                     await self.try_sync_metagraph(ttl=60)
                     self.save_state()
