@@ -258,9 +258,9 @@ class Validator:
         # Create a unique run id for this run.
         run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.wandb_run = wandb.init(
-            name=run_id,
-            project=self.config.wandb_project,
-            entity=self.config.wandb_entity,
+            name="validator-" + str(self.uid) + "-" + run_id,
+            project=pt.WANDB_PROJECT,
+            entity="opentensor-dev",
             config={
                 "uid": self.uid,
                 "hotkey": self.wallet.hotkey.ss58_address,
@@ -559,7 +559,7 @@ class Validator:
         for i, uid in enumerate(uids):
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
-                "block": uid_to_block[i],
+                "block": uid_to_block[uid],
                 "average_loss": sum(losses_per_uid[uid]) / len(batches),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
@@ -628,8 +628,6 @@ class Validator:
                     self.metagraph.block.item() - self.last_epoch
                     < self.config.blocks_per_epoch
                 ):
-                    # TODO REMOVE THIS
-                    time.sleep(30)
                     await self.try_run_step(ttl=60 * 20)
                     await self.try_sync_metagraph(ttl=60)
                     self.save_state()
