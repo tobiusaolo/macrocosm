@@ -36,6 +36,8 @@ from dotenv import load_dotenv
 
 load_dotenv()  # take environment variables from .env.
 
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
+
 
 # === Config ===
 def get_config():
@@ -160,7 +162,7 @@ def assert_registered(wallet: bt.wallet, metagraph: bt.metagraph, netuid: int) -
 
 
 async def load_starting_model(
-    actions: Actions, config: bt.config, metagraph: bt.metagraph, model_dir: str
+    actions: Actions, config: bt.config, metagraph: bt.metagraph
 ) -> PreTrainedModel:
     """Loads the model to train based on the provided config."""
 
@@ -168,7 +170,7 @@ async def load_starting_model(
     if config.load_best:
         # Get the best UID be incentive and load it.
         best_uid = pt.graph.best_uid(metagraph)
-        model = await actions.load_remote_model(best_uid, metagraph, model_dir)
+        model = await actions.load_remote_model(best_uid, metagraph, config.model_dir)
         bt.logging.success(
             f"Training with model from best uid: {best_uid}. Model={str(model)}"
         )
@@ -177,7 +179,9 @@ async def load_starting_model(
     # Initialize the model based on a passed uid.
     if config.load_uid is not None:
         # Sync the state from the passed uid.
-        model = await actions.load_remote_model(config.load_uid, metagraph, model_dir)
+        model = await actions.load_remote_model(
+            config.load_uid, metagraph, config.model_dir
+        )
         bt.logging.success(
             f"Training with model from uid: {config.load_uid}. Model={str(model)}"
         )
@@ -215,7 +219,9 @@ async def main(config: bt.config):
 
     # Configure the stores and miner actions.
     remote_model_store = HuggingFaceModelStore()
-    chain_model_store = ChainModelMetadataStore(subtensor, wallet)
+    chain_model_store = ChainModelMetadataStore(
+        subtensor, wallet, subnet_uid=config.netuid
+    )
     miner_actions = pt.mining.Actions(
         wallet, repo_namespace, repo_name, chain_model_store, remote_model_store
     )
@@ -235,9 +241,7 @@ async def main(config: bt.config):
             use_wandb = True
 
     # Init model.
-    model: PreTrainedModel = await load_starting_model(
-        miner_actions, config, wallet, metagraph
-    )
+    model: PreTrainedModel = await load_starting_model(miner_actions, config, metagraph)
     model = model.train()
     model = model.to(config.device)
 

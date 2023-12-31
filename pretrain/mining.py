@@ -78,9 +78,10 @@ class Actions:
         """
         hotkey = metagraph.hotkeys[uid]
         model_metadata = await self.model_metadata_store.retrieve_model_metadata(hotkey)
-        return await self.remote_model_store.download_model(
+        model: Model = await self.remote_model_store.download_model(
             model_metadata.id, download_dir
         )
+        return model.pt_model
 
     async def push(self, model: PreTrainedModel, retry_delay_secs: int = 60):
         """Pushes the model to Hugging Face and publishes it on the chain for evaluation by validators."""
