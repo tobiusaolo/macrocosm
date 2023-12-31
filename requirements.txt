@@ -1,4 +1,5 @@
 bittensor
+huggingface_hub
 matplotlib
 numpy
 pydantic==1.10
