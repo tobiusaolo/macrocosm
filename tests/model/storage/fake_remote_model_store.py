@@ -29,6 +29,14 @@ class FakeRemoteModelStore(RemoteModelStore):
 
         return model
 
+    def inject_mismatched_model(self, model_id: ModelId, model: Model) -> ModelId:
+        """Fake uploads a model by a specific model id."""
+
+        # Use provided commit + hash rather than generating a new one.
+        self.remote_models[model_id] = model
+
+        return model_id
+
     def get_only_model(self) -> Model:
         """Returns the only uploaded model or raises a ValueError if none or more than one is found."""
 

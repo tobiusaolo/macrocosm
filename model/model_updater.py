@@ -1,4 +1,4 @@
-import asyncio
+import pretrain
 from model.data import ModelMetadata
 from model.model_tracker import ModelTracker
 from model.storage.local_model_store import LocalModelStore
@@ -40,8 +40,21 @@ class ModelUpdater:
         # Get the local path based on the local store.
         path = self.local_store.get_path(hotkey, metadata.id)
 
-        # Otherwise we need to downaload the new model based on the metadata.
-        await self.remote_store.download_model(metadata.id, path)
+        # Otherwise we need to download the new model based on the metadata.
+        model = await self.remote_store.download_model(metadata.id, path)
+
+        # Check that the hash of the downloaded content matches.
+        if model.id.hash != metadata.id.hash:
+            raise ValueError(
+                f"Sync for hotkey {hotkey} failed. Hash of content downloaded from hugging face does not match chain metadata. {metadata}"
+            )
+
+        # Check that the parameter count of the model is within allowed bounds.
+        parameter_size = sum(p.numel() for p in model.pt_model.parameters())
+        if parameter_size > pretrain.MAX_MODEL_PARAMETER_SIZE:
+            raise ValueError(
+                f"Sync for hotkey {hotkey} failed. Parameter size of the model {parameter_size} exceeded max size {pretrain.MAX_MODEL_PARAMETER_SIZE}."
+            )
 
         # Update the tracker
         self.model_tracker.on_miner_model_updated(hotkey, metadata)

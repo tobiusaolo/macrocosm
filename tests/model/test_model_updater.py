@@ -5,9 +5,11 @@ from model.model_tracker import ModelTracker
 
 from model.model_updater import ModelUpdater
 from model.storage.disk.disk_model_store import DiskModelStore
+import pretrain
 from tests.model.storage.fake_model_metadata_store import FakeModelMetadataStore
 from tests.model.storage.fake_remote_model_store import FakeRemoteModelStore
 from pretrain.model import get_model
+from transformers import GPT2Config, GPT2LMHeadModel
 
 
 class TestModelUpdater(unittest.TestCase):
@@ -34,7 +36,9 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_id))
+        model_metadata = ModelMetadata(id=model_id, block=1)
+
+        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_metadata))
 
         metadata = asyncio.run(self.model_updater._get_metadata(hotkey))
 
@@ -49,9 +53,10 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="bad_commit",
         )
+        model_metadata = ModelMetadata(id=model_id, block=1)
 
         # Setup the metadata with a commit that doesn't exist in the remote store.
-        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_id))
+        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_metadata))
 
         # FakeRemoteModelStore raises a KeyError but HuggingFace may raise other exceptions.
         with self.assertRaises(Exception):
@@ -65,13 +70,14 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
+        model_metadata = ModelMetadata(id=model_id, block=1)
 
         pt_model = get_model()
 
         model = Model(id=model_id, pt_model=pt_model)
 
         # Setup the metadata, local, and model_tracker to match.
-        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_id))
+        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_metadata))
         self.local_store.store_model(hotkey, model)
 
         self.model_tracker.on_miner_model_updated(hotkey, model_metadata)
@@ -92,13 +98,14 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
+        model_metadata = ModelMetadata(id=model_id, block=1)
 
         pt_model = get_model()
 
         model = Model(id=model_id, pt_model=pt_model)
 
         # Setup the metadata and remote store but not local or the model_tracker.
-        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_id))
+        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_metadata))
         asyncio.run(self.remote_store.upload_model(model))
 
         self.assertIsNone(
@@ -118,3 +125,67 @@ class TestModelUpdater(unittest.TestCase):
         self.assertEqual(
             str(self.local_store.retrieve_model(hotkey, model_id)), str(model)
         )
+
+    def test_sync_model_bad_hash(self):
+        hotkey = "test_hotkey"
+        model_id_chain = ModelId(
+            namespace="test_model",
+            name="test_name",
+            hash="test_hash",
+            commit="test_commit",
+        )
+        model_metadata = ModelMetadata(id=model_id_chain, block=1)
+
+        model_id = ModelId(
+            namespace="test_model",
+            name="test_name",
+            hash="bad_hash",
+            commit="test_commit",
+        )
+
+        pt_model = get_model()
+
+        model = Model(id=model_id, pt_model=pt_model)
+
+        # Setup the metadata and remote store and but not local or the model tracker.
+        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_metadata))
+        self.remote_store.inject_mismatched_model(model_id_chain, model)
+
+        # Assert we fail due to the hash mismatch between the model in remote store and the metadata on chain.
+        with self.assertRaises(ValueError) as context:
+            asyncio.run(self.model_updater.sync_model(hotkey))
+
+        self.assertIn("Hash", str(context.exception))
+
+    def test_sync_model_over_max_parameters(self):
+        hotkey = "test_hotkey"
+        model_id = ModelId(
+            namespace="test_model",
+            name="test_name",
+            hash="test_hash",
+            commit="test_commit",
+        )
+        model_metadata = ModelMetadata(id=model_id, block=1)
+
+        config = GPT2Config(
+            n_head=10,
+            n_layer=13,  # Increase layer by 1 compared to default.
+            n_embd=760,
+        )
+        pt_model = GPT2LMHeadModel(config)
+
+        model = Model(id=model_id, pt_model=pt_model)
+
+        # Setup the metadata and remote store but not local or the model_tracker.
+        asyncio.run(self.metadata_store.store_model_metadata(hotkey, model_metadata))
+        asyncio.run(self.remote_store.upload_model(model))
+
+        # Assert we fail due to exceeding the maximum allowed parameter size.
+        with self.assertRaises(ValueError) as context:
+            asyncio.run(self.model_updater.sync_model(hotkey))
+
+        self.assertIn("Parameter", str(context.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()
