@@ -406,19 +406,30 @@ class Validator:
                 hotkey
             )
 
+            losses = None
+
             if model_i_metadata == None:
                 losses = [math.inf for _ in batches]
             else:
-                # Update the block this uid last updated their model.
-                uid_to_block[uid_i] = model_i_metadata.block
-                # Get the model locally and evaluate its loss.
-                model_i = self.local_store.retrieve_model(hotkey, model_i_metadata.id)
+                try:
+                    # Update the block this uid last updated their model.
+                    uid_to_block[uid_i] = model_i_metadata.block
 
-                losses = pt.validation.compute_losses(
-                    model_i, batches, device=self.config.device
-                )
+                    # Get the model locally and evaluate its loss.
+                    model_i = self.local_store.retrieve_model(
+                        hotkey, model_i_metadata.id
+                    )
 
-                del model_i
+                    losses = pt.validation.compute_losses(
+                        model_i, batches, device=self.config.device
+                    )
+
+                    del model_i
+                except Exception as e:
+                    bt.logging.error(
+                        f"Error in eval loop: {e}. Setting losses for uid: {uid_i} to infinity."
+                    )
+                    losses = [math.inf for _ in batches]
 
             losses_per_uid[uid_i] = losses
             average_model_loss = sum(losses) / len(losses)
