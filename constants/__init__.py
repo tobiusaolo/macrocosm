@@ -14,6 +14,8 @@ ROOT_DIR = Path(__file__).parent.parent
 MAX_HUGGING_FACE_BYTES = 1 * 1024 * 1024 * 1024
 # The maximum parameter size allowed for models.
 MAX_MODEL_PARAMETER_SIZE = 122268040
+# The number of run steps to log to single wandb run.
+MAX_RUN_STEPS_PER_WANDB_RUN = 100
 
 # ---------------------------------
 # Miner/Validator Model parameters.
