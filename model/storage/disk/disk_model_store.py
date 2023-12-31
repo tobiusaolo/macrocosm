@@ -50,7 +50,10 @@ class DiskModelStore(LocalModelStore):
         self, valid_models_by_hotkey: Dict[str, ModelId], grace_period_seconds: int
     ):
         """Check across all of local storage and delete unreferenced models out of grace period."""
-        # Create a set of valid model paths.
+        # Expected directory structure is as follows.
+        # self.base_dir/models/hotkey/models--namespace--name/snapshots/commit/config.json + other files.
+
+        # Create a set of valid model paths up to where we expect to see the actual files.
         valid_model_paths = set()
         for hotkey, model_id in valid_models_by_hotkey.items():
             valid_model_paths.add(
@@ -76,27 +79,27 @@ class DiskModelStore(LocalModelStore):
                     )
 
             else:
-                # Check all the model subfolder paths.
+                # Check all the models--namespace--name subfolder paths.
                 hotkey_dir = Path(hotkey_path)
                 model_subfolder_paths = [
                     str(d) for d in hotkey_dir.iterdir() if d.is_dir
                 ]
 
-                # Check all the snapshot subfolder paths
+                # Check all the snapshots subfolder paths
                 for model_path in model_subfolder_paths:
                     model_dir = Path(model_path)
                     snapshot_subfolder_paths = [
                         str(d) for d in model_dir.iterdir() if d.is_dir
                     ]
 
-                    # Check all the actual model snapshot paths
+                    # Check all the commit paths.
                     for snapshot_path in snapshot_subfolder_paths:
                         snapshot_dir = Path(snapshot_path)
                         commit_subfolder_paths = [
                             str(d) for d in snapshot_dir.iterdir() if d.is_dir
                         ]
 
-                        # Reached the end. Check all the actual commit subfolders.
+                        # Reached the end. Check all the actual commit subfolders for the files.
                         for commit_path in commit_subfolder_paths:
                             if commit_path not in valid_model_paths:
                                 deleted_model = utils.remove_dir_out_of_grace(
