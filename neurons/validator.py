@@ -16,6 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from collections import defaultdict
 import datetime as dt
 import os
 import json
@@ -172,24 +173,28 @@ class Validator:
         # Load the state of the validator uids from file.
         uids_filepath = os.path.join(self.state_path(), Validator.UIDS_FILENAME)
 
+        # Load the state of the tracker from file.
+        tracker_filepath = os.path.join(self.state_path(), Validator.TRACKER_FILENAME)
+        if not os.path.exists(tracker_filepath):
+            bt.logging.warning("No tracker state file found. Starting from scratch.")
+        else:
+            self.model_tracker.load_state(tracker_filepath)
+
         if not os.path.exists(uids_filepath):
             bt.logging.warning("No uids state file found. Starting from scratch.")
             # === Build initial uids to eval ===
-            uids = self.metagraph.uids.tolist()
-            random.shuffle(uids)
+            hotkeys = (
+                self.model_tracker.get_miner_hotkey_to_model_metadata_dict().keys()
+            )
+            uids = []
+            for hotkey in hotkeys:
+                if hotkey in self.metagraph.hotkeys:
+                    uids.append(self.metagraph.hotkeys.index(hotkey))
             self.uids_to_eval = set(uids)
         else:
             with open(uids_filepath, "rb") as f:
                 self.uids_to_eval = pickle.load(f)
                 self.pending_uids_to_eval = pickle.load(f)
-
-        # Load the state of the tracker from file.
-        tracker_filepath = os.path.join(self.state_path(), Validator.TRACKER_FILENAME)
-
-        if not os.path.exists(tracker_filepath):
-            bt.logging.warning("No tracker state file found. Starting from scratch.")
-        else:
-            self.model_tracker.load_state(tracker_filepath)
 
         # Setup a miner iterator to ensure we update all miners.
         # This subnet does not differentiate between miner and validators so this is passed all uids.
@@ -434,8 +439,16 @@ class Validator:
             self.uids_to_eval.update(self.pending_uids_to_eval)
             self.pending_uids_to_eval.clear()
 
+        if not uids:
+            bt.logging.debug(
+                "No uids to eval. Waiting 5 minutes to download some models."
+            )
+            time.sleep(300)
+            return
+
         # Keep track of which block this uid last updated their model.
-        uid_to_block = dict()
+        # Default to an infinite block if we can't retrieve the metadata for the miner.
+        uid_to_block = defaultdict(math.inf)
 
         # Generate random pages for evaluation and prepare batches for each page
         # the dataset contains >900 million pages to eval over.
@@ -629,11 +642,13 @@ class Validator:
                 bt.logging.info(
                     "KeyboardInterrupt caught, gracefully closing the wandb run..."
                 )
+                self.save_state()
                 if self.wandb_run:
                     self.wandb_run.finish()
                 exit()
 
             except Exception as e:
+                self.save_state()
                 bt.logging.error(
                     f"Error in validator loop \n {e} \n {traceback.format_exc()}"
                 )

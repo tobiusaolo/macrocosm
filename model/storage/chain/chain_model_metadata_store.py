@@ -41,7 +41,7 @@ class ChainModelMetadataStore(ModelMetadataStore):
         )
         utils.run_in_subprocess(partial, 60)
 
-    async def retrieve_model_metadata(self, hotkey: str) -> ModelMetadata:
+    async def retrieve_model_metadata(self, hotkey: str) -> Optional[ModelMetadata]:
         """Retrieves model metadata on this subnet for specific hotkey"""
 
         # Wrap calls to the subtensor in a subprocess with a timeout to handle potential hangs.
@@ -49,6 +49,9 @@ class ChainModelMetadataStore(ModelMetadataStore):
             bt.extrinsics.serving.get_metadata, self.subtensor, self.subnet_uid, hotkey
         )
         metadata = utils.run_in_subprocess(partial, 60)
+
+        if not metadata:
+            return None
 
         commitment = metadata["info"]["fields"][0]
         hex_data = commitment[list(commitment.keys())[0]][2:]

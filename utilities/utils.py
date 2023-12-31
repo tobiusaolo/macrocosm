@@ -45,7 +45,7 @@ def run_in_subprocess(func: functools.partial, ttl: int) -> Any:
         try:
             result = func()
             queue.put(result)
-        except Exception as e:
+        except (Exception, BaseException) as e:
             # Catch exceptions here to add them to the queue.
             queue.put(e)
 

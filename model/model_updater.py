@@ -1,3 +1,5 @@
+import bittensor as bt
+from typing import Optional
 import pretrain
 from model.data import ModelMetadata
 from model.model_tracker import ModelTracker
@@ -21,7 +23,7 @@ class ModelUpdater:
         self.local_store = local_store
         self.model_tracker = model_tracker
 
-    async def _get_metadata(self, hotkey: str) -> ModelMetadata:
+    async def _get_metadata(self, hotkey: str) -> Optional[ModelMetadata]:
         """Get metadata about a model by hotkey"""
         return await self.metadata_store.retrieve_model_metadata(hotkey)
 
@@ -29,6 +31,10 @@ class ModelUpdater:
         """Updates local model for a hotkey if out of sync and returns if it was updated."""
         # Get the metadata for the miner.
         metadata = await self._get_metadata(hotkey)
+
+        if not metadata:
+            bt.logging.trace(f"No metadata found on the chain for hotkey {hotkey}")
+            return False
 
         # Check what model id the model tracker currently has for this hotkey.
         tracker_model_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(

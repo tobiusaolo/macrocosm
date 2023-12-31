@@ -1,5 +1,5 @@
 from collections import deque
-from typing import List
+from typing import List, Optional
 from model.data import ModelId, ModelMetadata
 from model.storage.model_metadata_store import ModelMetadataStore
 
@@ -21,10 +21,10 @@ class FakeModelMetadataStore(ModelMetadataStore):
 
         self.metadata[hotkey] = model_metadata
 
-    async def retrieve_model_metadata(self, hotkey: str) -> ModelMetadata:
+    async def retrieve_model_metadata(self, hotkey: str) -> Optional[ModelMetadata]:
         """Retrieves model metadata for a specific hotkey"""
 
-        return self.metadata[hotkey]
+        return self.metadata[hotkey] if hotkey in self.metadata else None
 
     def inject_store_errors(self, errors: List[Exception]):
         """Injects a list of errors to be raised on the next N calls to store_model_metadata."""
