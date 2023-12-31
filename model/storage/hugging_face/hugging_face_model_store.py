@@ -70,8 +70,10 @@ class HuggingFaceModelStore(RemoteModelStore):
             use_safetensors=True,
         )
 
+        # Get the directory the model was stored to.
+        model_dir = utils.get_hf_download_path(local_path, model_id)
         # Compute the hash of the downloaded model.
-        model_hash = utils.get_hash_of_directory(local_path)
+        model_hash = utils.get_hash_of_directory(model_dir)
         model_id_with_hash = ModelId(
             namespace=model_id.namespace,
             name=model_id.name,

@@ -31,6 +31,15 @@ def get_local_model_snapshot_dir(base_dir: str, hotkey: str, model_id: ModelId) 
     )
 
 
+def get_hf_download_path(local_path: str, model_id: ModelId) -> str:
+    return os.path.join(
+        local_path,
+        "models" + "--" + model_id.namespace + "--" + model_id.name,
+        "snapshots",
+        model_id.commit,
+    )
+
+
 def get_newest_datetime_under_path(path: str) -> datetime.datetime:
     newest_filetime = sys.maxsize
 

@@ -84,6 +84,37 @@ class TestUtils(unittest.TestCase):
         )
         self.assertEqual(model_dir, expected_path)
 
+    def test_get_hf_download_path_dir(self):
+        hotkey = "test-hotkey"
+        namespace = "test-namespace"
+        name = "test-name"
+        commit = "test-commit"
+        model_id = ModelId(
+            namespace=namespace, name=name, hash="test-hash", commit=commit
+        )
+
+        hf_download_path_dir = utils.get_hf_download_path(
+            utils.get_local_miner_dir(self.base_dir, hotkey), model_id
+        )
+
+        expected_path = (
+            self.base_dir
+            + self.sep
+            + "models"
+            + self.sep
+            + hotkey
+            + self.sep
+            + "models--"
+            + namespace
+            + "--"
+            + name
+            + self.sep
+            + "snapshots"
+            + self.sep
+            + commit
+        )
+        self.assertEqual(hf_download_path_dir, expected_path)
+
     def test_get_newest_datetime_under_path(self):
         file_name = "test.txt"
         path = self.base_dir + os.path.sep + file_name
