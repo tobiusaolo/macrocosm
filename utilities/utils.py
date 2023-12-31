@@ -88,5 +88,7 @@ def run_in_subprocess(func: functools.partial, ttl: int) -> Any:
     # If we put an exception on the queue then raise instead of returning.
     if isinstance(result, Exception):
         raise result
+    if isinstance(result, BaseException):
+        raise Exception(f"BaseException raised in subprocess: {str(result)}")
 
     return result
