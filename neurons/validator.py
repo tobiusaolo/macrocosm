@@ -152,6 +152,9 @@ class Validator:
         if not self.config.offline:
             self.uid = self.assert_registered(self.wallet, self.metagraph)
 
+        # Track how may run_steps this validator has completed.
+        self.run_step_count = 0
+
         # Dont log to wandb if offline.
         if not self.config.offline and self.config.wandb.on:
             self.new_wandb_run()
@@ -547,6 +550,10 @@ class Validator:
             win_rate,
             losses_per_uid,
         )
+
+        # Increment the number of completed run steps by 1
+        self.run_step_count += 1
+
         bt.logging.debug("Finished run step.")
 
     def log_step(
@@ -604,6 +611,17 @@ class Validator:
         bt.logging.trace(f"Step results: {step_log}")
 
         if self.config.wandb.on and not self.config.offline:
+            # If we have already completed X steps then we will complete the current wandb run and make a new one.
+            if (
+                self.run_step_count
+                and self.run_step_count % constants.MAX_RUN_STEPS_PER_WANDB_RUN == 0
+            ):
+                bt.logging.trace(
+                    f"Validator has completed {self.run_step_count} run steps. Creating a new wandb run."
+                )
+                self.wandb_run.finish()
+                self.new_wandb_run()
+
             original_format_json = json.dumps(step_log)
             uids = step_log["uids"]
             uid_data = step_log["uid_data"]
