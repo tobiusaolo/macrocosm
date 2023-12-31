@@ -22,7 +22,9 @@ from model.data import Model, ModelId
 from model.storage.model_metadata_store import ModelMetadataStore
 from model.storage.remote_model_store import RemoteModelStore
 import bittensor as bt
-from transformers import PreTrainedModel, AutoModel
+from transformers import PreTrainedModel, AutoModelForCausalLM
+import pretrain as pt
+from safetensors.torch import load_model
 
 
 def model_path(base_dir: str, run_id: str) -> str:
@@ -58,9 +60,15 @@ class Actions:
             safe_serialization=True,
         )
 
+    def load_gpt2_model(self, model_file: str) -> PreTrainedModel:
+        """For loading GPT2 models from the previous version of this subnet."""
+        model = pt.model.get_model()
+        load_model(model, model_file)
+        return model
+
     def load_local_model(self, model_dir: str) -> PreTrainedModel:
         """Loads a model from a directory."""
-        return AutoModel.from_pretrained(
+        return AutoModelForCausalLM.from_pretrained(
             pretrained_model_name_or_path=model_dir,
             local_files_only=True,
             use_safetensors=True,
@@ -78,9 +86,10 @@ class Actions:
         """
         hotkey = metagraph.hotkeys[uid]
         model_metadata = await self.model_metadata_store.retrieve_model_metadata(hotkey)
-        return await self.remote_model_store.download_model(
+        model: Model = await self.remote_model_store.download_model(
             model_metadata.id, download_dir
         )
+        return model.pt_model
 
     async def push(self, model: PreTrainedModel, retry_delay_secs: int = 60):
         """Pushes the model to Hugging Face and publishes it on the chain for evaluation by validators."""

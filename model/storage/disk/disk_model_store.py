@@ -3,7 +3,7 @@ from typing import Dict
 from model.data import Model, ModelId
 from model.storage.disk import utils
 from model.storage.local_model_store import LocalModelStore
-from transformers import AutoModel
+from transformers import AutoModelForCausalLM
 from pathlib import Path
 
 
@@ -31,7 +31,7 @@ class DiskModelStore(LocalModelStore):
     def retrieve_model(self, hotkey: str, model_id: ModelId) -> Model:
         """Retrieves a trained model locally."""
 
-        model = AutoModel.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name_or_path=utils.get_local_model_dir(
                 self.base_dir, hotkey, model_id
             ),

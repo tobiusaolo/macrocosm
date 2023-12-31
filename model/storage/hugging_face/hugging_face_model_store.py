@@ -4,9 +4,10 @@ import bittensor as bt
 import os
 from model.data import Model, ModelId
 from model.storage.disk import utils
-from transformers import AutoModel, DistilBertModel, DistilBertConfig
+from transformers import AutoModelForCausalLM
 
 from model.storage.remote_model_store import RemoteModelStore
+from pretrain.model import get_model
 
 
 class HuggingFaceModelStore(RemoteModelStore):
@@ -51,7 +52,7 @@ class HuggingFaceModelStore(RemoteModelStore):
             raise ValueError("No Hugging Face commit id found to read from the hub.")
 
         # Transformers library can pick up a model based on the hugging face path (username/model) + rev.
-        model = AutoModel.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name_or_path=model_id.namespace + "/" + model_id.name,
             revision=model_id.commit,
             cache_dir=local_path,
@@ -78,11 +79,7 @@ async def test_roundtrip_model():
         name="TestModel",
     )
 
-    pt_model = DistilBertModel(
-        config=DistilBertConfig(
-            vocab_size=256, n_layers=2, n_heads=4, dim=100, hidden_dim=400
-        )
-    )
+    pt_model = get_model()
 
     model = Model(id=model_id, pt_model=pt_model)
     hf_model_store = HuggingFaceModelStore()
