@@ -171,7 +171,7 @@ class Validator:
         self.model_tracker = ModelTracker()
 
         # Load the state of the validator uids from file.
-        uids_filepath = os.path.join(self.state_path(), Validator.UIDS_FILENAME)
+        self.uids_filepath = os.path.join(self.state_path(), Validator.UIDS_FILENAME)
 
         # Load the state of the tracker from file.
         tracker_filepath = os.path.join(self.state_path(), Validator.TRACKER_FILENAME)
@@ -180,7 +180,7 @@ class Validator:
         else:
             self.model_tracker.load_state(tracker_filepath)
 
-        if not os.path.exists(uids_filepath):
+        if not os.path.exists(self.uids_filepath):
             bt.logging.warning("No uids state file found. Starting from scratch.")
             # === Build initial uids to eval ===
             hotkeys = (
@@ -192,7 +192,7 @@ class Validator:
                     uids.append(self.metagraph.hotkeys.index(hotkey))
             self.uids_to_eval = set(uids)
         else:
-            with open(uids_filepath, "rb") as f:
+            with open(self.uids_filepath, "rb") as f:
                 self.uids_to_eval = pickle.load(f)
                 self.pending_uids_to_eval = pickle.load(f)
 
@@ -284,7 +284,7 @@ class Validator:
             os.makedirs(self.state_path())
 
         # Save the state of the validator uids to file.
-        with open(Validator.UIDS_FILENAME, "wb") as f:
+        with open(self.uids_filepath, "wb") as f:
             pickle.dump(self.uids_to_eval, f)
             pickle.dump(self.pending_uids_to_eval, f)
 
@@ -455,7 +455,7 @@ class Validator:
 
         # Keep track of which block this uid last updated their model.
         # Default to an infinite block if we can't retrieve the metadata for the miner.
-        uid_to_block = defaultdict(math.inf)
+        uid_to_block = defaultdict(lambda: math.inf)
 
         # Generate random pages for evaluation and prepare batches for each page
         # the dataset contains >900 million pages to eval over.
