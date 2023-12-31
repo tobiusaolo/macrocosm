@@ -494,7 +494,7 @@ class Validator:
                     )
 
                     losses = pt.validation.compute_losses(
-                        model_i, batches, device=self.config.device
+                        model_i.pt_model, batches, device=self.config.device
                     )
 
                     del model_i
