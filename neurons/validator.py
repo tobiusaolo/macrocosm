@@ -106,8 +106,14 @@ class Validator:
         )
         parser.add_argument(
             "--model_dir",
-            default=os.path.join(constants.ROOT_DIR, "model-store/"),
+            default=os.path.join(pt.ROOT_DIR, "model-store/"),
             help="Where to store downloaded models",
+        )
+        parser.add_argument(
+            "--netuid",
+            type=str,
+            default=pt.SUBNET_UID,
+            help="The subnet UID.",
         )
 
         bt.subtensor.add_args(parser)
@@ -193,7 +199,7 @@ class Validator:
         self.miner_iterator = MinerIterator(self.metagraph.uids.tolist())
 
         # Setup a ModelMetadataStore
-        self.metadata_store = ChainModelMetadataStore(self.subtensor, self.wallet)
+        self.metadata_store = ChainModelMetadataStore(self.subtensor, self.wallet, self.config.netuid)
 
         # Setup a RemoteModelStore
         self.remote_store = HuggingFaceModelStore()
@@ -262,8 +268,6 @@ class Validator:
             dir=self.config.full_path,
             allow_val_change=True,
         )
-
-        self.wandb_run = pt.mining.init_validator(self.wallet, metagraph=self.metagraph)
 
     def save_state(self):
         """Saves the state of the validator to a file."""
@@ -418,6 +422,12 @@ class Validator:
 
         # Pull relevant uids for step. If they aren't found in the model tracker on eval they will be skipped.
         uids = list(self.uids_to_eval)
+
+        # Add uids with newly updated models to the upcoming batch of evaluations.
+        with self.pending_uids_to_eval_lock:
+            self.uids_to_eval.update(self.pending_uids_to_eval)
+            self.pending_uids_to_eval.clear()
+
         # Keep track of which block this uid last updated their model.
         uid_to_block = dict()
 
@@ -445,11 +455,9 @@ class Validator:
                 hotkey
             )
 
-            losses = None
+            losses = [math.inf for _ in batches]
 
-            if model_i_metadata == None:
-                losses = [math.inf for _ in batches]
-            else:
+            if model_i_metadata != None:
                 try:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
@@ -468,7 +476,6 @@ class Validator:
                     bt.logging.error(
                         f"Error in eval loop: {e}. Setting losses for uid: {uid_i} to infinity."
                     )
-                    losses = [math.inf for _ in batches]
 
             losses_per_uid[uid_i] = losses
             average_model_loss = sum(losses) / len(losses)
@@ -500,11 +507,6 @@ class Validator:
         self.uids_to_eval = set(
             sorted(win_rate, key=win_rate.get, reverse=True)[: self.config.sample_min]
         )
-
-        # Add uids with newly updated models to the next batch of evaluations.
-        with self.pending_uids_to_eval_lock:
-            self.uids_to_eval.update(self.pending_uids_to_eval)
-            self.pending_uids_to_eval.clear()
 
         # Log to screen and wandb.
         self.log_step(
