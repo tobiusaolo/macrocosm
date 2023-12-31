@@ -44,11 +44,9 @@ def run_in_subprocess(func: functools.partial, ttl: int) -> Any:
     def wrapped_func(func: functools.partial, queue: multiprocessing.Queue):
         try:
             result = func()
-            bt.logging.info(f"Putting result {result} on queue")
             queue.put(result)
         except Exception as e:
             # Catch exceptions here to add them to the queue.
-            bt.logging.error("Caught exception in subprocess")
             queue.put(e)
 
     # Use "fork" (the default on all POSIX except macOS), because pickling doesn't seem
@@ -57,24 +55,17 @@ def run_in_subprocess(func: functools.partial, ttl: int) -> Any:
     queue = ctx.Queue()
     process = ctx.Process(target=wrapped_func, args=[func, queue])
 
-    bt.logging.info("Starting subprocess")
-
     process.start()
-
-    bt.logging.info("Joining subprocess")
 
     process.join(timeout=ttl)
 
     if process.is_alive():
-        bt.logging.info("Terminating subprocess")
         process.terminate()
-        bt.logging.info("Joining terminated subprocess")
         process.join()
         raise TimeoutError(f"Failed to {func.func.__name__} after {ttl} seconds")
 
-    bt.logging.info("Getting queue item")
-
-    result = queue.get()
+    # Raises an error if the queue is empty. This is fine. It means our subprocess timed out.
+    result = queue.get(block=False)
 
     # If we put an exception on the queue then raise instead of returning.
     if isinstance(result, Exception):

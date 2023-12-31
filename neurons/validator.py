@@ -85,11 +85,6 @@ class Validator:
             help="Number of uids to eval each step.",
         )
         parser.add_argument(
-            "--reset_wandb",
-            action="store_true",
-            help="Creates a new wandb run instead of using an older on.",
-        )
-        parser.add_argument(
             "--dont_set_weights",
             action="store_true",
             help="Validator does not set weights on the chain.",
@@ -123,6 +118,23 @@ class Validator:
         config = bt.config(parser)
         return config
 
+    def state_path(self) -> str:
+        """
+        Constructs a file path for storing validator state.
+
+        Returns:
+        str: A string representing the file path.
+        """
+        return os.path.expanduser(
+            "{}/{}/{}/netuid{}/{}".format(
+                bt.logging.config().logging.logging_dir,
+                self.wallet.name,
+                self.wallet.hotkey_str,
+                self.config.netuid,
+                "vali-state",
+            )
+        )
+
     def __init__(self):
         self.config = Validator.config()
         bt.logging(config=self.config)
@@ -131,22 +143,15 @@ class Validator:
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
         self.dendrite = bt.dendrite(wallet=self.wallet)
-        self.metagraph = self.subtensor.metagraph(pt.SUBNET_UID)
+        self.metagraph = self.subtensor.metagraph(self.config.netuid)
         torch.backends.cudnn.benchmark = True
 
         # Dont check registration status if offline.
         if not self.config.offline:
-            if self.wallet.hotkey.ss58_address not in self.metagraph.hotkeys:
-                raise Exception(
-                    f"You are not registered. Use `btcli s register --netuid {pt.SUBNET_UID}` to register."
-                )
-            self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
-            bt.logging.success(
-                f"You are registered with address: {self.wallet.hotkey.ss58_address} and uid: {self.uid}"
-            )
+            self.uid = self.assert_registered(self.wallet, self.metagraph)
 
         # Dont log to wandb if offline.
-        if not self.config.offline:
+        if not self.config.offline and self.config.wandb.on:
             self.new_wandb_run()
 
         # === Running args ===
@@ -154,10 +159,6 @@ class Validator:
         self.epoch_step = 0
         self.global_step = 0
         self.last_epoch = self.metagraph.block.item()
-        self.last_update_check = {}
-        self.metadata = {
-            uid: pt.graph.metadata(uid) for uid in self.metagraph.uids.tolist()
-        }
 
         self.uids_to_eval = []
 
@@ -169,9 +170,7 @@ class Validator:
         self.model_tracker = ModelTracker()
 
         # Load the state of the validator uids from file.
-        uids_filepath = os.path.join(
-            self.config.neuron.full_path, Validator.UIDS_FILENAME
-        )
+        uids_filepath = os.path.join(self.state_path(), Validator.UIDS_FILENAME)
 
         if not os.path.exists(uids_filepath):
             bt.logging.warning("No uids state file found. Starting from scratch.")
@@ -185,9 +184,7 @@ class Validator:
                 self.pending_uids_to_eval = pickle.load(f)
 
         # Load the state of the tracker from file.
-        tracker_filepath = os.path.join(
-            self.config.neuron.full_path, Validator.TRACKER_FILENAME
-        )
+        tracker_filepath = os.path.join(self.state_path(), Validator.TRACKER_FILENAME)
 
         if not os.path.exists(tracker_filepath):
             bt.logging.warning("No tracker state file found. Starting from scratch.")
@@ -199,7 +196,9 @@ class Validator:
         self.miner_iterator = MinerIterator(self.metagraph.uids.tolist())
 
         # Setup a ModelMetadataStore
-        self.metadata_store = ChainModelMetadataStore(self.subtensor, self.wallet, self.config.netuid)
+        self.metadata_store = ChainModelMetadataStore(
+            self.subtensor, self.wallet, self.config.netuid
+        )
 
         # Setup a RemoteModelStore
         self.remote_store = HuggingFaceModelStore()
@@ -232,7 +231,7 @@ class Validator:
             self.update_thread.join()
             self.clean_thread.join()
 
-    def assert_registered(wallet: bt.wallet, metagraph: bt.metagraph) -> int:
+    def assert_registered(self, wallet: bt.wallet, metagraph: bt.metagraph) -> int:
         """Asserts the wallet is a registered validator and returns the validator's UID.
 
         Raises:
@@ -240,7 +239,7 @@ class Validator:
         """
         if wallet.hotkey.ss58_address not in metagraph.hotkeys:
             raise ValueError(
-                f"You are not registered. \nUse: \n`btcli s register --netuid {pt.SUBNET_UID}` to register via burn \n or btcli s pow_register --netuid {pt.SUBNET_UID} to register with a proof of work"
+                f"You are not registered. \nUse: \n`btcli s register --netuid {self.config.netuid}` to register via burn \n or btcli s pow_register --netuid {self.config.netuid} to register with a proof of work"
             )
         uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
         bt.logging.success(
@@ -253,19 +252,17 @@ class Validator:
         """Creates a new wandb run to save information to."""
         # Create a unique run id for this run.
         run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        my_uid = self.assert_registered(self.wallet, self.metagraph)
         self.wandb_run = wandb.init(
             name=run_id,
             project=self.config.wandb_project,
             entity=self.config.wandb_entity,
             config={
-                "uid": my_uid,
+                "uid": self.uid,
                 "hotkey": self.wallet.hotkey.ss58_address,
                 "run_name": run_id,
                 "version": pt.__version__,
                 "type": "validator",
             },
-            dir=self.config.full_path,
             allow_val_change=True,
         )
 
@@ -278,8 +275,8 @@ class Validator:
 
         bt.logging.trace("Saving validator state.")
 
-        if not os.path.exists(self.config.neuron.full_path):
-            os.makedirs(self.config.neuron.full_path)
+        if not os.path.exists(self.state_path()):
+            os.makedirs(self.state_path())
 
         # Save the state of the validator uids to file.
         with open(Validator.UIDS_FILENAME, "wb") as f:
@@ -288,7 +285,7 @@ class Validator:
 
         # Save the state of the tracker to file.
         self.model_tracker.save_state(
-            os.path.join(self.config.neuron.full_path, Validator.TRACKER_FILENAME)
+            os.path.join(self.state_path(), Validator.TRACKER_FILENAME)
         )
 
     def update_models(self):
@@ -299,6 +296,7 @@ class Validator:
         # if they should be updated.
         while not self.stop_event.is_set():
             try:
+                bt.logging.trace("Updating models.")
                 # Get the next uid to check
                 next_uid = next(self.miner_iterator)
 
@@ -313,11 +311,17 @@ class Validator:
                     # If we have seen it within 5 minutes then sleep until it has been at least 5 minutes.
                     time.sleep((dt.timedelta(minutes=5) - time_diff).total_seconds())
 
+                bt.logging.trace(f"Updating model for UID={next_uid}")
+
                 # Get their hotkey from the metagraph.
                 hotkey = self.metagraph.hotkeys[next_uid]
 
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
                 updated = asyncio.run(self.model_updater.sync_model(hotkey))
+
+                bt.logging.trace(
+                    f"Updated model for UID={next_uid}. Was new = {updated}"
+                )
 
                 # Ensure we eval the new model on the next loop.
                 if updated:
@@ -325,7 +329,9 @@ class Validator:
                         self.pending_uids_to_eval.add(next_uid)
 
             except Exception as e:
-                bt.logging.error(f"Error in update loop: {e}")
+                bt.logging.error(
+                    f"Error in update loop: {e} \n {traceback.format_exc()}"
+                )
 
         bt.logging.info("Exiting update models loop.")
 
@@ -346,7 +352,7 @@ class Validator:
                 bt.logging.error(f"Error in clean loop: {e}")
 
             # Only check every 5 minutes.
-            time.sleep(dt.timedelta(minutes=5))
+            time.sleep(dt.timedelta(minutes=5).total_seconds())
 
         bt.logging.info("Exiting clean models loop.")
 
@@ -355,7 +361,7 @@ class Validator:
             try:
                 self.weights.nan_to_num(0.0)
                 self.subtensor.set_weights(
-                    netuid=pt.SUBNET_UID,
+                    netuid=self.config.netuid,
                     wallet=self.wallet,
                     uids=self.metagraph.uids,
                     weights=self.weights,
@@ -382,7 +388,7 @@ class Validator:
 
     async def try_sync_metagraph(self, ttl: int):
         def sync_metagraph(endpoint):
-            metagraph = bt.subtensor(endpoint).metagraph(pt.SUBNET_UID)
+            metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid)
             metagraph.save()
             self.miner_iterator.set_miner_uids(metagraph.uids.tolist())
 
@@ -402,9 +408,9 @@ class Validator:
             await self.run_step()
 
         try:
-            bt.logging.debug(f"Running step.")
+            bt.logging.trace(f"Running step.")
             await asyncio.wait_for(_try_run_step(), ttl)
-            bt.logging.debug(f"Finished running step.")
+            bt.logging.trace(f"Finished running step.")
         except asyncio.TimeoutError:
             bt.logging.error(f"Failed to run step after {ttl} seconds")
 
@@ -573,18 +579,21 @@ class Validator:
 
         # Sink step log.
         bt.logging.trace(f"Step results: {step_log}")
-        original_format_json = json.dumps(step_log)
-        uids = step_log["uids"]
-        uid_data = step_log["uid_data"]
 
-        # Create a new dictionary with the required format
-        graphed_data = {
-            "time": time.time(),
-            "block": self.metagraph.block.item(),
-            "uid_data": {str(uid): uid_data[str(uid)]["average_loss"] for uid in uids},
-            "weight_data": {str(uid): self.weights[uid].item() for uid in uids},
-        }
         if self.config.wandb.on and not self.config.offline:
+            original_format_json = json.dumps(step_log)
+            uids = step_log["uids"]
+            uid_data = step_log["uid_data"]
+
+            # Create a new dictionary with the required format
+            graphed_data = {
+                "time": time.time(),
+                "block": self.metagraph.block.item(),
+                "uid_data": {
+                    str(uid): uid_data[str(uid)]["average_loss"] for uid in uids
+                },
+                "weight_data": {str(uid): self.weights[uid].item() for uid in uids},
+            }
             bt.logging.trace("Logging to Wandb")
             self.wandb_run.log(
                 {**graphed_data, "original_format_json": original_format_json},
@@ -620,7 +629,7 @@ class Validator:
                 bt.logging.info(
                     "KeyboardInterrupt caught, gracefully closing the wandb run..."
                 )
-                if self.config.wandb.on and not self.config.offline:
+                if self.wandb_run:
                     self.wandb_run.finish()
                 exit()
 
