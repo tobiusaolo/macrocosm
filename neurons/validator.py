@@ -314,8 +314,15 @@ class Validator:
 
                 if time_diff and time_diff < dt.timedelta(minutes=5):
                     # If we have seen it within 5 minutes then sleep until it has been at least 5 minutes.
-                    time.sleep((dt.timedelta(minutes=5) - time_diff).total_seconds())
+                    time_to_sleep = (
+                        dt.timedelta(minutes=5) - time_diff
+                    ).total_seconds()
+                    bt.logging.trace(
+                        f"Update loop has already seen this uid in the last 5 minutes. Sleeping {time_to_sleep} seconds."
+                    )
+                    time.sleep(time_to_sleep)
 
+                uid_last_checked[next_uid] = dt.datetime.now()
                 bt.logging.trace(f"Updating model for UID={next_uid}")
 
                 # Get their hotkey from the metagraph.
