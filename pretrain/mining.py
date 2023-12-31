@@ -86,6 +86,9 @@ class Actions:
         """
         hotkey = metagraph.hotkeys[uid]
         model_metadata = await self.model_metadata_store.retrieve_model_metadata(hotkey)
+        if not model_metadata is None:
+            raise ValueError(f"No model metadata found for miner {uid}")
+
         model: Model = await self.remote_model_store.download_model(
             model_metadata.id, download_dir
         )

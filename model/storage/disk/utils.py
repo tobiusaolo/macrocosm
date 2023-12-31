@@ -15,10 +15,19 @@ def get_local_miner_dir(base_dir: str, hotkey: str) -> str:
     return os.path.join(get_local_miners_dir(base_dir), hotkey)
 
 
+# Hugging face stores models under models--namespace--name/snapshots/commit when downloading.
 def get_local_model_dir(base_dir: str, hotkey: str, model_id: ModelId) -> str:
     return os.path.join(
         get_local_miner_dir(base_dir, hotkey),
-        model_id.namespace + "_" + model_id.name + "_" + model_id.commit,
+        "models" + "--" + model_id.namespace + "--" + model_id.name,
+    )
+
+
+def get_local_model_snapshot_dir(base_dir: str, hotkey: str, model_id: ModelId) -> str:
+    return os.path.join(
+        get_local_model_dir(base_dir, hotkey, model_id),
+        "snapshots",
+        model_id.commit,
     )
 
 
@@ -39,12 +48,16 @@ def get_newest_datetime_under_path(path: str) -> datetime.datetime:
     return datetime.datetime.fromtimestamp(newest_filetime)
 
 
-def remove_dir_out_of_grace(path: str, grace_period_seconds: int):
+def remove_dir_out_of_grace(path: str, grace_period_seconds: int) -> bool:
+    """Removes a dir if the last modified time is out of grace period secs. Returns if it was deleted."""
     last_modified = get_newest_datetime_under_path(path)
     grace = datetime.timedelta(seconds=grace_period_seconds)
 
     if last_modified < datetime.datetime.now() - grace:
         shutil.rmtree(path=path, ignore_errors=True)
+        return True
+
+    return False
 
 
 def get_hash_of_file(path: str) -> str:

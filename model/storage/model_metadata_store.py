@@ -1,4 +1,5 @@
 import abc
+from typing import Optional
 from model.data import ModelId, ModelMetadata
 
 
@@ -11,6 +12,6 @@ class ModelMetadataStore(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def retrieve_model_metadata(self, hotkey: str) -> ModelMetadata:
-        """Retrieves model metadata + block information on this subnet for specific miner"""
+    async def retrieve_model_metadata(self, hotkey: str) -> Optional[ModelMetadata]:
+        """Retrieves model metadata + block information on this subnet for specific miner, if present"""
         pass

@@ -1,6 +1,7 @@
 import functools
 import multiprocessing
 from typing import Any, Tuple
+import bittensor as bt
 
 from model.data import ModelId
 
@@ -44,7 +45,7 @@ def run_in_subprocess(func: functools.partial, ttl: int) -> Any:
         try:
             result = func()
             queue.put(result)
-        except Exception as e:
+        except (Exception, BaseException) as e:
             # Catch exceptions here to add them to the queue.
             queue.put(e)
 
@@ -55,6 +56,7 @@ def run_in_subprocess(func: functools.partial, ttl: int) -> Any:
     process = ctx.Process(target=wrapped_func, args=[func, queue])
 
     process.start()
+
     process.join(timeout=ttl)
 
     if process.is_alive():
@@ -62,7 +64,8 @@ def run_in_subprocess(func: functools.partial, ttl: int) -> Any:
         process.join()
         raise TimeoutError(f"Failed to {func.func.__name__} after {ttl} seconds")
 
-    result = queue.get()
+    # Raises an error if the queue is empty. This is fine. It means our subprocess timed out.
+    result = queue.get(block=False)
 
     # If we put an exception on the queue then raise instead of returning.
     if isinstance(result, Exception):

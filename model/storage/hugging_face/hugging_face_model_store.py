@@ -105,7 +105,7 @@ async def test_roundtrip_model():
     # Retrieve the model from hf.
     retrieved_model = await hf_model_store.download_model(
         model_id=model.id,
-        local_path=utils.get_local_model_dir("test-models", "hotkey0", model.id),
+        local_path=utils.get_local_miner_dir("test-models", "hotkey0"),
     )
 
     # Check that they match.
@@ -129,7 +129,7 @@ async def test_retrieve_model():
     # Retrieve the model from hf (first run) or cache.
     model = await hf_model_store.download_model(
         model_id=model_id,
-        local_path=utils.get_local_model_dir("test-models", "hotkey0", model_id),
+        local_path=utils.get_local_miner_dir("test-models", "hotkey0"),
     )
 
     print(f"Finished retrieving the model with id: {model.id}")
@@ -149,7 +149,7 @@ async def test_retrieve_oversized_model():
     try:
         model = await hf_model_store.download_model(
             model_id=model_id,
-            local_path=utils.get_local_model_dir("test-models", "hotkey0", model_id),
+            local_path=utils.get_local_miner_dir("test-models", "hotkey0"),
         )
     except ValueError as ve:
         print(f"Caught expected exception for downloading too large of a model: {ve}")
