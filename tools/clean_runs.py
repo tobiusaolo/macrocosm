@@ -1,5 +1,6 @@
 import wandb
 import bittensor as bt
+import constants
 import pretrain as pt
 from tqdm import tqdm
 
@@ -15,7 +16,7 @@ for uid in metagraph.uids.tolist():
     bt.logging.success(f"Got valid run: {valid_run_id}")
 
     all_uid_runs = api.runs(
-        f"opentensor-dev/{pt.WANDB_PROJECT}",
+        f"opentensor-dev/{constants.WANDB_PROJECT}",
         filters={
             "config.type": "miner",
             "config.run_name": {"$regex": f"miner-{uid}-.*"},

@@ -21,6 +21,7 @@ import random
 import argparse
 from tqdm import tqdm
 import bittensor as bt
+import constants
 import pretrain as pt
 from rich.table import Table
 from rich.console import Console
@@ -44,7 +45,7 @@ config = bt.config(parser)
 bt.logging(config=config)
 
 # Sync graph
-metagraph = bt.metagraph(pt.SUBNET_UID)
+metagraph = bt.metagraph(config.SUBNET_UID)
 
 uids = []
 timestamps = {}
@@ -62,7 +63,9 @@ pages = [
 ]
 batches = list(
     pt.dataset.SubsetFalconLoader(
-        batch_size=pt.batch_size, sequence_length=pt.sequence_length, pages=pages
+        batch_size=constants.batch_size,
+        sequence_length=constants.sequence_length,
+        pages=pages,
     )
 )
 

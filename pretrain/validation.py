@@ -21,7 +21,7 @@
 import math
 import torch
 import typing
-import pretrain
+import constants
 import traceback
 import bittensor as bt
 
@@ -39,8 +39,8 @@ def iswin(loss_i, loss_j, block_i, block_j):
         bool: True if loss i is better, False otherwise.
     """
     # Adjust loss based on timestamp and pretrain epsilon
-    loss_i = (1 - pretrain.timestamp_epsilon) * loss_i if block_i < block_j else loss_i
-    loss_j = (1 - pretrain.timestamp_epsilon) * loss_j if block_j < block_i else loss_j
+    loss_i = (1 - constants.timestamp_epsilon) * loss_i if block_i < block_j else loss_i
+    loss_j = (1 - constants.timestamp_epsilon) * loss_j if block_j < block_i else loss_j
     return loss_i < loss_j
 
 

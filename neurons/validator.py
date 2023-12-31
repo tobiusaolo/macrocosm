@@ -29,6 +29,7 @@ import asyncio
 import argparse
 
 import wandb
+import constants
 from model.model_tracker import ModelTracker
 from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
@@ -102,13 +103,13 @@ class Validator:
         )
         parser.add_argument(
             "--model_dir",
-            default=os.path.join(pt.ROOT_DIR, "model-store/"),
+            default=os.path.join(constants.ROOT_DIR, "model-store/"),
             help="Where to store downloaded models",
         )
         parser.add_argument(
             "--netuid",
             type=str,
-            default=pt.SUBNET_UID,
+            default=constants.SUBNET_UID,
             help="The subnet UID.",
         )
 
@@ -378,7 +379,7 @@ class Validator:
                     uids=self.metagraph.uids,
                     weights=self.weights,
                     wait_for_inclusion=False,
-                    version_key=pt.weights_version_key,
+                    version_key=constants.weights_version_key,
                 )
             except:
                 pass
@@ -465,8 +466,8 @@ class Validator:
         ]
         batches = list(
             pt.dataset.SubsetFalconLoader(
-                batch_size=pt.batch_size,
-                sequence_length=pt.sequence_length,
+                batch_size=constants.batch_size,
+                sequence_length=constants.sequence_length,
                 pages=pages,
             )
         )
@@ -518,7 +519,7 @@ class Validator:
         model_weights = torch.tensor(
             [win_rate[uid] for uid in uids], dtype=torch.float32
         )
-        step_weights = torch.softmax(model_weights / pt.temperature, dim=0)
+        step_weights = torch.softmax(model_weights / constants.temperature, dim=0)
         bt.logging.success(f"Computed model wins : {wins}")
 
         # Update weights based on moving average.
@@ -526,7 +527,9 @@ class Validator:
         for i, uid_i in enumerate(uids):
             new_weights[uid_i] = step_weights[i]
         new_weights /= new_weights.sum()
-        self.weights = pt.alpha * self.weights + (1 - pt.alpha) * new_weights
+        self.weights = (
+            constants.alpha * self.weights + (1 - constants.alpha) * new_weights
+        )
         self.weights = self.weights.nan_to_num(0.0)
 
         # Filter based on win rate removing all by the sample_min best models for evaluation.

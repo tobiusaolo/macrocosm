@@ -18,13 +18,18 @@
 
 import os
 import time
+from typing import Optional
 from model.data import Model, ModelId
+from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
+from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
 from model.storage.model_metadata_store import ModelMetadataStore
 from model.storage.remote_model_store import RemoteModelStore
 import bittensor as bt
 from transformers import PreTrainedModel, AutoModelForCausalLM
 import pretrain as pt
 from safetensors.torch import load_model
+
+from utilities import utils
 
 
 def model_path(base_dir: str, run_id: str) -> str:
@@ -35,6 +40,8 @@ def model_path(base_dir: str, run_id: str) -> str:
 
 
 class Actions:
+    """A suite of actions for Miners to save/load and upload/download models."""
+
     def __init__(
         self,
         wallet: bt.wallet,
@@ -48,6 +55,24 @@ class Actions:
         self.hf_repo_name = hf_repo_name
         self.model_metadata_store = model_metadata_store
         self.remote_model_store = remote_model_store
+
+    @classmethod
+    def create(
+        cls,
+        config: bt.config,
+        wallet: bt.wallet,
+        subtensor: Optional[bt.subtensor] = None,
+    ):
+        subtensor = subtensor or bt.subtensor(config)
+        remote_model_store = HuggingFaceModelStore()
+        chain_model_store = ChainModelMetadataStore(
+            subtensor, wallet, subnet_uid=config.netuid
+        )
+        repo_namespace, repo_name = utils.validate_hf_repo_id(config.hf_repo_id)
+
+        return Actions(
+            wallet, repo_namespace, repo_name, chain_model_store, remote_model_store
+        )
 
     def save(self, model: PreTrainedModel, model_dir: str):
         """Saves a model to the provided directory"""
