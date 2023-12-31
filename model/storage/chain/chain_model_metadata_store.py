@@ -25,13 +25,11 @@ class ChainModelMetadataStore(ModelMetadataStore):
         )
         self.subnet_uid = subnet_uid
 
-    # TODO actually make this asynchronous with threadpools etc.
     async def store_model_metadata(self, hotkey: str, model_id: ModelId):
         """Stores model metadata on this subnet for a specific wallet."""
         if self.wallet is None:
             raise ValueError("No wallet available to write to the chain.")
 
-        # TODO: Confirm that the hotkey matches the wallet
         # Wrap calls to the subtensor in a subprocess with a timeout to handle potential hangs.
         partial = functools.partial(
             self.subtensor.commit,

@@ -17,6 +17,7 @@ import constants
 from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
 import pretrain as pt
 import bittensor as bt
+from utilities import utils
 
 from dotenv import load_dotenv
 
@@ -58,24 +59,6 @@ def get_config():
     return config
 
 
-def assert_registered(wallet: bt.wallet, metagraph: bt.metagraph, netuid: int) -> int:
-    """Asserts the wallet is a registered miner and returns the miner's UID.
-
-    Raises:
-        ValueError: If the wallet is not registered.
-    """
-    if wallet.hotkey.ss58_address not in metagraph.hotkeys:
-        raise ValueError(
-            f"You are not registered. \nUse: \n`btcli s register --netuid {netuid}` to register via burn \n or btcli s pow_register --netuid {netuid} to register with a proof of work"
-        )
-    uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
-    bt.logging.success(
-        f"You are registered with address: {wallet.hotkey.ss58_address} and uid: {uid}"
-    )
-
-    return uid
-
-
 async def main(config: bt.config):
     # Create bittensor objects.
     bt.logging(config=config)
@@ -85,7 +68,7 @@ async def main(config: bt.config):
     metagraph = subtensor.metagraph(config.netuid)
 
     # Make sure we're registered and have a HuggingFace token.
-    assert_registered(wallet, metagraph, config.netuid)
+    utils.assert_registered(wallet, metagraph)
     HuggingFaceModelStore.assert_access_token_exists()
 
     # Create the actions object.

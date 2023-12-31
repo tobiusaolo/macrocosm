@@ -30,9 +30,8 @@ async def test_roundtrip_model():
     )
 
     # Check that they match.
-    # TODO create appropriate equality check.
     print(
-        f"Finished the roundtrip and checking that the models match: {str(model) == str(retrieved_model)}"
+        f"Finished the roundtrip and checking that the models match: {str(model.state_dict()) == str(retrieved_model.state_dict())}"
     )
 
 
