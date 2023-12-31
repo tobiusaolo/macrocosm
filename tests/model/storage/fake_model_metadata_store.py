@@ -12,7 +12,21 @@ class FakeModelMetadataStore(ModelMetadataStore):
         self.metadata = dict()
         self.store_errors = deque()
 
-    async def store_model_metadata(self, hotkey: str, model_metadata: ModelMetadata):
+    async def store_model_metadata(self, hotkey: str, model_id: ModelId):
+        """Fake stores model metadata for a specific hotkey."""
+
+        # Return an injected error if we have one.
+        if len(self.store_errors) > 0:
+            raise self.store_errors.popleft()
+
+        model_metadata = ModelMetadata(id=model_id, block=self.current_block)
+        self.current_block += 1
+
+        self.metadata[hotkey] = model_metadata
+
+    async def store_model_metadata_exact(
+        self, hotkey: str, model_metadata: ModelMetadata
+    ):
         """Fake stores model metadata for a specific hotkey."""
 
         # Return an injected error if we have one.

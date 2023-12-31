@@ -48,10 +48,38 @@ class TestUtils(unittest.TestCase):
             + self.sep
             + hotkey
             + self.sep
+            + "models--"
             + namespace
-            + "_"
+            + "--"
             + name
-            + "_"
+        )
+        self.assertEqual(model_dir, expected_path)
+
+    def test_get_local_model_snapshot_dir(self):
+        hotkey = "test-hotkey"
+        namespace = "test-namespace"
+        name = "test-name"
+        commit = "test-commit"
+        model_id = ModelId(
+            namespace=namespace, name=name, hash="test-hash", commit=commit
+        )
+
+        model_dir = utils.get_local_model_snapshot_dir(self.base_dir, hotkey, model_id)
+
+        expected_path = (
+            self.base_dir
+            + self.sep
+            + "models"
+            + self.sep
+            + hotkey
+            + self.sep
+            + "models--"
+            + namespace
+            + "--"
+            + name
+            + self.sep
+            + "snapshots"
+            + self.sep
             + commit
         )
         self.assertEqual(model_dir, expected_path)
@@ -91,7 +119,8 @@ class TestUtils(unittest.TestCase):
         time.sleep(1)
 
         self.assertTrue(os.path.exists(self.base_dir))
-        utils.remove_dir_out_of_grace(self.base_dir, 0)
+        deleted = utils.remove_dir_out_of_grace(self.base_dir, 0)
+        self.assertTrue(deleted)
         self.assertFalse(os.path.exists(self.base_dir))
 
     def test_remove_dir_out_of_grace_in_grace(self):
@@ -104,7 +133,8 @@ class TestUtils(unittest.TestCase):
         file.close()
 
         self.assertTrue(os.path.exists(self.base_dir))
-        utils.remove_dir_out_of_grace(self.base_dir, 60)
+        deleted = utils.remove_dir_out_of_grace(self.base_dir, 60)
+        self.assertFalse(deleted)
         self.assertTrue(os.path.exists(self.base_dir))
 
     def test_get_hash_of_file(self):

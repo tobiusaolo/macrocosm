@@ -16,15 +16,9 @@ class TestDiskModelStore(unittest.TestCase):
 
     def test_get_path(self):
         hotkey = "hotkey0"
-        model_id = ModelId(
-            namespace="test_model",
-            name="test_name",
-            commit="test_commit",
-            hash="test_hash",
-        )
 
-        expected_path = utils.get_local_model_dir("test-models", hotkey, model_id)
-        actual_path = self.disk_store.get_path(hotkey, model_id)
+        expected_path = utils.get_local_miner_dir("test-models", hotkey)
+        actual_path = self.disk_store.get_path(hotkey)
 
         self.assertEqual(expected_path, actual_path)
 

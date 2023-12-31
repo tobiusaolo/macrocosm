@@ -43,8 +43,8 @@ class ModelUpdater:
         if metadata == tracker_model_metadata:
             return False
 
-        # Get the local path based on the local store.
-        path = self.local_store.get_path(hotkey, metadata.id)
+        # Get the local path based on the local store to download to (top level hotkey path)
+        path = self.local_store.get_path(hotkey)
 
         # Otherwise we need to download the new model based on the metadata.
         model = await self.remote_store.download_model(metadata.id, path)

@@ -12,7 +12,7 @@ class LocalModelStore(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_path(self, hotkey: str, model_id: ModelId) -> str:
+    def get_path(self, hotkey: str) -> str:
         """Returns the path to the appropriate location based on implementation."""
         pass
 

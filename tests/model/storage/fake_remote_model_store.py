@@ -1,4 +1,5 @@
 from model.data import Model, ModelId
+from model.storage.disk import utils
 from model.storage.remote_model_store import RemoteModelStore
 
 
@@ -21,9 +22,14 @@ class FakeRemoteModelStore(RemoteModelStore):
 
         model = self.remote_models[model_id]
 
+        # Parse out the hotkey and the base path from local_path to replicate hugging face logic.
+        split_string = local_path.split("/")
+
         # Store it at the local_path
         model.pt_model.save_pretrained(
-            save_directory=local_path,
+            save_directory=utils.get_local_model_snapshot_dir(
+                split_string[0], split_string[2], model_id
+            ),
             safe_serialization=True,
         )
 
