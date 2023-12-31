@@ -100,7 +100,14 @@ def get_config():
         "--load_model_dir",
         type=str,
         default=None,
-        help="If provided, loads a model from the specified directory",
+        help="If provided, loads a previously trained HF model from the specified directory",
+    )
+    parser.add_argument(
+        "--load_model",
+        type=str,
+        default=None,
+        help="If provided, loads the safetensor serialized model from the specified file."
+        "The model must be a GPT2LMHeadModel, with config as in pretrain/model.py",
     )
     parser.add_argument(
         "--num_epochs",
@@ -190,6 +197,12 @@ async def load_starting_model(
     # Check if we should load a model from a local directory.
     if config.load_model_dir:
         model = actions.load_local_model(config.load_model_dir)
+        bt.logging.success(f"Training with model from disk. Model={str(model)}")
+        return model
+
+    # Check if we should load a model from a local file.
+    if config.load_model:
+        model = actions.load_gpt2_model(config.load_model)
         bt.logging.success(f"Training with model from disk. Model={str(model)}")
         return model
 

@@ -23,6 +23,8 @@ from model.storage.model_metadata_store import ModelMetadataStore
 from model.storage.remote_model_store import RemoteModelStore
 import bittensor as bt
 from transformers import PreTrainedModel, AutoModelForCausalLM
+import pretrain as pt
+from safetensors.torch import load_model
 
 
 def model_path(base_dir: str, run_id: str) -> str:
@@ -57,6 +59,12 @@ class Actions:
             save_directory=model_dir,
             safe_serialization=True,
         )
+
+    def load_gpt2_model(self, model_file: str) -> PreTrainedModel:
+        """For loading GPT2 models from the previous version of this subnet."""
+        model = pt.model.get_model()
+        load_model(model, model_file)
+        return model
 
     def load_local_model(self, model_dir: str) -> PreTrainedModel:
         """Loads a model from a directory."""
