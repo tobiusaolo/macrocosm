@@ -44,7 +44,6 @@ class HuggingFaceModelStore(RemoteModelStore):
             # Return a ModelId with both the correct commit and hash.
             return model_with_hash.id
 
-    # TODO actually make this asynchronous with threadpools etc.
     async def download_model(self, model_id: ModelId, local_path: str) -> Model:
         """Retrieves a trained model from Hugging Face."""
         if not model_id.commit:

@@ -20,10 +20,8 @@ import typing
 import requests
 import bittensor as bt
 from torch.utils.data import IterableDataset
-from transformers import GPT2Tokenizer
 from transformers import AutoTokenizer
 import time
-import random
 
 model_name = "distilgpt2"
 tokenizer = AutoTokenizer.from_pretrained(model_name)

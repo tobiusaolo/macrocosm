@@ -153,24 +153,6 @@ def get_config():
     return config
 
 
-def assert_registered(wallet: bt.wallet, metagraph: bt.metagraph, netuid: int) -> int:
-    """Asserts the wallet is a registered miner and returns the miner's UID.
-
-    Raises:
-        ValueError: If the wallet is not registered.
-    """
-    if wallet.hotkey.ss58_address not in metagraph.hotkeys:
-        raise ValueError(
-            f"You are not registered. \nUse: \n`btcli s register --netuid {netuid}` to register via burn \n or btcli s pow_register --netuid {netuid} to register with a proof of work"
-        )
-    uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
-    bt.logging.success(
-        f"You are registered with address: {wallet.hotkey.ss58_address} and uid: {uid}"
-    )
-
-    return uid
-
-
 async def load_starting_model(
     actions: Actions, config: bt.config, metagraph: bt.metagraph
 ) -> PreTrainedModel:
@@ -227,7 +209,7 @@ async def main(config: bt.config):
     # If running online, make sure the miner is registered, has a hugging face access token, and has provided a repo id.
     my_uid = None
     if not config.offline:
-        my_uid = assert_registered(wallet, metagraph, config.netuid)
+        my_uid = utils.assert_registered(wallet, metagraph)
         HuggingFaceModelStore.assert_access_token_exists()
 
     # Configure the stores and miner actions.

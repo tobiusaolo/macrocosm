@@ -22,7 +22,6 @@ class ModelId(BaseModel):
         MAX_METADATA_BYTES - GIT_COMMIT_LENGTH - SHA256_BASE_64_LENGTH - 3  # separators
     )
 
-    # TODO add pydantic validations on underlying fields.
     namespace: str = Field(
         description="Namespace where the model can be found. ex. Hugging Face username/org."
     )
