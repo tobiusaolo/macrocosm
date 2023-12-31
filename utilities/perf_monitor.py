@@ -51,7 +51,7 @@ class PerfMonitor:
             + f"P90={self._format_duration(np.percentile(durations_ns, 90))}"
         )
 
-    def _format_duration(self, duration_ns):
+    def _format_duration(self, duration_ns: int) -> str:
         units = [
             ("ns", 1),
             ("μs", 1000),
@@ -60,10 +60,8 @@ class PerfMonitor:
             ("min", 60 * 1000_000_000),
         ]
 
-        for unit, divisor in units:
-            if duration_ns < divisor:
-                return f"{duration_ns:.2f} {unit}"
+        for unit, divisor in reversed(units):
+            if duration_ns >= divisor:
+                return f"{duration_ns/divisor:.2f} {unit}"
 
-            duration_ns /= divisor
-
-        return f"{duration_ns:.2f} s"
+        return f"{duration_ns:.2f} ns"

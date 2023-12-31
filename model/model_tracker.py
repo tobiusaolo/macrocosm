@@ -21,14 +21,15 @@ class ModelTracker:
 
         # Make this class thread safe because it will be accessed by multiple threads.
         # One for the downloading new models loop and one for the validating models loop.
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
     def save_state(self, filepath):
         """Save the current state to the provided filepath."""
 
         # Open a writable binary file for pickle.
-        with open(filepath, "wb") as f:
-            pickle.dump(self.miner_hotkey_to_model_metadata_dict, f)
+        with self.lock:
+            with open(filepath, "wb") as f:
+                pickle.dump(self.miner_hotkey_to_model_metadata_dict, f)
 
     def load_state(self, filepath):
         """Load the state from the provided filepath."""

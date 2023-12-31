@@ -111,7 +111,7 @@ class Actions:
         """
         hotkey = metagraph.hotkeys[uid]
         model_metadata = await self.model_metadata_store.retrieve_model_metadata(hotkey)
-        if not model_metadata is None:
+        if not model_metadata:
             raise ValueError(f"No model metadata found for miner {uid}")
 
         model: Model = await self.remote_model_store.download_model(
@@ -130,7 +130,7 @@ class Actions:
         )
 
         bt.logging.success(
-            "Uploaded model to hugging face. Now committing to the chain."
+            f"Uploaded model to hugging face. Now committing to the chain with model_id: {model_id}"
         )
 
         # We can only commit to the chain every 20 minutes, so run this in a loop, until

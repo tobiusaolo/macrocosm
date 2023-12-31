@@ -40,12 +40,12 @@ import threading
 import multiprocessing
 from rich.table import Table
 from rich.console import Console
-from multiprocessing import Value
 
 import bittensor as bt
 import pretrain as pt
 from utilities.miner_iterator import MinerIterator
 from utilities import utils
+from utilities.perf_monitor import PerfMonitor
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -98,11 +98,6 @@ class Validator:
             help="Does not launch a wandb run, does not set weights, does not check that your key is registered.",
         )
         parser.add_argument(
-            "--test",
-            action="store_true",
-            help="Runs steps with max 3 uids to eval for faster testing.",
-        )
-        parser.add_argument(
             "--model_dir",
             default=os.path.join(constants.ROOT_DIR, "model-store/"),
             help="Where to store downloaded models",
@@ -142,6 +137,8 @@ class Validator:
         self.config = Validator.config()
         bt.logging(config=self.config)
 
+        bt.logging.info(f"Starting validator with config: {self.config}")
+
         # === Bittensor objects ====
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
@@ -169,7 +166,7 @@ class Validator:
         self.uids_to_eval = []
 
         # Create a set of newly added uids that should be evaluated on the next loop.
-        self.pending_uids_to_eval_lock = threading.Lock()
+        self.pending_uids_to_eval_lock = threading.RLock()
         self.pending_uids_to_eval = set()
 
         # Setup a model tracker to track which miner is using which model id.
@@ -224,8 +221,6 @@ class Validator:
             model_tracker=self.model_tracker,
         )
 
-        # TODO: If self.config.test then do not start these threads and instead do a test_run_step equivalent.
-
         # == Initialize the update thread ==
         self.stop_event = threading.Event()
         self.update_thread = threading.Thread(target=self.update_models, daemon=True)
@@ -245,8 +240,9 @@ class Validator:
         """Creates a new wandb run to save information to."""
         # Create a unique run id for this run.
         run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        name = "validator-" + str(self.uid) + "-" + run_id
         self.wandb_run = wandb.init(
-            name="validator-" + str(self.uid) + "-" + run_id,
+            name=name,
             project=constants.WANDB_PROJECT,
             entity="opentensor-dev",
             config={
@@ -259,22 +255,20 @@ class Validator:
             allow_val_change=True,
         )
 
+        bt.logging.debug(f"Started a new wandb run: {name}")
+
     def save_state(self):
         """Saves the state of the validator to a file."""
 
-        # If we are under test do not save any state.
-        if self.config.test:
-            return
-
         bt.logging.trace("Saving validator state.")
-
         if not os.path.exists(self.state_path()):
             os.makedirs(self.state_path())
 
-        # Save the state of the validator uids to file.
-        with open(self.uids_filepath, "wb") as f:
-            pickle.dump(self.uids_to_eval, f)
-            pickle.dump(self.pending_uids_to_eval, f)
+        with self.pending_uids_to_eval_lock:
+            # Save the state of the validator uids to file.
+            with open(self.uids_filepath, "wb") as f:
+                pickle.dump(self.uids_to_eval, f)
+                pickle.dump(self.pending_uids_to_eval, f)
 
         # Save the state of the tracker to file.
         self.model_tracker.save_state(
@@ -289,13 +283,12 @@ class Validator:
         # if they should be updated.
         while not self.stop_event.is_set():
             try:
-                bt.logging.trace("Updating models.")
                 # Get the next uid to check
                 next_uid = next(self.miner_iterator)
 
                 # Confirm that we haven't checked it in the last 5 minutes.
                 time_diff = (
-                    uid_last_checked[next_uid] - dt.datetime.now()
+                    dt.datetime.now() - uid_last_checked[next_uid]
                     if next_uid in uid_last_checked
                     else None
                 )
@@ -306,7 +299,7 @@ class Validator:
                         dt.timedelta(minutes=5) - time_diff
                     ).total_seconds()
                     bt.logging.trace(
-                        f"Update loop has already seen this uid in the last 5 minutes. Sleeping {time_to_sleep} seconds."
+                        f"Update loop has already processed all UIDs in the last 5 minutes. Sleeping {time_to_sleep} seconds."
                     )
                     time.sleep(time_to_sleep)
 
@@ -327,6 +320,9 @@ class Validator:
                 if updated:
                     with self.pending_uids_to_eval_lock:
                         self.pending_uids_to_eval.add(next_uid)
+                        bt.logging.debug(
+                            f"Found a new model for UID={next_uid}. It will be evaluated on the next loop."
+                        )
 
             except Exception as e:
                 bt.logging.error(
@@ -339,6 +335,7 @@ class Validator:
         # The below loop checks to clear out all models in local storage that are no longer referenced.
         while not self.stop_event.is_set():
             try:
+                bt.logging.trace("Starting cleanup of stale models.")
                 # Clean out unreferenced models older than 5 mintues.
                 hotkey_to_model_metadata = (
                     self.model_tracker.get_miner_hotkey_to_model_metadata_dict()
@@ -390,7 +387,6 @@ class Validator:
         def sync_metagraph(endpoint):
             metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid)
             metagraph.save()
-            self.miner_iterator.set_miner_uids(metagraph.uids.tolist())
 
         process = multiprocessing.Process(
             target=sync_metagraph, args=(self.subtensor.chain_endpoint,)
@@ -401,16 +397,20 @@ class Validator:
             process.terminate()
             process.join()
             bt.logging.error(f"Failed to sync metagraph after {ttl} seconds")
+            return
+
+        bt.logging.info("Synced metagraph")
         self.metagraph.load()
+        self.miner_iterator.set_miner_uids(self.metagraph.uids.tolist())
 
     async def try_run_step(self, ttl: int):
         async def _try_run_step():
             await self.run_step()
 
         try:
-            bt.logging.trace(f"Running step.")
+            bt.logging.trace("Running step.")
             await asyncio.wait_for(_try_run_step(), ttl)
-            bt.logging.trace(f"Finished running step.")
+            bt.logging.trace("Finished running step.")
         except asyncio.TimeoutError:
             bt.logging.error(f"Failed to run step after {ttl} seconds")
 
@@ -460,8 +460,12 @@ class Validator:
         )
 
         # Compute model losses on batches.
-        bt.logging.debug(f"computing losses on {uids}")
+        bt.logging.debug(f"Computing losses on {uids}")
         losses_per_uid = {muid: None for muid in uids}
+
+        load_model_perf = PerfMonitor("Eval: Load model")
+        compute_loss_perf = PerfMonitor("Eval: Compute loss")
+
         for uid_i in uids:
             # Check that the model is in the tracker.
             hotkey = self.metagraph.hotkeys[uid_i]
@@ -477,24 +481,32 @@ class Validator:
                     uid_to_block[uid_i] = model_i_metadata.block
 
                     # Get the model locally and evaluate its loss.
-                    model_i = self.local_store.retrieve_model(
-                        hotkey, model_i_metadata.id
-                    )
+                    model_i = None
+                    with load_model_perf.sample():
+                        model_i = self.local_store.retrieve_model(
+                            hotkey, model_i_metadata.id
+                        )
 
-                    losses = pt.validation.compute_losses(
-                        model_i.pt_model, batches, device=self.config.device
-                    )
+                    losses = None
+                    with compute_loss_perf.sample():
+                        losses = pt.validation.compute_losses(
+                            model_i.pt_model, batches, device=self.config.device
+                        )
 
                     del model_i
                 except Exception as e:
                     bt.logging.error(
                         f"Error in eval loop: {e}. Setting losses for uid: {uid_i} to infinity."
                     )
+            else:
+                bt.logging.debug(
+                    f"Unable to load the model for {uid_i}. Setting loss to inifinity."
+                )
 
             losses_per_uid[uid_i] = losses
             average_model_loss = sum(losses) / len(losses)
-            bt.logging.debug(
-                f"Compute model losses for uid:{uid_i} with average loss: {average_model_loss}"
+            bt.logging.trace(
+                f"Computed model losses for uid:{uid_i} with average loss: {average_model_loss}"
             )
 
         # Compute wins and win rates per uid.
@@ -507,7 +519,6 @@ class Validator:
             [win_rate[uid] for uid in uids], dtype=torch.float32
         )
         step_weights = torch.softmax(model_weights / constants.temperature, dim=0)
-        bt.logging.success(f"Computed model wins : {wins}")
 
         # Update weights based on moving average.
         new_weights = torch.zeros_like(self.weights)
@@ -524,6 +535,13 @@ class Validator:
             sorted(win_rate, key=win_rate.get, reverse=True)[: self.config.sample_min]
         )
 
+        # Save state
+        self.save_state()
+
+        # Log the performance of the eval loop.
+        bt.logging.debug(load_model_perf.summary_str())
+        bt.logging.debug(compute_loss_perf.summary_str())
+
         # Log to screen and wandb.
         self.log_step(
             uids,
@@ -537,8 +555,6 @@ class Validator:
 
         # Increment the number of completed run steps by 1
         self.run_step_count += 1
-
-        bt.logging.debug("Finished run step.")
 
     def log_step(
         self, uids, uid_to_block, pages, batches, wins, win_rate, losses_per_uid
@@ -624,7 +640,6 @@ class Validator:
                 {**graphed_data, "original_format_json": original_format_json},
                 step=self.global_step,
             )
-            bt.logging.trace("finished log to Wandb")
 
     async def run(self):
         while True:
@@ -641,11 +656,7 @@ class Validator:
                     )
                     self.global_step += 1
 
-                if (
-                    not self.config.dont_set_weights
-                    and not self.config.offline
-                    and not self.config.test
-                ):
+                if not self.config.dont_set_weights and not self.config.offline:
                     await self.try_set_weights(ttl=60)
                 self.last_epoch = self.metagraph.block.item()
                 self.epoch_step += 1
@@ -654,13 +665,11 @@ class Validator:
                 bt.logging.info(
                     "KeyboardInterrupt caught, gracefully closing the wandb run..."
                 )
-                self.save_state()
                 if self.wandb_run:
                     self.wandb_run.finish()
                 exit()
 
             except Exception as e:
-                self.save_state()
                 bt.logging.error(
                     f"Error in validator loop \n {e} \n {traceback.format_exc()}"
                 )

@@ -5,6 +5,17 @@ from utilities.perf_monitor import PerfMonitor
 
 
 class TestPerfMonitor(unittest.TestCase):
+    def test_format_duration(self):
+        """Performs basic validation of the _format_duration method."""
+
+        monitor = PerfMonitor("test")
+
+        self.assertEqual(monitor._format_duration(1), "1.00 ns")
+        self.assertEqual(monitor._format_duration(2500), "2.50 μs")
+        self.assertEqual(monitor._format_duration(3000000), "3.00 ms")
+        self.assertEqual(monitor._format_duration(1230000000), "1.23 s")
+        self.assertEqual(monitor._format_duration(120000000000), "2.00 min")
+
     def test_perf_monitor(self):
         """Performs basic validation of the PerfTracker and its output_str."""
 
