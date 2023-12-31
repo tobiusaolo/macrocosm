@@ -26,6 +26,8 @@ import torch
 import random
 import asyncio
 import argparse
+
+import wandb
 from model.model_tracker import ModelTracker
 from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
@@ -139,9 +141,7 @@ class Validator:
 
         # Dont log to wandb if offline.
         if not self.config.offline:
-            self.wandb_run = pt.mining.init_validator(
-                self.wallet, metagraph=self.metagraph
-            )
+            self.new_wandb_run()
 
         # === Running args ===
         self.weights = torch.zeros_like(self.metagraph.S)
@@ -225,6 +225,45 @@ class Validator:
             self.stop_event.set()
             self.update_thread.join()
             self.clean_thread.join()
+
+    def assert_registered(wallet: bt.wallet, metagraph: bt.metagraph) -> int:
+        """Asserts the wallet is a registered validator and returns the validator's UID.
+
+        Raises:
+            ValueError: If the wallet is not registered.
+        """
+        if wallet.hotkey.ss58_address not in metagraph.hotkeys:
+            raise ValueError(
+                f"You are not registered. \nUse: \n`btcli s register --netuid {pt.SUBNET_UID}` to register via burn \n or btcli s pow_register --netuid {pt.SUBNET_UID} to register with a proof of work"
+            )
+        uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
+        bt.logging.success(
+            f"You are registered with address: {wallet.hotkey.ss58_address} and uid: {uid}"
+        )
+
+        return uid
+
+    def new_wandb_run(self):
+        """Creates a new wandb run to save information to."""
+        # Create a unique run id for this run.
+        run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        my_uid = self.assert_registered(self.wallet, self.metagraph)
+        self.wandb_run = wandb.init(
+            name=run_id,
+            project=self.config.wandb_project,
+            entity=self.config.wandb_entity,
+            config={
+                "uid": my_uid,
+                "hotkey": self.wallet.hotkey.ss58_address,
+                "run_name": run_id,
+                "version": pt.__version__,
+                "type": "validator",
+            },
+            dir=self.config.full_path,
+            allow_val_change=True,
+        )
+
+        self.wandb_run = pt.mining.init_validator(self.wallet, metagraph=self.metagraph)
 
     def save_state(self):
         """Saves the state of the validator to a file."""
