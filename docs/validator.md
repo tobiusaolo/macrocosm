@@ -53,7 +53,7 @@ It is important to note that this affects the game theoretics of the incentive l
 
 Validators will need enough disk space to store the model of every miner in the subnet. Each model (As of Jan 1st, 2024) is limited to 1 GB and the validator has cleanup logic to remove old models. It is recommended to have at least 500 GB of disk space.
 
-Validators will need enough processing power to evaluate their model. As of Jan 1st, 2024 it is requierd to have a GPU with atleast 20 GB of VRAM.
+Validators will need enough processing power to evaluate their model. As of Jan 1st, 2024 it is required to have a GPU with atleast 20 GB of VRAM.
 
 # Getting Started
 
@@ -100,7 +100,7 @@ Prerequisites:
 
 From the pretraining folder:
 ```shell
-pm2 start --name net9-vali-updater --interpreter python scripts/start_validator.py -- --pm2_name net9-vali --wallet.name cold_wallet --wallet.hotkey hotkey_wallet [other vali flags]
+pm2 start --name net9-vali-updater --interpreter python scripts/start_validator.py -- --pm2_name net9-vali --wallet.name coldkey --wallet.hotkey hotkey [other vali flags]
 ```
 
 This will start a process called `net9-vali-updater`. This process periodically checks for a new git commit on the current branch. When one is found, it performs a `pip install` for the latest packages, and restarts the validator process (who's name is given by the `--pm2_name` flag)
@@ -111,7 +111,7 @@ If you'd prefer to manage your own validator updates...
 
 From the pretraining folder:
 ```shell
-pm2 start python -- ./neurons/validator.py --wallet.name your-wallet --wallet.hotkey your-hotkey
+pm2 start python -- ./neurons/validator.py --wallet.name coldkey --wallet.hotkey hotkey
 ```
 
 # Configuration
@@ -128,7 +128,7 @@ python ./neurons/validator.py -h
 ## Test Running Validation
 
 Test running validation:
-```bash
+```shell
 python neurons/validator.py 
     --wallet.name YOUR_WALLET_NAME
     --wallet.hotkey YOUR_WALLET_HOTKEY 
