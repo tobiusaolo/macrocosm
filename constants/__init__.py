@@ -28,7 +28,7 @@ alpha = 0.9
 # validator scoring exponential temperature
 temperature = 0.04
 # validator score boosting for earlier models.
-timestamp_epsilon = 0.01
+timestamp_epsilon = 0.005
 # validators number of pages to eval over miners on each step.
 n_eval_pages = 3
 # validator eval batch size.
