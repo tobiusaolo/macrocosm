@@ -73,10 +73,13 @@ To start your miner the most basic command is
 python neurons/miner.py --wallet.name coldkey --wallet.hotkey hotkey --hf_repo_id my-username/my-project --avg_loss_upload_threshold YOUR_THRESHOLD
 ```
 
-`--wallet.name`: should be the name of the coldkey that contains the hotkey your miner is registered with.
-`--wallet.hotkey`: should be the name of the hotkey that your miner is registered with.
-`--hf_repo_id`: should be the namespace/model_name that matches the hugging face repo you want to upload to. Must be public so that the validators can download from it.
-`--avg_loss_upload_threshold`: should be the minimum average loss before you want your miner to upload the model.
+- `--wallet.name`: should be the name of the coldkey that contains the hotkey your miner is registered with.
+
+- `--wallet.hotkey`: should be the name of the hotkey that your miner is registered with.
+
+- `--hf_repo_id`: should be the namespace/model_name that matches the hugging face repo you want to upload to. Must be public so that the validators can download from it.
+
+- `--avg_loss_upload_threshold`: should be the minimum average loss before you want your miner to upload the model.
 
 
 ### Flags
@@ -88,17 +91,20 @@ You can view the full set of flags by running
 python ./neurons/miner.py -h
 ```
 
-Some flags you may find useful
-`--offline`: when set you can run the miner without being registered and it will not attempt to upload the model.
-`--wandb_entity` + `--wandb_project`: when both flags are set the miner will log its training to the provided wandb project.
- `--device`: by default the miner will use your gpu but you can specify with this flag if you have multiple.
+Some flags you may find useful:
+
+- `--offline`: when set you can run the miner without being registered and it will not attempt to upload the model.
+
+- `--wandb_entity` + `--wandb_project`: when both flags are set the miner will log its training to the provided wandb project.
+
+- `--device`: by default the miner will use your gpu but you can specify with this flag if you have multiple.
 
 #### Training from pre-existing models
 
-`--load_best`: when set you will download and train the model from the current best miner on the network.
-`--load_uid`: when passing a uid you will download and train the model from the matching miner on the network.
-`--load_model_dir`: the path to a local model directory [saved via Hugging Face API].
-`--load_model`: the path to a safetensors file [not necessarily saved from Hugging Face API].
+- `--load_best`: when set you will download and train the model from the current best miner on the network.
+- `--load_uid`: when passing a uid you will download and train the model from the matching miner on the network.
+- `--load_model_dir`: the path to a local model directory [saved via Hugging Face API].
+- `--load_model`: the path to a safetensors file [not necessarily saved from Hugging Face API].
 
 ---
 
