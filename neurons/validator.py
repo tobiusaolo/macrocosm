@@ -52,7 +52,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 class Validator:
     TRACKER_FILENAME = "model_tracker_2.pickle"
-    UIDS_FILENAME = "uids.pickle"
+    UIDS_FILENAME = "uids_2.pickle"
 
     @staticmethod
     def config():
