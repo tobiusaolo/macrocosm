@@ -51,7 +51,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 
 class Validator:
-    TRACKER_FILENAME = "model_tracker.pickle"
+    TRACKER_FILENAME = "model_tracker_2.pickle"
     UIDS_FILENAME = "uids.pickle"
 
     @staticmethod
@@ -426,13 +426,13 @@ class Validator:
         7. Logs all relevant data for the step, including model IDs, pages, batches, wins, win rates, and losses.
         """
 
-        # Pull relevant uids for step. If they aren't found in the model tracker on eval they will be skipped.
-        uids = list(self.uids_to_eval)
-
         # Add uids with newly updated models to the upcoming batch of evaluations.
         with self.pending_uids_to_eval_lock:
             self.uids_to_eval.update(self.pending_uids_to_eval)
             self.pending_uids_to_eval.clear()
+
+        # Pull relevant uids for step. If they aren't found in the model tracker on eval they will be skipped.
+        uids = list(self.uids_to_eval)
 
         if not uids:
             bt.logging.debug(
