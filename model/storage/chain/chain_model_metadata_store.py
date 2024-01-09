@@ -46,6 +46,7 @@ class ChainModelMetadataStore(ModelMetadataStore):
         partial = functools.partial(
             bt.extrinsics.serving.get_metadata, self.subtensor, self.subnet_uid, hotkey
         )
+
         metadata = utils.run_in_subprocess(partial, 60)
 
         if not metadata:
@@ -55,7 +56,18 @@ class ChainModelMetadataStore(ModelMetadataStore):
         hex_data = commitment[list(commitment.keys())[0]][2:]
 
         chain_str = bytes.fromhex(hex_data).decode()
-        model_id = ModelId.from_compressed_str(chain_str)
+
+        model_id = None
+
+        try:
+            model_id = ModelId.from_compressed_str(chain_str)
+        except:
+            # If the metadata format is not correct on the chain then we return None.
+            bt.logging.trace(
+                f"Failed to parse the metadata on the chain for hotkey {hotkey}."
+            )
+            return None
+
         model_metadata = ModelMetadata(id=model_id, block=metadata["block"])
 
         return model_metadata

@@ -551,13 +551,24 @@ class Validator:
             wins,
             win_rate,
             losses_per_uid,
+            load_model_perf.summary_str(),
+            compute_loss_perf.summary_str(),
         )
 
         # Increment the number of completed run steps by 1
         self.run_step_count += 1
 
     def log_step(
-        self, uids, uid_to_block, pages, batches, wins, win_rate, losses_per_uid
+        self,
+        uids,
+        uid_to_block,
+        pages,
+        batches,
+        wins,
+        win_rate,
+        losses_per_uid,
+        load_model_perf_str,
+        compute_loss_perf_str,
     ):
         # Build step log
         step_log = {
@@ -634,6 +645,8 @@ class Validator:
                     str(uid): uid_data[str(uid)]["average_loss"] for uid in uids
                 },
                 "weight_data": {str(uid): self.weights[uid].item() for uid in uids},
+                "load_model_perf_log": load_model_perf_str,
+                "compute_model_perf_log": compute_loss_perf_str,
             }
             bt.logging.trace("Logging to Wandb")
             self.wandb_run.log(
