@@ -72,6 +72,10 @@ class HuggingFaceModelStore(RemoteModelStore):
 
         # Get the directory the model was stored to.
         model_dir = utils.get_hf_download_path(local_path, model_id)
+
+        # Realize all symlinks in that directory since Transformers library does not support avoiding symlinks.
+        utils.realize_symlinks_in_directory(model_dir)
+
         # Compute the hash of the downloaded model.
         model_hash = utils.get_hash_of_directory(model_dir)
         model_id_with_hash = ModelId(

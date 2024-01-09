@@ -33,7 +33,9 @@ class ModelUpdater:
         metadata = await self._get_metadata(hotkey)
 
         if not metadata:
-            bt.logging.trace(f"No metadata found on the chain for hotkey {hotkey}")
+            bt.logging.trace(
+                f"No valid metadata found on the chain for hotkey {hotkey}"
+            )
             return False
 
         # Check what model id the model tracker currently has for this hotkey.
