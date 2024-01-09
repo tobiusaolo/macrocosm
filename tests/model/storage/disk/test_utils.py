@@ -217,6 +217,45 @@ class TestUtils(unittest.TestCase):
         base_dir_hash = utils.get_hash_of_directory(self.base_dir)
         self.assertNotEqual(base_dir_hash, dir_1_hash)
 
+    def test_realize_symlinks_in_directory(self):
+        end_file_dir = self.base_dir + self.sep + "end_files"
+        symlink_source_dir = self.base_dir + self.sep + "symlink"
+
+        regular_file = end_file_dir + self.sep + "test_file.txt"
+        symlink_source = symlink_source_dir + self.sep + "symlink_source.txt"
+        symlink_dest = end_file_dir + self.sep + "symlink_end.txt"
+
+        # Make a regular file
+        os.mkdir(self.base_dir)
+        os.mkdir(end_file_dir)
+        file = open(regular_file, "w")
+        file.write("test text.")
+        file.close()
+
+        # Make a symlinked file
+        os.mkdir(symlink_source_dir)
+        file = open(symlink_source, "w")
+        file.write("symlink source test text.")
+        file.close()
+
+        os.symlink(os.path.abspath(symlink_source), os.path.abspath(symlink_dest))
+
+        # Confirm we see 3 files
+        pre_file_count = 0
+        for _, _, files in os.walk(self.base_dir):
+            pre_file_count += len(files)
+        self.assertEqual(pre_file_count, 3)
+
+        realized_files = utils.realize_symlinks_in_directory(end_file_dir)
+
+        # Confirm 1 file got realized and there are two total now.
+        self.assertEqual(realized_files, 1)
+
+        post_file_count = 0
+        for _, _, files in os.walk(self.base_dir):
+            post_file_count += len(files)
+        self.assertEqual(post_file_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

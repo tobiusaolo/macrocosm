@@ -69,6 +69,23 @@ def remove_dir_out_of_grace(path: str, grace_period_seconds: int) -> bool:
     return False
 
 
+def realize_symlinks_in_directory(path: str) -> int:
+    """Realizes all symlinks in the given directory, moving the linked file to the location. Returns count removed."""
+    realized_symlinks = 0
+
+    for cur_path, dirnames, filenames in os.walk(path):
+        for filename in filenames:
+            path = os.path.abspath(os.path.join(cur_path, filename))
+            # Get path resolving symlinks if encountered
+            real_path = os.path.realpath(path)
+            # If different then move
+            if path != real_path:
+                realized_symlinks += 1
+                shutil.move(real_path, path)
+
+    return realized_symlinks
+
+
 def get_hash_of_file(path: str) -> str:
     blocksize = 64 * 1024
     file_hash = hashlib.sha256()
