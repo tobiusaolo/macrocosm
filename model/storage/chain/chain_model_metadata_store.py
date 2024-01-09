@@ -57,6 +57,8 @@ class ChainModelMetadataStore(ModelMetadataStore):
 
         chain_str = bytes.fromhex(hex_data).decode()
 
+        model_id = None
+
         try:
             model_id = ModelId.from_compressed_str(chain_str)
         except:
