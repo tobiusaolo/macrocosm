@@ -259,7 +259,7 @@ async def main(config: bt.config):
                 "uid": my_uid,
                 "hotkey": wallet.hotkey.ss58_address,
                 "run_name": run_id,
-                "version": pt.__version__,
+                "version": constants.__version__,
                 "type": "miner",
             },
             allow_val_change=True,
