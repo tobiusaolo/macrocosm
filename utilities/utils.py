@@ -37,13 +37,13 @@ def validate_hf_repo_id(repo_id: str) -> Tuple[str, str]:
 
     if not 3 < len(repo_id) <= ModelId.MAX_REPO_ID_LENGTH:
         raise ValueError(
-            f"Hugging Face repo id must be between 3 and {ModelId.MAX_REPO_ID_LENGTH} characters."
+            f"Hugging Face repo id must be between 3 and {ModelId.MAX_REPO_ID_LENGTH} characters. Got={repo_id}"
         )
 
     parts = repo_id.split("/")
     if len(parts) != 2:
         raise ValueError(
-            "Hugging Face repo id must be in the format <org or user name>/<repo_name>."
+            f"Hugging Face repo id must be in the format <org or user name>/<repo_name>. Got={repo_id}"
         )
 
     return parts[0], parts[1]
