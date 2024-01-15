@@ -43,7 +43,7 @@ class TestMining(unittest.TestCase):
 
         assert_model_equality(self, self.tiny_model, model)
 
-    def _test_push(self):
+    def _test_push(self, min_expected_block: int = 1):
         asyncio.run(self.actions.push(model=self.tiny_model, retry_delay_secs=1))
 
         # Check that the model was uploaded to hugging face.
@@ -54,7 +54,7 @@ class TestMining(unittest.TestCase):
         model_metadata = asyncio.run(
             self.metadata_store.retrieve_model_metadata(self.wallet.hotkey.ss58_address)
         )
-        self.assertGreaterEqual(model_metadata.block, 1)
+        self.assertGreaterEqual(model_metadata.block, min_expected_block)
         self.assertEqual(model_metadata.id, model.id)
 
         self.metadata_store.reset()
@@ -72,6 +72,16 @@ class TestMining(unittest.TestCase):
         )
 
         self._test_push()
+
+    def test_push_metadata_read_is_old(self):
+        """Tests that pushing a model to the chain is successful even if the metadata read back is stale."""
+
+        # Inject an empty response when push tries to read back the metadata commit.
+        self.metadata_store.inject_model_metadata(
+            self.wallet.hotkey.ss58_address, metadata=None
+        )
+
+        self._test_push(min_expected_block=2)
 
 
 if __name__ == "__main__":
