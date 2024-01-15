@@ -487,7 +487,6 @@ class Validator:
                             hotkey, model_i_metadata.id
                         )
 
-                    losses = None
                     with compute_loss_perf.sample():
                         losses = pt.validation.compute_losses(
                             model_i.pt_model, batches, device=self.config.device
