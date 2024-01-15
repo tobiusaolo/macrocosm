@@ -354,10 +354,11 @@ class Validator:
         bt.logging.info("Exiting update models loop.")
 
     def clean_models(self):
-        # Wait 5 minutes before starting the first clean-up loop to ensure the model tracker
-        # and model updater have had time to initialize.
-        time.sleep(dt.timedelta(minutes=5).total_seconds())
-        
+        # Delay the clean-up thread until the update loop has had time to run one full pass after an upgrade.
+        # This helps prevent unnecessarily deleting a model which is on disk, but hasn't yet been re-added to the
+        # model tracker by the update loop.
+        time.sleep(dt.timedelta(hours=1).total_seconds())
+
         # The below loop checks to clear out all models in local storage that are no longer referenced.
         while not self.stop_event.is_set():
             try:
