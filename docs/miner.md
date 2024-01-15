@@ -121,8 +121,8 @@ python scripts/upload_model.py --load_model_dir <path to model> --hf_repo_id my-
 
 ## Running a custom Miner
 
-As of Jan 1st, 2024 the subnet works with any model supported by [AutoModelForCausalLM](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModelForCausalLM) subject to the following constraints:
-1. Has less than 122268040 parameters.
+As of Jan 15th, 2024 the subnet works with any model supported by [AutoModelForCausalLM](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModelForCausalLM) subject to the following constraints:
+1. Has less than 188,000,000 parameters.
 2. Total size of the repo is less than 1 Gigabyte.
 3. Models sequence_length parameter must be 1024 tokens.
 
