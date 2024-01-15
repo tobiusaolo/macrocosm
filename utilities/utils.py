@@ -1,6 +1,7 @@
 import functools
 import multiprocessing
-from typing import Any, Tuple
+import os
+from typing import Any, Optional, Tuple
 import bittensor as bt
 
 from model.data import ModelId
@@ -36,13 +37,13 @@ def validate_hf_repo_id(repo_id: str) -> Tuple[str, str]:
 
     if not 3 < len(repo_id) <= ModelId.MAX_REPO_ID_LENGTH:
         raise ValueError(
-            f"Hugging Face repo id must be between 3 and {ModelId.MAX_REPO_ID_LENGTH} characters."
+            f"Hugging Face repo id must be between 3 and {ModelId.MAX_REPO_ID_LENGTH} characters. Got={repo_id}"
         )
 
     parts = repo_id.split("/")
     if len(parts) != 2:
         raise ValueError(
-            "Hugging Face repo id must be in the format <org or user name>/<repo_name>."
+            f"Hugging Face repo id must be in the format <org or user name>/<repo_name>. Got={repo_id}"
         )
 
     return parts[0], parts[1]
@@ -92,3 +93,24 @@ def run_in_subprocess(func: functools.partial, ttl: int) -> Any:
         raise Exception(f"BaseException raised in subprocess: {str(result)}")
 
     return result
+
+
+def get_version(filepath: str) -> Optional[int]:
+    """Loads a version from the provided filepath or None if the file does not exist.
+
+    Args:
+        filepath (str): Path to the version file."""
+    if os.path.exists(filepath):
+        with open(filepath, "r") as f:
+            line = f.readline()
+            if line:
+                return int(line)
+            return None
+    return None
+
+
+def save_version(filepath: str, version: int):
+    """Saves a version to the provided filepath."""
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w") as f:
+        f.write(str(version))

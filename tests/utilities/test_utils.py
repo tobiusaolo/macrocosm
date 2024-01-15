@@ -1,6 +1,8 @@
 import functools
+from tempfile import NamedTemporaryFile
 import time
 import unittest
+import constants
 
 from utilities.utils import run_in_subprocess
 from utilities import utils
@@ -75,6 +77,14 @@ class TestUtils(unittest.TestCase):
         namespace, name = utils.validate_hf_repo_id("my-org/my-repo-name")
         self.assertEqual("my-org", namespace)
         self.assertEqual("my-repo-name", name)
+
+    def test_save_and_load_version(self):
+        version = constants.__spec_version__
+        with NamedTemporaryFile() as f:
+            self.assertIsNone(utils.get_version(f.name))
+
+            utils.save_version(f.name, version)
+            self.assertEqual(utils.get_version(f.name), version)
 
 
 if __name__ == "__main__":

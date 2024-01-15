@@ -18,7 +18,6 @@ neurons/wandb/
 
 # C extensions
 *.so
-**.ipynb
 
 # Distribution / packaging
 .Python
