@@ -53,6 +53,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 class Validator:
     TRACKER_FILENAME = "model_tracker_2.pickle"
     UIDS_FILENAME = "uids_2.pickle"
+    VERSION_FILENAME = "version.txt"
 
     @staticmethod
     def config():
@@ -172,19 +173,42 @@ class Validator:
         # Setup a model tracker to track which miner is using which model id.
         self.model_tracker = ModelTracker()
 
-        # Load the state of the validator uids from file.
+        # Construct the filepaths to save/load state.
         self.uids_filepath = os.path.join(self.state_path(), Validator.UIDS_FILENAME)
+        self.tracker_filepath = os.path.join(
+            self.state_path(), Validator.TRACKER_FILENAME
+        )
+        version_filepath = os.path.join(self.state_path(), Validator.VERSION_FILENAME)
 
-        # Load the state of the tracker from file.
-        tracker_filepath = os.path.join(self.state_path(), Validator.TRACKER_FILENAME)
-        if not os.path.exists(tracker_filepath):
+        # Check if the version has changed since we last restarted.
+        previous_version = utils.get_version(version_filepath)
+        utils.save_version(version_filepath, constants.__spec_version__)
+
+        # If this is an upgrade, blow away state so that everything is re-evaluated.
+        if previous_version != constants.__spec_version__:
+            bt.logging.info(
+                f"Validator updated. Previous version={previous_version}. Current version={constants.__spec_version__}"
+            )
+            if os.path.exists(self.uids_filepath):
+                bt.logging.info(
+                    f"Because the validator updated, deleting {self.uids_filepath} so everything is re-evaluated."
+                )
+                os.remove(self.uids_filepath)
+            if os.path.exists(self.tracker_filepath):
+                bt.logging.info(
+                    f"Because the validator updated, deleting {self.tracker_filepath} so everything is re-evaluated."
+                )
+                os.remove(self.tracker_filepath)
+
+        # Initialize the model tracker.
+        if not os.path.exists(self.tracker_filepath):
             bt.logging.warning("No tracker state file found. Starting from scratch.")
         else:
-            self.model_tracker.load_state(tracker_filepath)
+            self.model_tracker.load_state(self.tracker_filepath)
 
+        # Initialize the UIDs to eval.
         if not os.path.exists(self.uids_filepath):
             bt.logging.warning("No uids state file found. Starting from scratch.")
-            # === Build initial uids to eval ===
             hotkeys = (
                 self.model_tracker.get_miner_hotkey_to_model_metadata_dict().keys()
             )
@@ -249,7 +273,7 @@ class Validator:
                 "uid": self.uid,
                 "hotkey": self.wallet.hotkey.ss58_address,
                 "run_name": run_id,
-                "version": pt.__version__,
+                "version": constants.__version__,
                 "type": "validator",
             },
             allow_val_change=True,
@@ -271,9 +295,7 @@ class Validator:
                 pickle.dump(self.pending_uids_to_eval, f)
 
         # Save the state of the tracker to file.
-        self.model_tracker.save_state(
-            os.path.join(self.state_path(), Validator.TRACKER_FILENAME)
-        )
+        self.model_tracker.save_state(self.tracker_filepath)
 
     def update_models(self):
         # Track how recently we updated each uid
@@ -332,6 +354,11 @@ class Validator:
         bt.logging.info("Exiting update models loop.")
 
     def clean_models(self):
+        # Delay the clean-up thread until the update loop has had time to run one full pass after an upgrade.
+        # This helps prevent unnecessarily deleting a model which is on disk, but hasn't yet been re-added to the
+        # model tracker by the update loop.
+        time.sleep(dt.timedelta(hours=1).total_seconds())
+
         # The below loop checks to clear out all models in local storage that are no longer referenced.
         while not self.stop_event.is_set():
             try:
@@ -402,6 +429,7 @@ class Validator:
         bt.logging.info("Synced metagraph")
         self.metagraph.load()
         self.miner_iterator.set_miner_uids(self.metagraph.uids.tolist())
+        self.model_tracker.on_hotkeys_updated(set(self.metagraph.hotkeys))
 
     async def try_run_step(self, ttl: int):
         async def _try_run_step():
