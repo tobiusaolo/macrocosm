@@ -141,6 +141,24 @@ class Actions:
                     self.wallet.hotkey.ss58_address, model_id
                 )
 
+                bt.logging.info(
+                    "Wrote model metadata to the chain. Checking we can read it back..."
+                )
+
+                model_metadata = (
+                    await self.model_metadata_store.retrieve_model_metadata(
+                        self.wallet.hotkey.ss58_address
+                    )
+                )
+
+                if not model_metadata or model_metadata.id != model_id:
+                    bt.logging.error(
+                        f"Failed to read back model metadata from the chain. Expected: {model_id}, got: {model_metadata}"
+                    )
+                    raise ValueError(
+                        f"Failed to read back model metadata from the chain. Expected: {model_id}, got: {model_metadata}"
+                    )
+
                 bt.logging.success("Committed model to the chain.")
                 break
             except Exception as e:
