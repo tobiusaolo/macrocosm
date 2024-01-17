@@ -4,7 +4,7 @@ from pathlib import Path
 # Project Constants.
 # ---------------------------------
 
-__version__ = "2.1.0"
+__version__ = "2.1.4"
 version_split = __version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
