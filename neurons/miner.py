@@ -26,10 +26,11 @@ import argparse
 import constants
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
 from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
+from model.storage.model_metadata_store import ModelMetadataStore
+from model.storage.remote_model_store import RemoteModelStore
 import pretrain as pt
 import bittensor as bt
 from transformers import PreTrainedModel
-from pretrain.mining import Actions
 from utilities import utils
 import datetime as dt
 
@@ -154,7 +155,10 @@ def get_config():
 
 
 async def load_starting_model(
-    actions: Actions, config: bt.config, metagraph: bt.metagraph
+    config: bt.config,
+    metagraph: bt.metagraph,
+    metadata_store: ModelMetadataStore,
+    remote_model_store: RemoteModelStore,
 ) -> PreTrainedModel:
     """Loads the model to train based on the provided config."""
 
@@ -162,7 +166,9 @@ async def load_starting_model(
     if config.load_best:
         # Get the best UID be incentive and load it.
         best_uid = pt.graph.best_uid(metagraph)
-        model = await actions.load_remote_model(best_uid, metagraph, config.model_dir)
+        model = await pt.mining.load_remote_model(
+            best_uid, config.model_dir, metagraph, metadata_store, remote_model_store
+        )
         bt.logging.success(
             f"Training with model from best uid: {best_uid}. Model={str(model)}"
         )
@@ -171,8 +177,12 @@ async def load_starting_model(
     # Initialize the model based on a passed uid.
     if config.load_uid is not None:
         # Sync the state from the passed uid.
-        model = await actions.load_remote_model(
-            config.load_uid, metagraph, config.model_dir
+        model = await pt.mining.load_remote_model(
+            config.load_uid,
+            config.model_dir,
+            metagraph,
+            metadata_store,
+            remote_model_store,
         )
         bt.logging.success(
             f"Training with model from uid: {config.load_uid}. Model={str(model)}"
@@ -181,13 +191,13 @@ async def load_starting_model(
 
     # Check if we should load a model from a local directory.
     if config.load_model_dir:
-        model = actions.load_local_model(config.load_model_dir)
+        model = pt.mining.load_local_model(config.load_model_dir)
         bt.logging.success(f"Training with model from disk. Model={str(model)}")
         return model
 
     # Check if we should load a model from a local file.
     if config.load_model:
-        model = actions.load_gpt2_model(config.load_model)
+        model = pt.mining.load_gpt2_model(config.load_model)
         bt.logging.success(f"Training with model from disk. Model={str(model)}")
         return model
 
@@ -211,9 +221,7 @@ async def main(config: bt.config):
     if not config.offline:
         my_uid = utils.assert_registered(wallet, metagraph)
         HuggingFaceModelStore.assert_access_token_exists()
-
-    # Configure the stores and miner actions.
-    miner_actions = pt.mining.Actions.create(config, wallet, subtensor)
+        utils.validate_hf_repo_id(config.hf_repo_id)
 
     # Create a unique run id for this run.
     run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -230,12 +238,16 @@ async def main(config: bt.config):
             use_wandb = True
 
     # Init model.
-    model: PreTrainedModel = await load_starting_model(miner_actions, config, metagraph)
+    metadata_store = ChainModelMetadataStore(subtensor, wallet, config.netuid)
+    remote_store = HuggingFaceModelStore()
+    model: PreTrainedModel = await load_starting_model(
+        config, metagraph, metadata_store, remote_store
+    )
     model = model.train()
     model = model.to(config.device)
 
     bt.logging.success(f"Saving model to path: {model_dir}.")
-    miner_actions.save(model, model_dir)
+    pt.mining.save(model, model_dir)
 
     # Build optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=0.01)
@@ -345,7 +357,7 @@ async def main(config: bt.config):
 
                 # Save the model to your mining dir.
                 bt.logging.success(f"Saving model to path: {model_dir}.")
-                miner_actions.save(model, model_dir)
+                pt.mining.save(model, model_dir)
 
         bt.logging.success("Finished training")
         # Push the model to your run.
@@ -356,8 +368,14 @@ async def main(config: bt.config):
                 )
 
                 # First, reload the best model from the training run.
-                model_to_upload = miner_actions.load_local_model(model_dir)
-                await miner_actions.push(model_to_upload)
+                model_to_upload = pt.mining.load_local_model(model_dir)
+                await pt.mining.push(
+                    model_to_upload,
+                    config.hf_repo_id,
+                    wallet,
+                    metadata_store=metadata_store,
+                    remote_model_store=remote_store,
+                )
             else:
                 bt.logging.success(
                     f"This training run achieved a best_avg_loss={best_avg_loss}, which did not meet the upload threshold. Not uploading to hugging face."
