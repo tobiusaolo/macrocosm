@@ -133,21 +133,20 @@ import pretrain as pt
 import bittensor as bt
 from transformers import PreTrainedModel
 
-config = bt.config(...)
-wallet = bt.wallet()
-metagraph = bt.metagraph(netuid=9)
-
-actions = pt.mining.actions.Actions.create(config, wallet)
-
 # Load a model from another miner.
-model: PreTrainedModel = actions.load_remote_model(uid=123, metagraph=metagraph, download_dir="mydir")
+model: PreTrainedModel = await pt.mining.load_remote_model(uid=123, download_dir="mydir")
 
 # Save the model to local file.
-actions.save(model, "model-foo/")
+pt.mining.save(model, "model-foo/")
 
 # Load the model from disk.
-actions.load_local_model("model-foo/")
+pt.mining.load_local_model("model-foo/")
 
 # Publish the model for validator evaluation.
-actions.push(model)
+wallet = bt.wallet()
+await pt.mining.push(model, repo="jdoe/my-repo", wallet=wallet)
+
+# Get the URL to the best model
+best_uid = pt.graph.best_uid()
+print(await pt.mining.get_repo(best_uid))
 ```
