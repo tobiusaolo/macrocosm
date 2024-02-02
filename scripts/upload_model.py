@@ -71,12 +71,9 @@ async def main(config: bt.config):
     utils.assert_registered(wallet, metagraph)
     HuggingFaceModelStore.assert_access_token_exists()
 
-    # Create the actions object.
-    actions = pt.mining.Actions.create(config, wallet, subtensor)
-
     # Load the model from disk and push it to the chain and Hugging Face.
-    model = actions.load_local_model(config.load_model_dir)
-    await actions.push(model)
+    model = pt.mining.load_local_model(config.load_model_dir)
+    await pt.mining.push(model, config.hf_repo_id, wallet)
 
 
 if __name__ == "__main__":

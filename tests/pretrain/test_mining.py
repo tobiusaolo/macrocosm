@@ -1,10 +1,12 @@
 import asyncio
 import os
 import shutil
+from unittest import mock
 import bittensor as bt
 import unittest
-from model.data import Model
-from pretrain.mining import Actions
+
+from model.data import Model, ModelId
+import pretrain as pt
 from pretrain.model import get_model
 from tests.model.storage.fake_model_metadata_store import FakeModelMetadataStore
 from tests.model.storage.fake_remote_model_store import FakeRemoteModelStore
@@ -19,13 +21,6 @@ class TestMining(unittest.TestCase):
         self.wallet.create_if_non_existent(
             coldkey_use_password=False, hotkey_use_password=False
         )
-        self.actions = Actions(
-            wallet=self.wallet,
-            hf_repo_namespace="test-namespace",
-            hf_repo_name="test-repo-name",
-            model_metadata_store=self.metadata_store,
-            remote_model_store=self.remote_store,
-        )
         self.tiny_model = get_model()
 
         self.model_dir = "test-models/test-mining"
@@ -38,13 +33,22 @@ class TestMining(unittest.TestCase):
     def test_model_to_disk_roundtrip(self):
         """Tests that saving a model to disk and loading it gets the same model."""
 
-        self.actions.save(model=self.tiny_model, model_dir=self.model_dir)
-        model = self.actions.load_local_model(model_dir=self.model_dir)
+        pt.mining.save(model=self.tiny_model, model_dir=self.model_dir)
+        model = pt.mining.load_local_model(model_dir=self.model_dir)
 
         assert_model_equality(self, self.tiny_model, model)
 
     def _test_push(self, min_expected_block: int = 1):
-        asyncio.run(self.actions.push(model=self.tiny_model, retry_delay_secs=1))
+        asyncio.run(
+            pt.mining.push(
+                model=self.tiny_model,
+                wallet=self.wallet,
+                repo="namespace/name",
+                retry_delay_secs=1,
+                metadata_store=self.metadata_store,
+                remote_model_store=self.remote_store,
+            )
+        )
 
         # Check that the model was uploaded to hugging face.
         model: Model = self.remote_store.get_only_model()
@@ -82,6 +86,36 @@ class TestMining(unittest.TestCase):
         )
 
         self._test_push(min_expected_block=2)
+
+    async def test_get_repo_no_metadata(self):
+        """Tests that get_repo raises a ValueError if the miner hasn't uploaded a model yet."""
+        hotkey = "hotkey"
+        metagraph = mock.MagicMock(spec=bt.metagraph)
+        metagraph.hotkeys.return_value = [hotkey]
+
+        # The miner hasn't uploaded a model yet, so expect a ValueError.
+        with self.assertRaises(ValueError):
+            await pt.mining.get_repo(
+                0, metagraph=metagraph, metadata_store=self.metadata_store
+            )
+
+    async def test_get_repo(self):
+        """Tests that get_repo raises a ValueError if the miner hasn't uploaded a model yet."""
+        hotkey = "hotkey"
+        metagraph = mock.MagicMock(spec=bt.metagraph)
+        metagraph.hotkeys.return_value = [hotkey]
+
+        model_id = ModelId(
+            namespace="namespace", name="name", hash="hash", commit="commit"
+        )
+        self.metadata_store.store_model_metadata(hotkey, model_id)
+
+        self.assertEqual(
+            await pt.mining.get_repo(
+                0, metagraph=metagraph, metadata_store=self.metadata_store
+            ),
+            "https://huggingface.co/namespace/name/tree/commit",
+        )
 
 
 if __name__ == "__main__":
