@@ -62,7 +62,7 @@ class DiskModelStore(LocalModelStore):
 
         # For each hotkey path on disk using listdir to go one level deep.
         miners_dir = Path(utils.get_local_miners_dir(self.base_dir))
-        hotkey_subfolder_names = [d.name for d in miners_dir.iterdir() if d.is_dir]
+        hotkey_subfolder_names = [d.name for d in miners_dir.iterdir() if d.is_dir()]
 
         for hotkey in hotkey_subfolder_names:
             # Reconstruct the path from the hotkey
@@ -82,21 +82,21 @@ class DiskModelStore(LocalModelStore):
                 # Check all the models--namespace--name subfolder paths.
                 hotkey_dir = Path(hotkey_path)
                 model_subfolder_paths = [
-                    str(d) for d in hotkey_dir.iterdir() if d.is_dir
+                    str(d) for d in hotkey_dir.iterdir() if d.is_dir()
                 ]
 
                 # Check all the snapshots subfolder paths
                 for model_path in model_subfolder_paths:
                     model_dir = Path(model_path)
                     snapshot_subfolder_paths = [
-                        str(d) for d in model_dir.iterdir() if d.is_dir
+                        str(d) for d in model_dir.iterdir() if d.is_dir()
                     ]
 
                     # Check all the commit paths.
                     for snapshot_path in snapshot_subfolder_paths:
                         snapshot_dir = Path(snapshot_path)
                         commit_subfolder_paths = [
-                            str(d) for d in snapshot_dir.iterdir() if d.is_dir
+                            str(d) for d in snapshot_dir.iterdir() if d.is_dir()
                         ]
 
                         # Reached the end. Check all the actual commit subfolders for the files.
