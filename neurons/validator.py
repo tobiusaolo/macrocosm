@@ -348,7 +348,6 @@ class Validator:
                         )
 
             except Exception as e:
-                pass
                 bt.logging.error(
                     f"Error in update loop: {e} \n {traceback.format_exc()}"
                 )
