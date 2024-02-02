@@ -488,7 +488,7 @@ class Validator:
                 pages=pages,
             )
         )
-        
+
         bt.logging.debug(f"Computing losses on {uids} with pages {pages}")
 
         # Compute model losses on batches.
@@ -570,8 +570,16 @@ class Validator:
         self.weights = self.weights.nan_to_num(0.0)
 
         # Filter based on win rate removing all by the sample_min best models for evaluation.
+        # First remove any models with an inf loss.
+        filtered_win_rate = {
+            uid: win_rate
+            for uid, win_rate in win_rate.items()
+            if not math.isinf(losses_per_uid.get(uid, default=math.inf))
+        }
         self.uids_to_eval = set(
-            sorted(win_rate, key=win_rate.get, reverse=True)[: self.config.sample_min]
+            sorted(filtered_win_rate, key=filtered_win_rate.get, reverse=True)[
+                : self.config.sample_min
+            ]
         )
 
         # Save state
