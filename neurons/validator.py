@@ -18,6 +18,7 @@
 
 from collections import defaultdict
 import datetime as dt
+import functools
 import os
 import json
 import math
@@ -326,7 +327,6 @@ class Validator:
                     time.sleep(time_to_sleep)
 
                 uid_last_checked[next_uid] = dt.datetime.now()
-                bt.logging.trace(f"Updating model for UID={next_uid}")
 
                 # Get their hotkey from the metagraph.
                 hotkey = self.metagraph.hotkeys[next_uid]
@@ -334,9 +334,10 @@ class Validator:
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
                 updated = asyncio.run(self.model_updater.sync_model(hotkey))
 
-                bt.logging.trace(
-                    f"Updated model for UID={next_uid}. Was new = {updated}"
-                )
+                if updated:
+                    bt.logging.trace(
+                        f"Updated model for UID={next_uid}. Was new = {updated}"
+                    )
 
                 # Ensure we eval the new model on the next loop.
                 if updated:
@@ -347,6 +348,7 @@ class Validator:
                         )
 
             except Exception as e:
+                pass
                 bt.logging.error(
                     f"Error in update loop: {e} \n {traceback.format_exc()}"
                 )
@@ -486,15 +488,18 @@ class Validator:
                 pages=pages,
             )
         )
+        
+        bt.logging.debug(f"Computing losses on {uids} with pages {pages}")
 
         # Compute model losses on batches.
-        bt.logging.debug(f"Computing losses on {uids}")
         losses_per_uid = {muid: None for muid in uids}
 
         load_model_perf = PerfMonitor("Eval: Load model")
         compute_loss_perf = PerfMonitor("Eval: Compute loss")
 
         for uid_i in uids:
+            bt.logging.trace(f"Computing model losses for uid:{uid_i}.")
+
             # Check that the model is in the tracker.
             hotkey = self.metagraph.hotkeys[uid_i]
             model_i_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
@@ -516,10 +521,17 @@ class Validator:
                         )
 
                     with compute_loss_perf.sample():
-                        losses = pt.validation.compute_losses(
-                            model_i.pt_model, batches, device=self.config.device
+                        # Run each computation in a subprocess so that the GPU is reset between each model.
+                        losses = utils.run_in_subprocess(
+                            functools.partial(
+                                pt.validation.compute_losses,
+                                model_i.pt_model,
+                                batches,
+                                self.config.device,
+                            ),
+                            ttl=60,
+                            mode="spawn",
                         )
-
                     del model_i
                 except Exception as e:
                     bt.logging.error(
