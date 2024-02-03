@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from model.data import ModelId, Model
@@ -9,7 +10,8 @@ import model.storage.disk.utils as utils
 
 class TestDiskModelStore(unittest.TestCase):
     def setUp(self):
-        self.disk_store = DiskModelStore("test-models")
+        self.base_dir = "test-models"
+        self.disk_store = DiskModelStore(self.base_dir)
 
     def tearDown(self):
         self.disk_store.delete_unreferenced_models(dict(), 0)
@@ -17,7 +19,7 @@ class TestDiskModelStore(unittest.TestCase):
     def test_get_path(self):
         hotkey = "hotkey0"
 
-        expected_path = utils.get_local_miner_dir("test-models", hotkey)
+        expected_path = utils.get_local_miner_dir(self.base_dir, hotkey)
         actual_path = self.disk_store.get_path(hotkey)
 
         self.assertEqual(expected_path, actual_path)
@@ -208,6 +210,55 @@ class TestDiskModelStore(unittest.TestCase):
 
         # Confirm that model 2 is still there
         model_2_retrieved = self.disk_store.retrieve_model(hotkey_2, model_id_2)
+        self.assertEqual(str(model_2), str(model_2_retrieved))
+
+    def test_delete_unreferenced_models_and_unexpected_file(self):
+        hotkey = "hotkey0"
+
+        # Make 2 model ids with different hashes / commits.
+        model_id_1 = ModelId(
+            namespace="TestPath",
+            name="TestModel",
+            hash="TestHash1",
+            commit="TestCommit1",
+        )
+        model_id_2 = ModelId(
+            namespace="TestPath",
+            name="TestModel",
+            hash="TestHash2",
+            commit="TestCommit2",
+        )
+
+        pt_model = get_model()
+
+        model_1 = Model(id=model_id_1, pt_model=pt_model)
+        model_2 = Model(id=model_id_2, pt_model=pt_model)
+
+        # Store both models locally.
+        self.disk_store.store_model(hotkey, model_1)
+        self.disk_store.store_model(hotkey, model_2)
+
+        # Also store a random file to the hotkey dir.
+        # If the is_dir() check is not correct then we will fail to rmtree this file with '[Errno 20] Not a directory.'
+        miners_dir = utils.get_local_miner_dir(self.base_dir, hotkey)
+        file_name = miners_dir + os.path.sep + "random.txt"
+        file = open(file_name, "w")
+        file.write("unexpected file.")
+        file.close()
+
+        # Create the mapping of hotkey to model_id with only the 2nd model.
+        valid_models_by_hotkey = dict()
+        valid_models_by_hotkey[hotkey] = model_id_2
+
+        # Clear the unreferenced models
+        self.disk_store.delete_unreferenced_models(valid_models_by_hotkey, 0)
+
+        # Confirm that model 1 is deleted
+        with self.assertRaises(Exception):
+            self.disk_store.retrieve_model(hotkey, model_id_1)
+
+        # Confirm that model 2 is still there
+        model_2_retrieved = self.disk_store.retrieve_model(hotkey, model_id_2)
         self.assertEqual(str(model_2), str(model_2_retrieved))
 
 
