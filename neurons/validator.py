@@ -246,6 +246,9 @@ class Validator:
             model_tracker=self.model_tracker,
         )
 
+        # Create a metagraph lock to avoid cross thread access issues in the update and clean loop.
+        self.metagraph_lock = threading.RLock()
+
         # == Initialize the update thread ==
         self.stop_event = threading.Event()
         self.update_thread = threading.Thread(target=self.update_models, daemon=True)
@@ -329,7 +332,9 @@ class Validator:
                 uid_last_checked[next_uid] = dt.datetime.now()
 
                 # Get their hotkey from the metagraph.
-                hotkey = self.metagraph.hotkeys[next_uid]
+                hotkey = "NoHotkey"
+                with self.metagraph_lock:
+                    hotkey = self.metagraph.hotkeys[next_uid]
 
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
                 updated = asyncio.run(self.model_updater.sync_model(hotkey))
@@ -364,7 +369,6 @@ class Validator:
         while not self.stop_event.is_set():
             try:
                 bt.logging.trace("Starting cleanup of stale models.")
-                # Clean out models that will not be evaluated older than 5 minutes.
 
                 # Get a mapping of all hotkeys to model ids.
                 hotkey_to_model_metadata = (
@@ -383,8 +387,9 @@ class Validator:
                     )
 
                 hotkeys_to_keep = set()
-                for uid in uids_to_keep:
-                    hotkeys_to_keep.add(self.metagraph.hotkeys[uid])
+                with self.metagraph_lock:
+                    for uid in uids_to_keep:
+                        hotkeys_to_keep.add(self.metagraph.hotkeys[uid])
 
                 # Only keep those hotkeys.
                 evaluated_hotkeys_to_model_id = {
@@ -394,7 +399,8 @@ class Validator:
                 }
 
                 self.local_store.delete_unreferenced_models(
-                    evaluated_hotkeys_to_model_id, 300
+                    valid_models_by_hotkey=evaluated_hotkeys_to_model_id,
+                    grace_period_seconds=0,
                 )
             except Exception as e:
                 bt.logging.error(f"Error in clean loop: {e}")
@@ -451,9 +457,10 @@ class Validator:
             return
 
         bt.logging.info("Synced metagraph")
-        self.metagraph.load()
-        self.miner_iterator.set_miner_uids(self.metagraph.uids.tolist())
-        self.model_tracker.on_hotkeys_updated(set(self.metagraph.hotkeys))
+        with self.metagraph_lock:
+            self.metagraph.load()
+            self.miner_iterator.set_miner_uids(self.metagraph.uids.tolist())
+            self.model_tracker.on_hotkeys_updated(set(self.metagraph.hotkeys))
 
     async def try_run_step(self, ttl: int):
         async def _try_run_step():
