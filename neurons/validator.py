@@ -364,15 +364,38 @@ class Validator:
         while not self.stop_event.is_set():
             try:
                 bt.logging.trace("Starting cleanup of stale models.")
-                # Clean out unreferenced models older than 5 mintues.
+                # Clean out models that will not be evaluated older than 5 minutes.
+
+                # Get a mapping of all hotkeys to model ids.
                 hotkey_to_model_metadata = (
                     self.model_tracker.get_miner_hotkey_to_model_metadata_dict()
                 )
-                hotkey_to_id = {
+                hotkey_to_model_id = {
                     hotkey: metadata.id
                     for hotkey, metadata in hotkey_to_model_metadata.items()
                 }
-                self.local_store.delete_unreferenced_models(hotkey_to_id, 300)
+
+                # Find all hotkeys that are currently being evaluated or pending eval.
+                uids_to_keep = set()
+                with self.pending_uids_to_eval_lock:
+                    uids_to_keep = set(self.uids_to_eval).union(
+                        self.pending_uids_to_eval
+                    )
+
+                hotkeys_to_keep = set()
+                for uid in uids_to_keep:
+                    hotkeys_to_keep.add(self.metagraph.hotkeys[uid])
+
+                # Only keep those hotkeys.
+                evaluated_hotkeys_to_model_id = {
+                    hotkey: model_id
+                    for hotkey, model_id in hotkey_to_model_id.items()
+                    if hotkey in hotkeys_to_keep
+                }
+
+                self.local_store.delete_unreferenced_models(
+                    evaluated_hotkeys_to_model_id, 300
+                )
             except Exception as e:
                 bt.logging.error(f"Error in clean loop: {e}")
 
