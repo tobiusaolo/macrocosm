@@ -53,16 +53,18 @@ class ModelUpdater:
 
         # Check that the hash of the downloaded content matches.
         if model.id.hash != metadata.id.hash:
-            raise ValueError(
+            bt.logging.trace(
                 f"Sync for hotkey {hotkey} failed. Hash of content downloaded from hugging face does not match chain metadata. {metadata}"
             )
+            return False
 
         # Check that the parameter count of the model is within allowed bounds.
         parameter_size = sum(p.numel() for p in model.pt_model.parameters())
         if parameter_size > constants.MAX_MODEL_PARAMETER_SIZE:
-            raise ValueError(
+            bt.logging.trace(
                 f"Sync for hotkey {hotkey} failed. Parameter size of the model {parameter_size} exceeded max size {constants.MAX_MODEL_PARAMETER_SIZE}."
             )
+            return False
 
         # Update the tracker
         self.model_tracker.on_miner_model_updated(hotkey, metadata)
