@@ -46,13 +46,16 @@ def get_newest_datetime_under_path(path: str) -> datetime.datetime:
     # Check to see if any file at any level was modified more recently than the current one.
     for cur_path, dirnames, filenames in os.walk(path):
         for filename in filenames:
-            path = os.path.join(cur_path, filename)
-            mod_time = os.stat(path).st_mtime
-            if mod_time < newest_filetime:
-                newest_filetime = mod_time
+            try:
+                path = os.path.join(cur_path, filename)
+                mod_time = os.stat(path).st_mtime
+                if mod_time < newest_filetime:
+                    newest_filetime = mod_time
+            except FileNotFoundError:
+                pass
 
     if newest_filetime == sys.maxsize:
-        return datetime.datetime.max
+        return datetime.datetime.min
 
     return datetime.datetime.fromtimestamp(newest_filetime)
 
@@ -63,12 +66,7 @@ def remove_dir_out_of_grace(path: str, grace_period_seconds: int) -> bool:
     grace = datetime.timedelta(seconds=grace_period_seconds)
 
     if last_modified < datetime.datetime.now() - grace:
-        try:
-            shutil.rmtree(path=path, ignore_errors=True)
-        except Exception as e:
-            # Trying to delete symlinked files that are already deleted can throw exceptions here.
-            # New downloads have their symlinks realized but this covers older model downloads.
-            pass
+        shutil.rmtree(path=path, ignore_errors=True)
         return True
 
     return False
