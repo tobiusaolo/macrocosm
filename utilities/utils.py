@@ -117,3 +117,16 @@ def save_version(filepath: str, version: int):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, "w") as f:
         f.write(str(version))
+
+
+def move_file_if_exists(src: str, dst: str) -> bool:
+    """Moves a file from src to dst if it exists.
+
+    Returns:
+        bool: True if the file was moved, False otherwise.
+    """
+    if os.path.exists(src) and not os.path.exists(dst):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        os.replace(src, dst)
+        return True
+    return False
