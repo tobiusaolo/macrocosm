@@ -65,9 +65,9 @@ def remove_dir_out_of_grace(path: str, grace_period_seconds: int) -> bool:
     if last_modified < datetime.datetime.now() - grace:
         try:
             shutil.rmtree(path=path, ignore_errors=True)
-        except FileNotFoundError as e:
-            # This is ignored by shutil in later versions of python but we have to manually ignore it before then.
-            # The file is deleted as we desire but it can sometimes try to delete it twice causing this error.
+        except Exception as e:
+            # Trying to delete symlinked files that are already deleted can throw exceptions here.
+            # New downloads have their symlinks realized but this covers older model downloads.
             pass
         return True
 
