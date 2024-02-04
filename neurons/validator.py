@@ -306,22 +306,6 @@ class Validator:
         # if they should be updated.
         while not self.stop_event.is_set():
             try:
-                # Limit the number of pending uids, waiting for the eval loop to process them.
-                pending_uid_count = 0
-                with self.pending_uids_to_eval_lock:
-                    pending_uid_count = len(self.pending_uids_to_eval)
-
-                # Only allow at most 10 pending uids.
-                while pending_uid_count >= 10:
-                    # Wait 5 minutes for the eval loop to process them.
-                    bt.logging.info(
-                        f"Update loop: Already 10 synced models pending eval. Waiting 5 minutes."
-                    )
-                    time.sleep(300)
-                    # Check to see if the pending uids have been cleared yet.
-                    with self.pending_uids_to_eval_lock:
-                        pending_uid_count = len(self.pending_uids_to_eval)
-
                 # Get the next uid to check
                 next_uid = next(self.miner_iterator)
 
