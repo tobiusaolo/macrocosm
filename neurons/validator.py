@@ -361,12 +361,13 @@ class Validator:
                 ):
                     # Wait 5 minutes for the eval loop to process them.
                     bt.logging.info(
-                        f"Update loop: Already 20 synced models pending eval. Waiting 5 minutes."
+                        f"Update loop: Already 20 synced models pending eval. Checking again in 5 minutes."
                     )
                     time.sleep(300)
                     # Check to see if the pending uids have been cleared yet.
                     with self.pending_uids_to_eval_lock:
                         pending_uid_count = len(self.pending_uids_to_eval)
+                        current_uid_count = len(self.uids_to_eval)
 
                 # Get the next uid to check
                 next_uid = next(self.miner_iterator)
