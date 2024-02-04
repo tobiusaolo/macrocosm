@@ -118,9 +118,11 @@ class Validator:
         config = bt.config(parser)
         return config
 
-    def state_path(self) -> str:
+    def state_path_old(self) -> str:
         """
-        Constructs a file path for storing validator state.
+        Constructs the old file path for storing validator state.
+
+        This will soon be deprecated.
 
         Returns:
         str: A string representing the file path.
@@ -134,6 +136,15 @@ class Validator:
                 "vali-state",
             )
         )
+
+    def state_path(self) -> str:
+        """
+        Returns the file path for storing validator state.
+
+        Returns:
+        str: A string representing the file path.
+        """
+        return os.path.join(self.config.model_dir, "vali-state")
 
     def __init__(self):
         self.config = Validator.config()
@@ -175,15 +186,19 @@ class Validator:
         self.model_tracker = ModelTracker()
 
         # Construct the filepaths to save/load state.
-        self.uids_filepath = os.path.join(self.state_path(), Validator.UIDS_FILENAME)
-        self.tracker_filepath = os.path.join(
-            self.state_path(), Validator.TRACKER_FILENAME
-        )
-        version_filepath = os.path.join(self.state_path(), Validator.VERSION_FILENAME)
+        state_dir = self.state_path()
+        os.makedirs(state_dir, exist_ok=True)
+
+        self.uids_filepath = os.path.join(state_dir, Validator.UIDS_FILENAME)
+        self.tracker_filepath = os.path.join(state_dir, Validator.TRACKER_FILENAME)
+        self.version_filepath = os.path.join(state_dir, Validator.VERSION_FILENAME)
+
+        # Perform a one-time migration of the state files from the old path to the new path
+        self.maybe_migrate_state_files()
 
         # Check if the version has changed since we last restarted.
-        previous_version = utils.get_version(version_filepath)
-        utils.save_version(version_filepath, constants.__spec_version__)
+        previous_version = utils.get_version(self.version_filepath)
+        utils.save_version(self.version_filepath, constants.__spec_version__)
 
         # If this is an upgrade, blow away state so that everything is re-evaluated.
         if previous_version != constants.__spec_version__:
@@ -284,6 +299,30 @@ class Validator:
         )
 
         bt.logging.debug(f"Started a new wandb run: {name}")
+
+    def maybe_migrate_state_files(self):
+        """Performs a one-time migration of the state files from the old path to the new path."""
+        if utils.move_file_if_exists(
+            os.path.join(self.state_path_old(), Validator.UIDS_FILENAME),
+            self.uids_filepath,
+        ):
+            bt.logging.success(
+                f"Moved {Validator.UIDS_FILENAME} from old state path to new state path."
+            )
+        if utils.move_file_if_exists(
+            os.path.join(self.state_path_old(), Validator.TRACKER_FILENAME),
+            self.tracker_filepath,
+        ):
+            bt.logging.success(
+                f"Moved {Validator.TRACKER_FILENAME} from old state path to new state path."
+            )
+        if utils.move_file_if_exists(
+            os.path.join(self.state_path_old(), Validator.VERSION_FILENAME),
+            self.version_filepath,
+        ):
+            bt.logging.success(
+                f"Moved {Validator.VERSION_FILENAME} from old state path to new state path."
+            )
 
     def save_state(self):
         """Saves the state of the validator to a file."""
