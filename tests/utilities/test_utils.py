@@ -1,5 +1,6 @@
 import functools
-from tempfile import NamedTemporaryFile
+import os
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 import time
 import unittest
 import constants
@@ -85,6 +86,38 @@ class TestUtils(unittest.TestCase):
 
             utils.save_version(f.name, version)
             self.assertEqual(utils.get_version(f.name), version)
+
+    def test_move_if_exists_does_not_move_dst_exists(self):
+        with NamedTemporaryFile(mode="w+") as f:
+            f.write("test")
+            f.flush()
+
+            with NamedTemporaryFile() as f2:
+                # Destination file exists. Should not move.
+                self.assertFalse(utils.move_file_if_exists(f.name, f2.name))
+                self.assertEqual(b"", f2.read())
+                f.seek(0)
+                self.assertEqual(f.read(), "test")
+
+    def test_move_if_exists_does_not_move_src_missing(self):
+        with NamedTemporaryFile(mode="w+") as f:
+            f.write("test")
+            f.flush()
+
+            self.assertFalse(utils.move_file_if_exists("no_file", f.name))
+
+    def test_move_if_exists(self):
+        with TemporaryDirectory() as d:
+            with open(os.path.join(d, "src"), "w") as f:
+                f.write("test")
+                f.flush()
+
+                dst = os.path.join(d, "dst")
+
+                self.assertTrue(utils.move_file_if_exists(f.name, dst))
+                self.assertFalse(os.path.exists(f.name))
+                self.assertTrue(os.path.exists(dst))
+                self.assertEqual(open(dst, "rb").read(), b"test")
 
 
 if __name__ == "__main__":

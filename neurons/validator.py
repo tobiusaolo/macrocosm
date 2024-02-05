@@ -118,9 +118,11 @@ class Validator:
         config = bt.config(parser)
         return config
 
-    def state_path(self) -> str:
+    def state_path_old(self) -> str:
         """
-        Constructs a file path for storing validator state.
+        Constructs the old file path for storing validator state.
+
+        This will soon be deprecated.
 
         Returns:
         str: A string representing the file path.
@@ -134,6 +136,15 @@ class Validator:
                 "vali-state",
             )
         )
+
+    def state_path(self) -> str:
+        """
+        Returns the file path for storing validator state.
+
+        Returns:
+        str: A string representing the file path.
+        """
+        return os.path.join(self.config.model_dir, "vali-state")
 
     def __init__(self):
         self.config = Validator.config()
@@ -175,15 +186,19 @@ class Validator:
         self.model_tracker = ModelTracker()
 
         # Construct the filepaths to save/load state.
-        self.uids_filepath = os.path.join(self.state_path(), Validator.UIDS_FILENAME)
-        self.tracker_filepath = os.path.join(
-            self.state_path(), Validator.TRACKER_FILENAME
-        )
-        version_filepath = os.path.join(self.state_path(), Validator.VERSION_FILENAME)
+        state_dir = self.state_path()
+        os.makedirs(state_dir, exist_ok=True)
+
+        self.uids_filepath = os.path.join(state_dir, Validator.UIDS_FILENAME)
+        self.tracker_filepath = os.path.join(state_dir, Validator.TRACKER_FILENAME)
+        self.version_filepath = os.path.join(state_dir, Validator.VERSION_FILENAME)
+
+        # Perform a one-time migration of the state files from the old path to the new path
+        self.maybe_migrate_state_files()
 
         # Check if the version has changed since we last restarted.
-        previous_version = utils.get_version(version_filepath)
-        utils.save_version(version_filepath, constants.__spec_version__)
+        previous_version = utils.get_version(self.version_filepath)
+        utils.save_version(self.version_filepath, constants.__spec_version__)
 
         # If this is an upgrade, blow away state so that everything is re-evaluated.
         if previous_version != constants.__spec_version__:
@@ -246,6 +261,9 @@ class Validator:
             model_tracker=self.model_tracker,
         )
 
+        # Create a metagraph lock to avoid cross thread access issues in the update and clean loop.
+        self.metagraph_lock = threading.RLock()
+
         # == Initialize the update thread ==
         self.stop_event = threading.Event()
         self.update_thread = threading.Thread(target=self.update_models, daemon=True)
@@ -282,6 +300,30 @@ class Validator:
 
         bt.logging.debug(f"Started a new wandb run: {name}")
 
+    def maybe_migrate_state_files(self):
+        """Performs a one-time migration of the state files from the old path to the new path."""
+        if utils.move_file_if_exists(
+            os.path.join(self.state_path_old(), Validator.UIDS_FILENAME),
+            self.uids_filepath,
+        ):
+            bt.logging.success(
+                f"Moved {Validator.UIDS_FILENAME} from old state path to new state path."
+            )
+        if utils.move_file_if_exists(
+            os.path.join(self.state_path_old(), Validator.TRACKER_FILENAME),
+            self.tracker_filepath,
+        ):
+            bt.logging.success(
+                f"Moved {Validator.TRACKER_FILENAME} from old state path to new state path."
+            )
+        if utils.move_file_if_exists(
+            os.path.join(self.state_path_old(), Validator.VERSION_FILENAME),
+            self.version_filepath,
+        ):
+            bt.logging.success(
+                f"Moved {Validator.VERSION_FILENAME} from old state path to new state path."
+            )
+
     def save_state(self):
         """Saves the state of the validator to a file."""
 
@@ -306,6 +348,27 @@ class Validator:
         # if they should be updated.
         while not self.stop_event.is_set():
             try:
+                # Limit the number of pending uids, waiting for the eval loop to process them.
+                pending_uid_count = 0
+                current_uid_count = 0
+                with self.pending_uids_to_eval_lock:
+                    pending_uid_count = len(self.pending_uids_to_eval)
+                    current_uid_count = len(self.uids_to_eval)
+
+                # Only allow at most 20 pending uids + sample min (for new vali startup).
+                while (
+                    pending_uid_count + current_uid_count >= 20 + self.config.sample_min
+                ):
+                    # Wait 5 minutes for the eval loop to process them.
+                    bt.logging.info(
+                        f"Update loop: Already 20 synced models pending eval. Checking again in 5 minutes."
+                    )
+                    time.sleep(300)
+                    # Check to see if the pending uids have been cleared yet.
+                    with self.pending_uids_to_eval_lock:
+                        pending_uid_count = len(self.pending_uids_to_eval)
+                        current_uid_count = len(self.uids_to_eval)
+
                 # Get the next uid to check
                 next_uid = next(self.miner_iterator)
 
@@ -329,7 +392,9 @@ class Validator:
                 uid_last_checked[next_uid] = dt.datetime.now()
 
                 # Get their hotkey from the metagraph.
-                hotkey = self.metagraph.hotkeys[next_uid]
+                hotkey = "NoHotkey"
+                with self.metagraph_lock:
+                    hotkey = self.metagraph.hotkeys[next_uid]
 
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
                 updated = asyncio.run(self.model_updater.sync_model(hotkey))
@@ -364,15 +429,39 @@ class Validator:
         while not self.stop_event.is_set():
             try:
                 bt.logging.trace("Starting cleanup of stale models.")
-                # Clean out unreferenced models older than 5 mintues.
+
+                # Get a mapping of all hotkeys to model ids.
                 hotkey_to_model_metadata = (
                     self.model_tracker.get_miner_hotkey_to_model_metadata_dict()
                 )
-                hotkey_to_id = {
+                hotkey_to_model_id = {
                     hotkey: metadata.id
                     for hotkey, metadata in hotkey_to_model_metadata.items()
                 }
-                self.local_store.delete_unreferenced_models(hotkey_to_id, 300)
+
+                # Find all hotkeys that are currently being evaluated or pending eval.
+                uids_to_keep = set()
+                with self.pending_uids_to_eval_lock:
+                    uids_to_keep = set(self.uids_to_eval).union(
+                        self.pending_uids_to_eval
+                    )
+
+                hotkeys_to_keep = set()
+                with self.metagraph_lock:
+                    for uid in uids_to_keep:
+                        hotkeys_to_keep.add(self.metagraph.hotkeys[uid])
+
+                # Only keep those hotkeys.
+                evaluated_hotkeys_to_model_id = {
+                    hotkey: model_id
+                    for hotkey, model_id in hotkey_to_model_id.items()
+                    if hotkey in hotkeys_to_keep
+                }
+
+                self.local_store.delete_unreferenced_models(
+                    valid_models_by_hotkey=evaluated_hotkeys_to_model_id,
+                    grace_period_seconds=300,
+                )
             except Exception as e:
                 bt.logging.error(f"Error in clean loop: {e}")
 
@@ -428,9 +517,10 @@ class Validator:
             return
 
         bt.logging.info("Synced metagraph")
-        self.metagraph.load()
-        self.miner_iterator.set_miner_uids(self.metagraph.uids.tolist())
-        self.model_tracker.on_hotkeys_updated(set(self.metagraph.hotkeys))
+        with self.metagraph_lock:
+            self.metagraph.load()
+            self.miner_iterator.set_miner_uids(self.metagraph.uids.tolist())
+            self.model_tracker.on_hotkeys_updated(set(self.metagraph.hotkeys))
 
     async def try_run_step(self, ttl: int):
         async def _try_run_step():
@@ -569,11 +659,12 @@ class Validator:
         self.weights = self.weights.nan_to_num(0.0)
 
         # Filter based on win rate removing all by the sample_min best models for evaluation.
-        # First remove any models that have an infinite loss.
+        # First remove any models that have an infinite loss and 0 weight.
         filtered_win_rate = {
             uid: wr
             for uid, wr in win_rate.items()
             if not all(math.isinf(x) for x in losses_per_uid.get(uid, [math.inf]))
+            or self.weights[uid] > 0
         }
         self.uids_to_eval = set(
             sorted(filtered_win_rate, key=filtered_win_rate.get, reverse=True)[

@@ -1,3 +1,5 @@
+import trace
+import traceback
 import bittensor as bt
 from typing import Dict
 from model.data import Model, ModelId
@@ -62,50 +64,54 @@ class DiskModelStore(LocalModelStore):
 
         # For each hotkey path on disk using listdir to go one level deep.
         miners_dir = Path(utils.get_local_miners_dir(self.base_dir))
-        hotkey_subfolder_names = [d.name for d in miners_dir.iterdir() if d.is_dir]
+        hotkey_subfolder_names = [d.name for d in miners_dir.iterdir() if d.is_dir()]
 
         for hotkey in hotkey_subfolder_names:
-            # Reconstruct the path from the hotkey
-            hotkey_path = utils.get_local_miner_dir(self.base_dir, hotkey)
+            try:
+                # Reconstruct the path from the hotkey
+                hotkey_path = utils.get_local_miner_dir(self.base_dir, hotkey)
 
-            # If it is not in valid_hotkeys and out of grace period remove it.
-            if hotkey not in valid_models_by_hotkey:
-                deleted_hotkey = utils.remove_dir_out_of_grace(
-                    hotkey_path, grace_period_seconds
-                )
-                if deleted_hotkey:
-                    bt.logging.trace(
-                        f"Removed directory for unreferenced hotkey: {hotkey}."
+                # If it is not in valid_hotkeys and out of grace period remove it.
+                if hotkey not in valid_models_by_hotkey:
+                    deleted_hotkey = utils.remove_dir_out_of_grace(
+                        hotkey_path, grace_period_seconds
                     )
+                    if deleted_hotkey:
+                        bt.logging.trace(
+                            f"Removed directory for unreferenced hotkey: {hotkey}."
+                        )
 
-            else:
-                # Check all the models--namespace--name subfolder paths.
-                hotkey_dir = Path(hotkey_path)
-                model_subfolder_paths = [
-                    str(d) for d in hotkey_dir.iterdir() if d.is_dir
-                ]
-
-                # Check all the snapshots subfolder paths
-                for model_path in model_subfolder_paths:
-                    model_dir = Path(model_path)
-                    snapshot_subfolder_paths = [
-                        str(d) for d in model_dir.iterdir() if d.is_dir
+                else:
+                    # Check all the models--namespace--name subfolder paths.
+                    hotkey_dir = Path(hotkey_path)
+                    model_subfolder_paths = [
+                        str(d) for d in hotkey_dir.iterdir() if d.is_dir()
                     ]
 
-                    # Check all the commit paths.
-                    for snapshot_path in snapshot_subfolder_paths:
-                        snapshot_dir = Path(snapshot_path)
-                        commit_subfolder_paths = [
-                            str(d) for d in snapshot_dir.iterdir() if d.is_dir
+                    # Check all the snapshots subfolder paths
+                    for model_path in model_subfolder_paths:
+                        model_dir = Path(model_path)
+                        snapshot_subfolder_paths = [
+                            str(d) for d in model_dir.iterdir() if d.is_dir()
                         ]
 
-                        # Reached the end. Check all the actual commit subfolders for the files.
-                        for commit_path in commit_subfolder_paths:
-                            if commit_path not in valid_model_paths:
-                                deleted_model = utils.remove_dir_out_of_grace(
-                                    commit_path, grace_period_seconds
-                                )
-                                if deleted_model:
-                                    bt.logging.trace(
-                                        f"Removing directory for unreferenced model at: {commit_path}."
+                        # Check all the commit paths.
+                        for snapshot_path in snapshot_subfolder_paths:
+                            snapshot_dir = Path(snapshot_path)
+                            commit_subfolder_paths = [
+                                str(d) for d in snapshot_dir.iterdir() if d.is_dir()
+                            ]
+
+                            # Reached the end. Check all the actual commit subfolders for the files.
+                            for commit_path in commit_subfolder_paths:
+                                if commit_path not in valid_model_paths:
+                                    deleted_model = utils.remove_dir_out_of_grace(
+                                        commit_path, grace_period_seconds
                                     )
+                                    if deleted_model:
+                                        bt.logging.trace(
+                                            f"Removing directory for unreferenced model at: {commit_path}."
+                                        )
+            except Exception:
+                # Catch the exception so we continue with the rest of the cleanup.
+                bt.logging.warning(traceback.format_exc())

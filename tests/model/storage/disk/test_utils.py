@@ -116,22 +116,33 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(hf_download_path_dir, expected_path)
 
     def test_get_newest_datetime_under_path(self):
-        file_name = "test.txt"
-        path = self.base_dir + os.path.sep + file_name
+        file_name_1 = "test1.txt"
+        file_name_2 = "test2.txt"
+        path_1 = self.base_dir + os.path.sep + file_name_1
+        path_2 = self.base_dir + os.path.sep + file_name_2
 
         os.mkdir(self.base_dir)
-        file = open(path, "w")
-        file.write("test text.")
-        file.close()
+        file_1 = open(path_1, "w")
+        file_1.write("test text.")
+        file_1.close()
 
-        last_modified_expected = datetime.datetime.fromtimestamp(os.path.getmtime(path))
+        time.sleep(1)
+
+        file_2 = open(path_2, "w")
+        file_2.write("test text 2.")
+        file_2.close()
+
+        # File 2 was written more recently.
+        last_modified_expected = datetime.datetime.fromtimestamp(
+            os.path.getmtime(path_2)
+        )
 
         last_modified_actual = utils.get_newest_datetime_under_path(self.base_dir)
 
         self.assertEqual(last_modified_actual, last_modified_expected)
 
     def test_get_newest_datetime_under_path_empty(self):
-        last_modified_expected = datetime.datetime.max
+        last_modified_expected = datetime.datetime.min
 
         last_modified_actual = utils.get_newest_datetime_under_path(self.base_dir)
 

@@ -161,11 +161,9 @@ class TestModelUpdater(unittest.TestCase):
         )
         self.remote_store.inject_mismatched_model(model_id_chain, model)
 
-        # Assert we fail due to the hash mismatch between the model in remote store and the metadata on chain.
-        with self.assertRaises(ValueError) as context:
-            asyncio.run(self.model_updater.sync_model(hotkey))
-
-        self.assertIn("Hash", str(context.exception))
+        # Assert we do not update due to the hash mismatch between the model in remote store and the metadata on chain.
+        updated = asyncio.run(self.model_updater.sync_model(hotkey))
+        self.assertFalse(updated)
 
     def test_sync_model_over_max_parameters(self):
         hotkey = "test_hotkey"
@@ -179,7 +177,7 @@ class TestModelUpdater(unittest.TestCase):
 
         config = GPT2Config(
             n_head=10,
-            n_layer=13,  # Increase layer by 1 compared to default.
+            n_layer=25,  # Increase layer by enough to go over max parameter size.
             n_embd=760,
         )
         pt_model = GPT2LMHeadModel(config)
@@ -192,11 +190,9 @@ class TestModelUpdater(unittest.TestCase):
         )
         asyncio.run(self.remote_store.upload_model(model))
 
-        # Assert we fail due to exceeding the maximum allowed parameter size.
-        with self.assertRaises(ValueError) as context:
-            asyncio.run(self.model_updater.sync_model(hotkey))
-
-        self.assertIn("Parameter", str(context.exception))
+        # Assert we do not update due to exceeding the maximum allowed parameter size.
+        updated = asyncio.run(self.model_updater.sync_model(hotkey))
+        self.assertFalse(updated)
 
 
 if __name__ == "__main__":

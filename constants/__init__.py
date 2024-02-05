@@ -4,7 +4,7 @@ from pathlib import Path
 # Project Constants.
 # ---------------------------------
 
-__version__ = "2.1.4"
+__version__ = "2.2.0"
 version_split = __version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -29,7 +29,7 @@ MAX_RUN_STEPS_PER_WANDB_RUN = 100
 # Miner/Validator Model parameters.
 # ---------------------------------
 
-weights_version_key = 2002
+weights_version_key = __spec_version__
 
 # validator weight moving average term
 alpha = 0.9
