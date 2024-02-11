@@ -6,15 +6,6 @@ from model.model_tracker import ModelTracker
 from model.storage.local_model_store import LocalModelStore
 from model.storage.model_metadata_store import ModelMetadataStore
 from model.storage.remote_model_store import RemoteModelStore
-from transformers import (
-    GPT2LMHeadModel,
-    MistralForCausalLM,
-    LlamaForCausalLM,
-    BartForCausalLM,
-    FalconForCausalLM,
-    GPTNeoXForCausalLM,
-    GPTJForCausalLM,
-)
 
 
 class ModelUpdater:
@@ -81,15 +72,7 @@ class ModelUpdater:
             )
             return False
 
-        if (
-            not isinstance(model.pt_model, GPT2LMHeadModel)
-            and not isinstance(model.pt_model, MistralForCausalLM)
-            and not isinstance(model.pt_model, LlamaForCausalLM)
-            and not isinstance(model.pt_model, BartForCausalLM)
-            and not isinstance(model.pt_model, FalconForCausalLM)
-            and not isinstance(model.pt_model, GPTNeoXForCausalLM)
-            and not isinstance(model.pt_model, GPTJForCausalLM)
-        ):
+        if type(model.pt_model) not in constants.allowed_model_types:
             bt.logging.trace(
                 f"Sync for hotkey {hotkey} failed. Model type {type(model.pt_model)} is not allowed."
             )

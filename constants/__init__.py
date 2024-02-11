@@ -1,4 +1,13 @@
 from pathlib import Path
+from transformers import (
+    GPT2LMHeadModel,
+    MistralForCausalLM,
+    LlamaForCausalLM,
+    BartForCausalLM,
+    FalconForCausalLM,
+    GPTNeoXForCausalLM,
+    GPTJForCausalLM,
+)
 
 # ---------------------------------
 # Project Constants.
@@ -43,3 +52,13 @@ n_eval_pages = 3
 batch_size = 1
 # validator eval sequence length.
 sequence_length = 1024
+# List of allowed model types.
+allowed_model_types = {
+    GPT2LMHeadModel,
+    MistralForCausalLM,
+    LlamaForCausalLM,
+    BartForCausalLM,
+    FalconForCausalLM,
+    GPTNeoXForCausalLM,
+    GPTJForCausalLM,
+}
