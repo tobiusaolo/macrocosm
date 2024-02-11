@@ -49,7 +49,13 @@ class ModelUpdater:
         path = self.local_store.get_path(hotkey)
 
         # Otherwise we need to download the new model based on the metadata.
-        model = await self.remote_store.download_model(metadata.id, path)
+        try:
+            model = await self.remote_store.download_model(metadata.id, path)
+        except Exception as e:
+            bt.logging.trace(
+                f"Failed to download model for hotkey {hotkey} due to {e}."
+            )
+            return False
 
         # Check that the hash of the downloaded content matches.
         if model.id.hash != metadata.id.hash:
