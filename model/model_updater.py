@@ -66,6 +66,15 @@ class ModelUpdater:
             )
             return False
 
+        if (
+            not hasattr(model.pt_model.config, "max_position_embeddings")
+            or getattr(model.pt_model.config, "max_position_embeddings") != 1024
+        ):
+            bt.logging.trace(
+                f"Sync for hotkey {hotkey} failed. max_position_embeddings did not exist or was not 1024."
+            )
+            return False
+
         # Update the tracker
         self.model_tracker.on_miner_model_updated(hotkey, metadata)
 
