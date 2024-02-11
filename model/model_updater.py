@@ -6,6 +6,15 @@ from model.model_tracker import ModelTracker
 from model.storage.local_model_store import LocalModelStore
 from model.storage.model_metadata_store import ModelMetadataStore
 from model.storage.remote_model_store import RemoteModelStore
+from transformers import (
+    GPT2LMHeadModel,
+    MistralForCausalLM,
+    LlamaForCausalLM,
+    BartForCausalLM,
+    FalconForCausalLM,
+    GPTNeoXForCausalLM,
+    GPTJForCausalLM,
+)
 
 
 class ModelUpdater:
@@ -73,11 +82,16 @@ class ModelUpdater:
             return False
 
         if (
-            not hasattr(model.pt_model.config, "max_position_embeddings")
-            or getattr(model.pt_model.config, "max_position_embeddings") != 1024
+            not isinstance(model.pt_model, GPT2LMHeadModel)
+            and not isinstance(model.pt_model, MistralForCausalLM)
+            and not isinstance(model.pt_model, LlamaForCausalLM)
+            and not isinstance(model.pt_model, BartForCausalLM)
+            and not isinstance(model.pt_model, FalconForCausalLM)
+            and not isinstance(model.pt_model, GPTNeoXForCausalLM)
+            and not isinstance(model.pt_model, GPTJForCausalLM)
         ):
             bt.logging.trace(
-                f"Sync for hotkey {hotkey} failed. max_position_embeddings did not exist or was not 1024."
+                f"Sync for hotkey {hotkey} failed. Model type {type(model.pt_model)} is not allowed."
             )
             return False
 

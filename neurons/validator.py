@@ -609,27 +609,18 @@ class Validator:
                             hotkey, model_i_metadata.id
                         )
 
-                    if (
-                        not hasattr(model_i.pt_model.config, "max_position_embeddings")
-                        or getattr(model_i.pt_model.config, "max_position_embeddings")
-                        != 1024
-                    ):
-                        bt.logging.trace(
-                            f"Skipping validation for {hotkey}. max_position_embeddings did not exist or was not 1024."
+                    with compute_loss_perf.sample():
+                        # Run each computation in a subprocess so that the GPU is reset between each model.
+                        losses = utils.run_in_subprocess(
+                            functools.partial(
+                                pt.validation.compute_losses,
+                                model_i.pt_model,
+                                batches,
+                                self.config.device,
+                            ),
+                            ttl=60,
+                            mode="spawn",
                         )
-                    else:
-                        with compute_loss_perf.sample():
-                            # Run each computation in a subprocess so that the GPU is reset between each model.
-                            losses = utils.run_in_subprocess(
-                                functools.partial(
-                                    pt.validation.compute_losses,
-                                    model_i.pt_model,
-                                    batches,
-                                    self.config.device,
-                                ),
-                                ttl=60,
-                                mode="spawn",
-                            )
                     del model_i
                 except Exception as e:
                     bt.logging.error(
