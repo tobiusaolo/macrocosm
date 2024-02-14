@@ -5,7 +5,6 @@ from model.model_tracker import ModelTracker
 
 from model.model_updater import ModelUpdater
 from model.storage.disk.disk_model_store import DiskModelStore
-import pretrain
 from tests.model.storage.fake_model_metadata_store import FakeModelMetadataStore
 from tests.model.storage.fake_remote_model_store import FakeRemoteModelStore
 from pretrain.model import get_model
@@ -62,9 +61,8 @@ class TestModelUpdater(unittest.TestCase):
             self.metadata_store.store_model_metadata_exact(hotkey, model_metadata)
         )
 
-        # FakeRemoteModelStore raises a KeyError but HuggingFace may raise other exceptions.
-        with self.assertRaises(Exception):
-            asyncio.run(self.model_updater.sync_model(hotkey))
+        # Check the model fails to sync but that it doesn't throw an exception.
+        self.assertFalse(asyncio.run(self.model_updater.sync_model(hotkey)))
 
     def test_sync_model_same_metadata(self):
         hotkey = "test_hotkey"
@@ -193,6 +191,47 @@ class TestModelUpdater(unittest.TestCase):
         # Assert we do not update due to exceeding the maximum allowed parameter size.
         updated = asyncio.run(self.model_updater.sync_model(hotkey))
         self.assertFalse(updated)
+
+    def test_sync_model_uses_next_model_limit(self):
+
+        # Create a model larger than the limit prior to block 2_405_920.
+        pt_model = GPT2LMHeadModel(
+            GPT2Config(
+                n_head=50,
+                n_layer=25,
+                n_embd=750,
+            )
+        )
+
+        hotkey = "test_hotkey"
+        model_id = ModelId(
+            namespace="test_model",
+            name="test_name",
+            hash="test_hash",
+            commit="test_commit",
+        )
+
+        # Upload the large model before the block that uses the new limit.
+        model_metadata = ModelMetadata(id=model_id, block=2_405_919)
+
+        model = Model(id=model_id, pt_model=pt_model)
+
+        # Upload the model metadata and model.
+        asyncio.run(
+            self.metadata_store.store_model_metadata_exact(hotkey, model_metadata)
+        )
+        asyncio.run(self.remote_store.upload_model(model))
+
+        # Assert we do not update due to exceeding the maximum allowed parameter size.
+        self.assertFalse(asyncio.run(self.model_updater.sync_model(hotkey)))
+
+        # Upload the model again, this time after the block that allows this size of model.
+        model_metadata = ModelMetadata(id=model_id, block=2_405_920)
+        asyncio.run(
+            self.metadata_store.store_model_metadata_exact(hotkey, model_metadata)
+        )
+
+        self.assertTrue(asyncio.run(self.model_updater.sync_model(hotkey)))
 
 
 if __name__ == "__main__":

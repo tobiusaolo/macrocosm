@@ -29,8 +29,12 @@ SUBNET_UID = 9
 ROOT_DIR = Path(__file__).parent.parent
 # The maximum bytes for the hugging face repo (1 Gigabyte).
 MAX_HUGGING_FACE_BYTES = 1 * 1024 * 1024 * 1024
-# The maximum parameter size allowed for models.
-MAX_MODEL_PARAMETER_SIZE = 186_000_000
+# A mapping of block numbers to the max model size as of that block.
+# This dictionary must remain ordered by key.
+MAX_MODEL_PARAMETER_SIZES = [
+    (0, 186_000_000),
+    (2_405_920, 772_000_000),
+]
 # The number of run steps to log to single wandb run.
 MAX_RUN_STEPS_PER_WANDB_RUN = 100
 
