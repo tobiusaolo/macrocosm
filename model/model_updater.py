@@ -1,6 +1,7 @@
 import bittensor as bt
 from typing import Optional
 import constants
+from model import utils
 from model.data import ModelMetadata
 from model.model_tracker import ModelTracker
 from model.storage.local_model_store import LocalModelStore
@@ -66,9 +67,10 @@ class ModelUpdater:
 
         # Check that the parameter count of the model is within allowed bounds.
         parameter_size = sum(p.numel() for p in model.pt_model.parameters())
-        if parameter_size > constants.MAX_MODEL_PARAMETER_SIZE:
+        parameter_limit = utils.get_parameter_limit(metadata.block)
+        if parameter_size > parameter_limit:
             bt.logging.trace(
-                f"Sync for hotkey {hotkey} failed. Parameter size of the model {parameter_size} exceeded max size {constants.MAX_MODEL_PARAMETER_SIZE}."
+                f"Sync for hotkey {hotkey} failed. Parameter size of the model {parameter_size} exceeded max size {parameter_limit}."
             )
             return False
 
