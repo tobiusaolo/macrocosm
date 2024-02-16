@@ -253,6 +253,7 @@ def run_benchmarks(args: ArgumentParser, datasets: Dict[str, str]):
     models = {
         best_model_hf: best_model_provider,
         "gpt2": HuggingFaceModelProvider("gpt2", args.cache_dir),
+        "gpt2-large": HuggingFaceModelProvider("gpt2-large", args.cache_dir),
     }
 
     ppls = defaultdict(list)
