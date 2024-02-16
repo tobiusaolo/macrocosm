@@ -9,3 +9,4 @@ safetensors
 torch
 transformers==4.34.1
 wandb
+datasets

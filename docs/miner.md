@@ -2,7 +2,7 @@
 
 Miners train locally and periodically publish their best model to hugging face and commit the metadata for that model to the Bittensor chain.
 
-Miners can only have one model associated with them on the chain for evaluation by validators at a time.
+Miners can only have one model associated with them on the chain for evaluation by validators at a time. The list of allowed model types can be found in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L56)
 
 The communication between a miner and a validator happens asynchronously chain and therefore Miners do not need to be running continuously. Validators will use whichever metadata was most recently published by the miner to know which model to download from hugging face.
 

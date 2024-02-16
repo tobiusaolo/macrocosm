@@ -16,7 +16,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from transformers import GPT2Config, GPT2LMHeadModel
+from transformers import GPT2Config, GPT2LMHeadModel, AutoTokenizer
 
 config = GPT2Config()
 
@@ -28,3 +28,10 @@ def get_model():
         n_embd=760,
     )
     return GPT2LMHeadModel(config)
+
+
+def get_tokenizer(cache_dir: str = None):
+    """Returns the tokenizer used by SN 9."""
+    tokenizer = AutoTokenizer.from_pretrained("distilgpt2", cache_dir=cache_dir)
+    tokenizer.pad_token = tokenizer.eos_token
+    return tokenizer
