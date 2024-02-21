@@ -617,7 +617,7 @@ class Validator:
                             batches,
                             self.config.device,
                         ),
-                        ttl=120,
+                        ttl=150,
                         mode="spawn",
                     )
                 except Exception as e:
