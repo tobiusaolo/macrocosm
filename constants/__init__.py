@@ -13,7 +13,7 @@ from transformers import (
 # Project Constants.
 # ---------------------------------
 
-__version__ = "2.3.1"
+__version__ = "2.2.1"
 version_split = __version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
