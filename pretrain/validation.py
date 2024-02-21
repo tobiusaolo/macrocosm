@@ -90,8 +90,6 @@ def perform_eval(
     model_store: LocalModelStore,
     hotkey: str,
     model_metadata: ModelMetadata,
-    load_model_mon: PerfMonitor,
-    compute_loss_mon: PerfMonitor,
     batches: typing.List[torch.Tensor],
     device: str,
 ):
@@ -99,11 +97,8 @@ def perform_eval(
 
     Intended to be run in a subprocess.
     """
-    with load_model_mon.sample():
-        model = model_store.retrieve_model(hotkey, model_metadata.id)
-
-    with compute_loss_mon.sample():
-        losses = compute_losses(model.pt_model, batches, device)
+    model = model_store.retrieve_model(hotkey, model_metadata.id)
+    losses = compute_losses(model.pt_model, batches, device)
     del model
     return losses
 

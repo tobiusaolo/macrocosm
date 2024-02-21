@@ -586,8 +586,7 @@ class Validator:
         # Compute model losses on batches.
         losses_per_uid = {muid: None for muid in uids}
 
-        load_model_perf = PerfMonitor("Eval: Load model")
-        compute_loss_perf = PerfMonitor("Eval: Compute loss")
+        eval_perf_mon = PerfMonitor("Eval: Perform Eval")
 
         for uid_i in uids:
             bt.logging.trace(f"Computing model losses for uid:{uid_i}.")
@@ -606,20 +605,19 @@ class Validator:
                     uid_to_block[uid_i] = model_i_metadata.block
 
                     # Run each computation in a subprocess so that the GPU is reset between each model.
-                    losses = utils.run_in_subprocess(
-                        functools.partial(
-                            pt.validation.perform_eval,
-                            self.local_store,
-                            hotkey,
-                            model_i_metadata,
-                            load_model_perf,
-                            compute_loss_perf,
-                            batches,
-                            self.config.device,
-                        ),
-                        ttl=150,
-                        mode="spawn",
-                    )
+                    with eval_perf_mon.sample():
+                        losses = utils.run_in_subprocess(
+                            functools.partial(
+                                pt.validation.perform_eval,
+                                self.local_store,
+                                hotkey,
+                                model_i_metadata,
+                                batches,
+                                self.config.device,
+                            ),
+                            ttl=150,
+                            mode="spawn",
+                        )
                 except Exception as e:
                     bt.logging.error(
                         f"Error in eval loop: {e}. Setting losses for uid: {uid_i} to infinity."
@@ -674,8 +672,7 @@ class Validator:
         self.save_state()
 
         # Log the performance of the eval loop.
-        bt.logging.debug(load_model_perf.summary_str())
-        bt.logging.debug(compute_loss_perf.summary_str())
+        bt.logging.debug(eval_perf_mon.summary_str())
 
         # Log to screen and wandb.
         self.log_step(
@@ -686,8 +683,7 @@ class Validator:
             wins,
             win_rate,
             losses_per_uid,
-            load_model_perf.summary_str(),
-            compute_loss_perf.summary_str(),
+            eval_perf_mon.summary_str(),
         )
 
         # Increment the number of completed run steps by 1
@@ -702,8 +698,7 @@ class Validator:
         wins,
         win_rate,
         losses_per_uid,
-        load_model_perf_str,
-        compute_loss_perf_str,
+        eval_perf_str,
     ):
         # Build step log
         step_log = {
@@ -780,8 +775,7 @@ class Validator:
                     str(uid): uid_data[str(uid)]["average_loss"] for uid in uids
                 },
                 "weight_data": {str(uid): self.weights[uid].item() for uid in uids},
-                "load_model_perf_log": load_model_perf_str,
-                "compute_model_perf_log": compute_loss_perf_str,
+                "eval_model_perf_log": eval_perf_str,
             }
             bt.logging.trace("Logging to Wandb")
             self.wandb_run.log(
