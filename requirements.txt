@@ -7,6 +7,6 @@ python-dotenv
 rich
 safetensors
 torch
-transformers==4.34.1
+transformers==4.38.0
 wandb
 datasets
