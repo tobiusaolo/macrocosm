@@ -24,6 +24,10 @@ import typing
 import constants
 import traceback
 import bittensor as bt
+from model.data import ModelMetadata
+
+from model.storage.local_model_store import LocalModelStore
+from utilities.perf_monitor import PerfMonitor
 
 
 def iswin(loss_i, loss_j, block_i, block_j):
@@ -80,6 +84,23 @@ def compute_wins(
         win_rate[uid_i] = wins[uid_i] / total_matches if total_matches > 0 else 0
 
     return wins, win_rate
+
+
+def perform_eval(
+    model_store: LocalModelStore,
+    hotkey: str,
+    model_metadata: ModelMetadata,
+    batches: typing.List[torch.Tensor],
+    device: str,
+):
+    """Performs an evaluation of a Miner's model on the provided batches.
+
+    Intended to be run in a subprocess.
+    """
+    model = model_store.retrieve_model(hotkey, model_metadata.id)
+    losses = compute_losses(model.pt_model, batches, device)
+    del model
+    return losses
 
 
 def compute_losses(
