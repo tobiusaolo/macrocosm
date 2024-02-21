@@ -24,6 +24,7 @@ import json
 import math
 import pickle
 import time
+from typing import List
 import torch
 import random
 import asyncio
@@ -31,6 +32,7 @@ import argparse
 
 import wandb
 import constants
+from model.data import ModelMetadata
 from model.model_tracker import ModelTracker
 from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
@@ -43,6 +45,7 @@ from rich.table import Table
 from rich.console import Console
 
 import bittensor as bt
+from model.storage.local_model_store import LocalModelStore
 import pretrain as pt
 from utilities.miner_iterator import MinerIterator
 from utilities import utils
@@ -86,7 +89,7 @@ class Validator:
         parser.add_argument(
             "--sample_min",
             type=int,
-            default=30,
+            default=25,
             help="Number of uids to eval each step.",
         )
         parser.add_argument(
@@ -483,7 +486,7 @@ class Validator:
                     version_key=constants.weights_version_key,
                 )
             except:
-                pass
+                bt.logging.warning("Failed to set weights. Trying again later.")
             ws, ui = self.weights.topk(len(self.weights))
             table = Table(title="All Weights")
             table.add_column("uid", justify="right", style="cyan", no_wrap=True)
@@ -602,26 +605,20 @@ class Validator:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
 
-                    # Get the model locally and evaluate its loss.
-                    model_i = None
-                    with load_model_perf.sample():
-                        model_i = self.local_store.retrieve_model(
-                            hotkey, model_i_metadata.id
-                        )
-
-                    with compute_loss_perf.sample():
-                        # Run each computation in a subprocess so that the GPU is reset between each model.
-                        losses = utils.run_in_subprocess(
-                            functools.partial(
-                                pt.validation.compute_losses,
-                                model_i.pt_model,
-                                batches,
-                                self.config.device,
-                            ),
-                            ttl=60,
-                            mode="spawn",
-                        )
-                    del model_i
+                    # Run each computation in a subprocess so that the GPU is reset between each model.
+                    losses = utils.run_in_subprocess(
+                        functools.partial(
+                            self.local_store,
+                            hotkey,
+                            model_i_metadata,
+                            load_model_perf,
+                            compute_loss_perf,
+                            batches,
+                            self.config.device,
+                        ),
+                        ttl=120,
+                        mode="spawn",
+                    )
                 except Exception as e:
                     bt.logging.error(
                         f"Error in eval loop: {e}. Setting losses for uid: {uid_i} to infinity."

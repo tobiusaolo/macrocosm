@@ -13,7 +13,7 @@ from transformers import (
 # Project Constants.
 # ---------------------------------
 
-__version__ = "2.2.1"
+__version__ = "2.3.1"
 version_split = __version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -45,7 +45,7 @@ MAX_RUN_STEPS_PER_WANDB_RUN = 100
 weights_version_key = __spec_version__
 
 # validator weight moving average term
-alpha = 0.9
+alpha = 0.5
 # validator scoring exponential temperature
 temperature = 0.04
 # validator score boosting for earlier models.
