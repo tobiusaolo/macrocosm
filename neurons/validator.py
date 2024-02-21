@@ -608,6 +608,7 @@ class Validator:
                     # Run each computation in a subprocess so that the GPU is reset between each model.
                     losses = utils.run_in_subprocess(
                         functools.partial(
+                            pt.validation.perform_eval,
                             self.local_store,
                             hotkey,
                             model_i_metadata,
