@@ -24,7 +24,6 @@ import json
 import math
 import pickle
 import time
-from typing import List
 import torch
 import random
 import asyncio
@@ -32,7 +31,6 @@ import argparse
 
 import wandb
 import constants
-from model.data import ModelMetadata
 from model.model_tracker import ModelTracker
 from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
@@ -45,7 +43,6 @@ from rich.table import Table
 from rich.console import Console
 
 import bittensor as bt
-from model.storage.local_model_store import LocalModelStore
 import pretrain as pt
 from utilities.miner_iterator import MinerIterator
 from utilities import utils
@@ -89,7 +86,7 @@ class Validator:
         parser.add_argument(
             "--sample_min",
             type=int,
-            default=25,
+            default=30,
             help="Number of uids to eval each step.",
         )
         parser.add_argument(
@@ -486,7 +483,7 @@ class Validator:
                     version_key=constants.weights_version_key,
                 )
             except:
-                bt.logging.warning("Failed to set weights. Trying again later.")
+                pass
             ws, ui = self.weights.topk(len(self.weights))
             table = Table(title="All Weights")
             table.add_column("uid", justify="right", style="cyan", no_wrap=True)
@@ -586,7 +583,8 @@ class Validator:
         # Compute model losses on batches.
         losses_per_uid = {muid: None for muid in uids}
 
-        eval_perf_mon = PerfMonitor("Eval: Perform Eval")
+        load_model_perf = PerfMonitor("Eval: Load model")
+        compute_loss_perf = PerfMonitor("Eval: Compute loss")
 
         for uid_i in uids:
             bt.logging.trace(f"Computing model losses for uid:{uid_i}.")
@@ -604,20 +602,26 @@ class Validator:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
 
-                    # Run each computation in a subprocess so that the GPU is reset between each model.
-                    with eval_perf_mon.sample():
+                    # Get the model locally and evaluate its loss.
+                    model_i = None
+                    with load_model_perf.sample():
+                        model_i = self.local_store.retrieve_model(
+                            hotkey, model_i_metadata.id
+                        )
+
+                    with compute_loss_perf.sample():
+                        # Run each computation in a subprocess so that the GPU is reset between each model.
                         losses = utils.run_in_subprocess(
                             functools.partial(
-                                pt.validation.perform_eval,
-                                self.local_store,
-                                hotkey,
-                                model_i_metadata,
+                                pt.validation.compute_losses,
+                                model_i.pt_model,
                                 batches,
                                 self.config.device,
                             ),
-                            ttl=150,
+                            ttl=60,
                             mode="spawn",
                         )
+                    del model_i
                 except Exception as e:
                     bt.logging.error(
                         f"Error in eval loop: {e}. Setting losses for uid: {uid_i} to infinity."
@@ -672,7 +676,8 @@ class Validator:
         self.save_state()
 
         # Log the performance of the eval loop.
-        bt.logging.debug(eval_perf_mon.summary_str())
+        bt.logging.debug(load_model_perf.summary_str())
+        bt.logging.debug(compute_loss_perf.summary_str())
 
         # Log to screen and wandb.
         self.log_step(
@@ -683,7 +688,8 @@ class Validator:
             wins,
             win_rate,
             losses_per_uid,
-            eval_perf_mon.summary_str(),
+            load_model_perf.summary_str(),
+            compute_loss_perf.summary_str(),
         )
 
         # Increment the number of completed run steps by 1
@@ -698,7 +704,8 @@ class Validator:
         wins,
         win_rate,
         losses_per_uid,
-        eval_perf_str,
+        load_model_perf_str,
+        compute_loss_perf_str,
     ):
         # Build step log
         step_log = {
@@ -775,7 +782,8 @@ class Validator:
                     str(uid): uid_data[str(uid)]["average_loss"] for uid in uids
                 },
                 "weight_data": {str(uid): self.weights[uid].item() for uid in uids},
-                "eval_model_perf_log": eval_perf_str,
+                "load_model_perf_log": load_model_perf_str,
+                "compute_model_perf_log": compute_loss_perf_str,
             }
             bt.logging.trace("Logging to Wandb")
             self.wandb_run.log(
