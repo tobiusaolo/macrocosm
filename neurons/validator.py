@@ -483,7 +483,8 @@ class Validator:
                     version_key=constants.weights_version_key,
                 )
             except:
-                pass
+                bt.logging.warning("Failed to set weights. Trying again later.")
+
             ws, ui = self.weights.topk(len(self.weights))
             table = Table(title="All Weights")
             table.add_column("uid", justify="right", style="cyan", no_wrap=True)
