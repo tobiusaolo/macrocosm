@@ -51,7 +51,11 @@ class ModelUpdater:
 
         # Otherwise we need to download the new model based on the metadata.
         try:
-            model = await self.remote_store.download_model(metadata.id, path)
+            # Max size according to the block.
+            model_size_limit = utils.get_model_face_size_limit(metadata.block)
+            model = await self.remote_store.download_model(
+                metadata.id, path, model_size_limit
+            )
         except Exception as e:
             bt.logging.trace(
                 f"Failed to download model for hotkey {hotkey} due to {e}."

@@ -37,6 +37,7 @@ class DiskModelStore(LocalModelStore):
     def retrieve_model(self, hotkey: str, model_id: ModelId) -> Model:
         """Retrieves a trained model locally."""
 
+        # If after the 7b block we use flash attention and bfloat 16.
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name_or_path=utils.get_local_model_snapshot_dir(
                 self.base_dir, hotkey, model_id
