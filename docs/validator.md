@@ -51,9 +51,9 @@ It is important to note that this affects the game theoretics of the incentive l
 
 # System Requirements
 
-Validators will need enough disk space to store the model of every miner in the subnet. Each model (As of Jan 1st, 2024) is limited to 1 GB and the validator has cleanup logic to remove old models. It is recommended to have at least 500 GB of disk space.
+Validators will need enough disk space to store the models of miners being evaluated. Each model has a max size by block defined in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L41) and the validator has cleanup logic to remove old models. It is recommended to have at least 1 TB of disk space.
 
-Validators will need enough processing power to evaluate their model. As of Jan 1st, 2024 it is required to have a GPU with atleast 20 GB of VRAM.
+Validators will need enough processing power to evaluate their model. As of Apr 1st, 2024 it is required to have a GPU with atleast 20 GB of VRAM.
 
 # Getting Started
 

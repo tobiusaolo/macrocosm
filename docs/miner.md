@@ -2,13 +2,13 @@
 
 Miners train locally and periodically publish their best model to hugging face and commit the metadata for that model to the Bittensor chain.
 
-Miners can only have one model associated with them on the chain for evaluation by validators at a time. The list of allowed model types can be found in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L56)
+Miners can only have one model associated with them on the chain for evaluation by validators at a time. The list of allowed model types by block can be found in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L71). Other relevant constraints are also listed in that file.
 
 The communication between a miner and a validator happens asynchronously chain and therefore Miners do not need to be running continuously. Validators will use whichever metadata was most recently published by the miner to know which model to download from hugging face.
 
 # System Requirements
 
-Miners will need enough disk space to store their model as they work on. Each uploaded model (As of Jan 1st, 2024) may not be more than 1 GB. It is reommended to have at least 25 GB of disk space.
+Miners will need enough disk space to store their model as they work on. Max size of model is defined in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L41). It is reommended to have at least 50 GB of disk space.
 
 Miners will need enough processing power to train their model. The device the model is trained on is recommended to be a large GPU with atleast 20 GB of VRAM.
 
@@ -121,10 +121,13 @@ python scripts/upload_model.py --load_model_dir <path to model> --hf_repo_id my-
 
 ## Running a custom Miner
 
-As of Jan 15th, 2024 the subnet works with any model supported by [AutoModelForCausalLM](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModelForCausalLM) subject to the following constraints:
-1. Has less than 186,000,000 parameters.
-2. Total size of the repo is less than 1 Gigabyte.
-3. Models sequence_length parameter must be 1024 tokens.
+The list of allowed model types by block can be found in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L71)
+
+In that file are also the constraints per block for
+1. Total number of parameters.
+2. Total size of the repo.
+3. sequence_length parameter requierments.
+4. Support for flash attention and bfloat16 requirements.
 
 The `pretain/mining.py` file has several methods that you may find useful. Example below.
 
