@@ -74,13 +74,14 @@ class ModelUpdater:
         parameter_limit = utils.get_parameter_limit(metadata.block)
         if parameter_size > parameter_limit:
             bt.logging.trace(
-                f"Sync for hotkey {hotkey} failed. Parameter size of the model {parameter_size} exceeded max size {parameter_limit}."
+                f"Sync for hotkey {hotkey} failed. Parameter size of the model {parameter_size} exceeded max size {parameter_limit} at block {metadata.block}."
             )
             return False
 
-        if type(model.pt_model) not in constants.allowed_model_types:
+        allowed_model_types = utils.get_allowed_model_types(metadata.block)
+        if type(model.pt_model) not in allowed_model_types:
             bt.logging.trace(
-                f"Sync for hotkey {hotkey} failed. Model type {type(model.pt_model)} is not allowed."
+                f"Sync for hotkey {hotkey} failed. Model type {type(model.pt_model)} is not allowed at block {metadata.block}."
             )
             return False
 

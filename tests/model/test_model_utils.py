@@ -4,8 +4,9 @@ from model.utils import (
     get_parameter_limit,
     get_model_size_limit,
     get_model_optimizations,
+    get_allowed_model_types,
 )
-from constants import BLOCK_7B
+from constants import BLOCK_7B, ALLOWED_MODEL_TYPES_1, ALLOWED_MODEL_TYPES_2
 
 
 class TestModelUtils(unittest.TestCase):
@@ -53,6 +54,21 @@ class TestModelUtils(unittest.TestCase):
         for block, expected_state in self.model_optimization_cases:
             with self.subTest(block=block, expected_state=expected_state):
                 assert get_model_optimizations(block) == expected_state
+
+    model_types_cases = [
+        (0, ALLOWED_MODEL_TYPES_1),
+        (2_405_919, ALLOWED_MODEL_TYPES_1),
+        (2_405_920, ALLOWED_MODEL_TYPES_1),
+        (3_405_920, ALLOWED_MODEL_TYPES_1),
+        (BLOCK_7B - 1, ALLOWED_MODEL_TYPES_1),
+        (BLOCK_7B, ALLOWED_MODEL_TYPES_2),
+        (BLOCK_7B + 1, ALLOWED_MODEL_TYPES_2),
+    ]
+
+    def test_get_allowed_model_types(self):
+        for block, expected_types in self.model_types_cases:
+            with self.subTest(block=block, expected_types=expected_types):
+                assert get_allowed_model_types(block) == expected_types
 
 
 if __name__ == "__main__":

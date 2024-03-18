@@ -47,6 +47,29 @@ MAX_MODEL_PARAMETER_SIZES = [
     (2_405_920, 772_000_000),
     (BLOCK_7B, 7_300_000_000),
 ]
+# A mapping of block numbers to the supported model types as of that block.
+ALLOWED_MODEL_TYPES_1 = {
+    GPT2LMHeadModel,
+    MistralForCausalLM,
+    LlamaForCausalLM,
+    BartForCausalLM,
+    FalconForCausalLM,
+    GPTNeoXForCausalLM,
+    GPTJForCausalLM,
+}
+ALLOWED_MODEL_TYPES_2 = {
+    MistralForCausalLM,
+    LlamaForCausalLM,
+    BartForCausalLM,
+    FalconForCausalLM,
+    GPTNeoXForCausalLM,
+    PhiForCausalLM,
+    GemmaForCausalLM,
+}
+ALLOWED_MODEL_TYPES = [
+    (0, ALLOWED_MODEL_TYPES_1),
+    (BLOCK_7B, ALLOWED_MODEL_TYPES_2),
+]
 # The number of run steps to log to single wandb run.
 MAX_RUN_STEPS_PER_WANDB_RUN = 100
 
@@ -69,22 +92,3 @@ batch_size = 1
 # validator eval sequence length.
 sequence_length = 1024
 block_7b_sequence_length = 2048
-# List of allowed model types.
-allowed_model_types = {
-    GPT2LMHeadModel,
-    MistralForCausalLM,
-    LlamaForCausalLM,
-    BartForCausalLM,
-    FalconForCausalLM,
-    GPTNeoXForCausalLM,
-    GPTJForCausalLM,
-}
-block_7b_allowed_model_types = {
-    MistralForCausalLM,
-    LlamaForCausalLM,
-    BartForCausalLM,
-    FalconForCausalLM,
-    GPTNeoXForCausalLM,
-    PhiForCausalLM,
-    GemmaForCausalLM,
-}
