@@ -36,6 +36,7 @@ from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
 from model.storage.disk.disk_model_store import DiskModelStore
 from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
+import model.utils as model_utils
 import traceback
 import threading
 import multiprocessing
@@ -602,12 +603,18 @@ class Validator:
                 try:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
+                    # Use bfloat16 and flash attention optimization based on block.
+                    optimized = model_utils.get_model_optimizations(
+                        model_i_metadata.block
+                    )
 
                     # Get the model locally and evaluate its loss.
                     model_i = None
                     with load_model_perf.sample():
                         model_i = self.local_store.retrieve_model(
-                            hotkey, model_i_metadata.id
+                            hotkey,
+                            model_i_metadata.id,
+                            optimized,
                         )
 
                     with compute_loss_perf.sample():

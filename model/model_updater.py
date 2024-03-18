@@ -52,7 +52,7 @@ class ModelUpdater:
         # Otherwise we need to download the new model based on the metadata.
         try:
             # Max size according to the block.
-            model_size_limit = utils.get_model_face_size_limit(metadata.block)
+            model_size_limit = utils.get_model_size_limit(metadata.block)
             model = await self.remote_store.download_model(
                 metadata.id, path, model_size_limit
             )

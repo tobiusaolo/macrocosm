@@ -16,18 +16,21 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from transformers import GPT2Config, GPT2LMHeadModel, AutoTokenizer
+from transformers import GPTNeoXConfig, GPTNeoXForCausalLM, AutoTokenizer
 
-config = GPT2Config()
+config = GPTNeoXConfig()
 
 
 def get_model():
-    config = GPT2Config(
-        n_head=10,
-        n_layer=12,
-        n_embd=760,
+    config = GPTNeoXConfig(
+        vocab_size=5000,
+        num_attention_heads=10,
+        hidden_size=600,
+        intermediate_size=2400,
+        num_hidden_layers=12,
+        max_position_embeddings=2048,
     )
-    return GPT2LMHeadModel(config)
+    return GPTNeoXForCausalLM(config)
 
 
 def get_tokenizer(cache_dir: str = None):

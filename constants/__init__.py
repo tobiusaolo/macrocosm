@@ -31,6 +31,9 @@ SUBNET_UID = 9
 ROOT_DIR = Path(__file__).parent.parent
 # Block at which 7b models, 2048 sequence lengths, bfloat16, and flash attention are used.
 BLOCK_7B = 9_999_999
+# A mapping of block numbers to whether optimizations (bfloat16 and flash attention) are used.
+OPTIMIZATIONS_USED = [(0, False), (BLOCK_7B, True)]
+
 # A mapping of block numbers to the max model size as of that block.
 MAX_MODEL_BYTES = [
     (0, 5 * 1024 * 1024 * 1024),

@@ -46,6 +46,30 @@ class TestDiskModelStore(unittest.TestCase):
         # Check that they match.
         self.assertEqual(str(model), str(retrieved_model))
 
+    def test_store_and_retrieve_optimized_model(self):
+        hotkey = "hotkey0"
+        model_id = ModelId(
+            namespace="TestPath",
+            name="TestModel",
+            hash="TestHash1",
+            commit="TestCommit",
+        )
+
+        pt_model = get_model()
+
+        model = Model(id=model_id, pt_model=pt_model)
+
+        # Store the model locally.
+        self.disk_store.store_model(hotkey, model)
+
+        # Retrieve the model locally.
+        retrieved_model = self.disk_store.retrieve_model(
+            hotkey, model_id, optimized=True
+        )
+
+        # Check that they match.
+        self.assertEqual(str(model), str(retrieved_model))
+
     def test_delete_unreferenced_models(self):
         hotkey = "hotkey0"
 

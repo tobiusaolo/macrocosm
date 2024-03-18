@@ -1,6 +1,10 @@
 import unittest
 
-from model.utils import get_parameter_limit, get_model_size_limit
+from model.utils import (
+    get_parameter_limit,
+    get_model_size_limit,
+    get_model_optimizations,
+)
 from constants import BLOCK_7B
 
 
@@ -34,6 +38,21 @@ class TestModelUtils(unittest.TestCase):
         for block, expected_limit in self.model_size_limit_cases:
             with self.subTest(block=block, expected_limit=expected_limit):
                 assert get_model_size_limit(block) == expected_limit
+
+    model_optimization_cases = [
+        (0, False),
+        (2_405_919, False),
+        (2_405_920, False),
+        (3_405_920, False),
+        (BLOCK_7B - 1, False),
+        (BLOCK_7B, True),
+        (BLOCK_7B + 1, True),
+    ]
+
+    def test_get_model_optimizations(self):
+        for block, expected_state in self.model_optimization_cases:
+            with self.subTest(block=block, expected_state=expected_state):
+                assert get_model_optimizations(block) == expected_state
 
 
 if __name__ == "__main__":
