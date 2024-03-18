@@ -81,7 +81,7 @@ class Validator:
         parser.add_argument(
             "--pages_per_eval",
             type=int,
-            default=3,
+            default=constants.n_eval_pages,
             help="Number of pages used to eval each step.",
         )
         parser.add_argument(
@@ -572,10 +572,11 @@ class Validator:
             random.randint(1, pt.dataset.SubsetFalconLoader.max_pages)
             for _ in range(self.config.pages_per_eval)
         ]
+        # Use the largest sequence length and truncate as necessary for smaller ones.
         batches = list(
             pt.dataset.SubsetFalconLoader(
                 batch_size=constants.batch_size,
-                sequence_length=constants.sequence_length,
+                sequence_length=constants.SEQUENCE_LENGTH_2,
                 pages=pages,
             )
         )

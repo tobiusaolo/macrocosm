@@ -5,6 +5,7 @@ from model.utils import (
     get_model_size_limit,
     get_model_optimizations,
     get_allowed_model_types,
+    get_model_sequence_length,
 )
 from constants import BLOCK_7B, ALLOWED_MODEL_TYPES_1, ALLOWED_MODEL_TYPES_2
 
@@ -69,6 +70,21 @@ class TestModelUtils(unittest.TestCase):
         for block, expected_types in self.model_types_cases:
             with self.subTest(block=block, expected_types=expected_types):
                 assert get_allowed_model_types(block) == expected_types
+
+    model_sequence_length_cases = [
+        (0, 1024),
+        (2_405_919, 1024),
+        (2_405_920, 1024),
+        (3_405_920, 1024),
+        (BLOCK_7B - 1, 2048),
+        (BLOCK_7B, 2048),
+        (BLOCK_7B + 1, 2048),
+    ]
+
+    def test_get_model_sequence_length(self):
+        for block, expected_length in self.model_sequence_length_cases:
+            with self.subTest(block=block, expected_length=expected_length):
+                assert get_model_sequence_length(block) == expected_length
 
 
 if __name__ == "__main__":

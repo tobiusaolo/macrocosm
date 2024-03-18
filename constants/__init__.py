@@ -31,15 +31,17 @@ SUBNET_UID = 9
 ROOT_DIR = Path(__file__).parent.parent
 # Block at which 7b models, 2048 sequence lengths, bfloat16, and flash attention are used.
 BLOCK_7B = 9_999_999
+SEQUENCE_LENGTH_1 = 1024
+SEQUENCE_LENGTH_2 = 2048
+# A mapping of block numbers to sequence length used for inference.
+SEQUENCE_LENGTHS = [(0, SEQUENCE_LENGTH_1), (BLOCK_7B, SEQUENCE_LENGTH_2)]
 # A mapping of block numbers to whether optimizations (bfloat16 and flash attention) are used.
 OPTIMIZATIONS_USED = [(0, False), (BLOCK_7B, True)]
-
 # A mapping of block numbers to the max model size as of that block.
 MAX_MODEL_BYTES = [
     (0, 5 * 1024 * 1024 * 1024),
     (BLOCK_7B, 15 * 1024 * 1024 * 1024),
 ]
-
 # A mapping of block numbers to the max model size as of that block.
 # This dictionary must remain ordered by key.
 MAX_MODEL_PARAMETER_SIZES = [
@@ -89,6 +91,3 @@ timestamp_epsilon = 0.005
 n_eval_pages = 3
 # validator eval batch size.
 batch_size = 1
-# validator eval sequence length.
-sequence_length = 1024
-block_7b_sequence_length = 2048

@@ -39,3 +39,13 @@ def get_allowed_model_types(block: int) -> dict[type]:
             model_types = types
     assert model_types is not None, f"No allowed model types found for block {block}"
     return model_types
+
+
+def get_model_sequence_length(block: int) -> int:
+    """Returns the sequence length required for a model at block."""
+    length = None
+    for b, len in constants.SEQUENCE_LENGTHS:
+        if block >= b:
+            length = len
+    assert length is not None, f"No sequence length found for block {block}"
+    return length
