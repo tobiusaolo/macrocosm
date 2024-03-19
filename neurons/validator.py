@@ -86,8 +86,14 @@ class Validator:
         parser.add_argument(
             "--sample_min",
             type=int,
-            default=30,
-            help="Number of uids to eval each step.",
+            default=constants.sample_min,
+            help="Number of uids to bring to next eval.",
+        )
+        parser.add_argument(
+            "--sample_max",
+            type=int,
+            default=constants.sample_max,
+            help="Maximum number of new uids to eval each step.",
         )
         parser.add_argument(
             "--dont_set_weights",
@@ -355,13 +361,11 @@ class Validator:
                     pending_uid_count = len(self.pending_uids_to_eval)
                     current_uid_count = len(self.uids_to_eval)
 
-                # Only allow at most 20 pending uids + sample min (for new vali startup).
-                while (
-                    pending_uid_count + current_uid_count >= 20 + self.config.sample_min
-                ):
+                # Only allow at most sample max models. Typically this will be carryover from sample_min + new models.
+                while pending_uid_count + current_uid_count >= self.config.sample_max:
                     # Wait 5 minutes for the eval loop to process them.
                     bt.logging.info(
-                        f"Update loop: Already 20 synced models pending eval. Checking again in 5 minutes."
+                        f"Update loop: Already {self.config.sample_max} synced models pending eval. Checking again in 5 minutes."
                     )
                     time.sleep(300)
                     # Check to see if the pending uids have been cleared yet.

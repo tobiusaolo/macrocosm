@@ -55,6 +55,10 @@ timestamp_epsilon = 0.005
 n_eval_pages = 3
 # validator eval batch size.
 batch_size = 1
+# validator eval batch min to keep for next loop.
+sample_min = 10
+# validator eval batch max. Difference from min is room to eval newly uploaded models.
+sample_max = 25
 # validator eval sequence length.
 sequence_length = 1024
 # List of allowed model types.
