@@ -8,7 +8,7 @@ The communication between a miner and a validator happens asynchronously chain a
 
 # System Requirements
 
-Miners will need enough disk space to store their model as they work on. Max size of model is defined in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L41). It is reommended to have at least 50 GB of disk space.
+Miners will need enough disk space to store their model as they work on. Max size of model is defined in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L41). It is recommended to have at least 50 GB of disk space.
 
 Miners will need enough processing power to train their model. The device the model is trained on is recommended to be a large GPU with atleast 20 GB of VRAM.
 

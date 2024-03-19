@@ -21,13 +21,14 @@ from transformers import GPTNeoXConfig, GPTNeoXForCausalLM, AutoTokenizer
 config = GPTNeoXConfig()
 
 
+# 769_782_400 param model as a sample.
 def get_model():
     config = GPTNeoXConfig(
-        vocab_size=5000,
-        num_attention_heads=10,
-        hidden_size=600,
-        intermediate_size=2400,
-        num_hidden_layers=12,
+        vocab_size=10000,
+        num_attention_heads=40,
+        hidden_size=1600,
+        intermediate_size=6400,
+        num_hidden_layers=24,
         max_position_embeddings=2048,
     )
     return GPTNeoXForCausalLM(config)

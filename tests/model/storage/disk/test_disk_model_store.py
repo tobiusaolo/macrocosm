@@ -46,6 +46,9 @@ class TestDiskModelStore(unittest.TestCase):
         # Check that they match.
         self.assertEqual(str(model), str(retrieved_model))
 
+    @unittest.skip(
+        "Skip this test by default as it requires flash-attn which requires a compatible gpu."
+    )
     def test_store_and_retrieve_optimized_model(self):
         hotkey = "hotkey0"
         model_id = ModelId(
