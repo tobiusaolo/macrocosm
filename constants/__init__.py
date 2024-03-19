@@ -47,7 +47,8 @@ weights_version_key = __spec_version__
 # validator weight moving average term
 alpha = 0.5
 # validator scoring exponential temperature
-temperature = 0.04
+# 0.01 gives ~96% to best model with only ~3 receiving any weights.
+temperature = 0.01
 # validator score boosting for earlier models.
 timestamp_epsilon = 0.005
 # validators number of pages to eval over miners on each step.
