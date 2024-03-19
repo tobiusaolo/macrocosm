@@ -1,3 +1,4 @@
+import datetime as dt
 from pathlib import Path
 from transformers import (
     GPT2LMHeadModel,
@@ -63,6 +64,8 @@ sample_max = 25
 update_priority_incentive_threshold = 0.01
 # validator eval sequence length.
 sequence_length = 1024
+# time required between updates to the chain
+chain_update_cadence = dt.timedelta(minutes=20)
 # List of allowed model types.
 allowed_model_types = {
     GPT2LMHeadModel,
