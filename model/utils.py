@@ -1,12 +1,12 @@
 import constants
-from model.data import ModelParameters
+from model.data import ModelCriteria
 
 
-def get_model_parameters(block: int) -> ModelParameters:
-    """Returns the model parameters at block."""
-    parameters = None
-    for b, params in constants.MODEL_PARAMETERS_BY_BLOCK:
+def get_model_criteria(block: int) -> ModelCriteria:
+    """Returns the model criteria at block."""
+    criteria = None
+    for b, crit in constants.MODEL_CRITERIA_BY_BLOCK:
         if block >= b:
-            parameters = params
-    assert parameters is not None, f"No model parameters found for block {block}"
-    return parameters
+            criteria = crit
+    assert criteria is not None, f"No model criteria found for block {block}"
+    return criteria

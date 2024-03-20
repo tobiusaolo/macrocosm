@@ -10,7 +10,7 @@ from transformers import (
     PhiForCausalLM,
     GemmaForCausalLM,
 )
-from model.data import ModelParameters
+from model.data import ModelCriteria
 
 # ---------------------------------
 # Project Constants.
@@ -53,21 +53,11 @@ ALLOWED_MODEL_TYPES_2 = {
     PhiForCausalLM,
     GemmaForCausalLM,
 }
-# A mapping of block numbers to ModelParameters.
-MODEL_PARAMETERS_BY_BLOCK = [
-    (
-        0,
-        ModelParameters(
-            sequence_length=1024,
-            optimized=False,
-            max_model_bytes=5 * 1024 * 1024 * 1024,
-            max_model_parameters=186_000_000,
-            allowed_model_types=ALLOWED_MODEL_TYPES_1,
-        ),
-    ),
+# A mapping of block numbers to ModelCriteria. Must be ordered by block.
+MODEL_CRITERIA_BY_BLOCK = [
     (
         2_405_920,
-        ModelParameters(
+        ModelCriteria(
             sequence_length=1024,
             optimized=False,
             max_model_bytes=5 * 1024 * 1024 * 1024,
@@ -77,7 +67,7 @@ MODEL_PARAMETERS_BY_BLOCK = [
     ),
     (
         BLOCK_7B,
-        ModelParameters(
+        ModelCriteria(
             sequence_length=2048,
             optimized=True,
             max_model_bytes=15 * 1024 * 1024 * 1024,

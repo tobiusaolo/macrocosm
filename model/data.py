@@ -71,8 +71,8 @@ class ModelMetadata(BaseModel):
 
 
 @dataclasses.dataclass()
-class ModelParameters:
-    """Collection of parameters that are relevant for interacting with models in the subnet."""
+class ModelCriteria:
+    """Collection of criteria that are relevant for interacting with models in the subnet."""
 
     # Sequence length used for inference.
     sequence_length: int
