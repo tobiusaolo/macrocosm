@@ -605,9 +605,9 @@ class Validator:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
                     # Use bfloat16 and flash attention optimization based on block.
-                    optimized = model_utils.get_model_optimizations(
+                    optimized = model_utils.get_model_parameters(
                         model_i_metadata.block
-                    )
+                    ).optimized
 
                     # Get the model locally and evaluate its loss.
                     model_i = None
@@ -618,6 +618,11 @@ class Validator:
                             optimized,
                         )
 
+                    # Use sequence length for inference based on block.
+                    sequence_length = model_utils.get_model_parameters(
+                        model_i_metadata.block
+                    ).sequence_length
+
                     with compute_loss_perf.sample():
                         # Run each computation in a subprocess so that the GPU is reset between each model.
                         losses = utils.run_in_subprocess(
@@ -626,6 +631,7 @@ class Validator:
                                 model_i.pt_model,
                                 batches,
                                 self.config.device,
+                                sequence_length,
                             ),
                             ttl=240,
                             mode="spawn",

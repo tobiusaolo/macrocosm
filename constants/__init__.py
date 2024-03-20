@@ -10,6 +10,7 @@ from transformers import (
     PhiForCausalLM,
     GemmaForCausalLM,
 )
+from model.data import ModelParameters
 
 # ---------------------------------
 # Project Constants.
@@ -33,22 +34,6 @@ ROOT_DIR = Path(__file__).parent.parent
 BLOCK_7B = 9_999_999
 SEQUENCE_LENGTH_1 = 1024
 SEQUENCE_LENGTH_2 = 2048
-# A mapping of block numbers to sequence length used for inference.
-SEQUENCE_LENGTHS = [(0, SEQUENCE_LENGTH_1), (BLOCK_7B, SEQUENCE_LENGTH_2)]
-# A mapping of block numbers to whether optimizations (bfloat16 and flash attention) are used.
-OPTIMIZATIONS_USED = [(0, False), (BLOCK_7B, True)]
-# A mapping of block numbers to the max model size as of that block.
-MAX_MODEL_BYTES = [
-    (0, 5 * 1024 * 1024 * 1024),
-    (BLOCK_7B, 15 * 1024 * 1024 * 1024),
-]
-# A mapping of block numbers to the max model size as of that block.
-# This dictionary must remain ordered by key.
-MAX_MODEL_PARAMETER_SIZES = [
-    (0, 186_000_000),
-    (2_405_920, 772_000_000),
-    (BLOCK_7B, 7_300_000_000),
-]
 # A mapping of block numbers to the supported model types as of that block.
 ALLOWED_MODEL_TYPES_1 = {
     GPT2LMHeadModel,
@@ -68,10 +53,40 @@ ALLOWED_MODEL_TYPES_2 = {
     PhiForCausalLM,
     GemmaForCausalLM,
 }
-ALLOWED_MODEL_TYPES = [
-    (0, ALLOWED_MODEL_TYPES_1),
-    (BLOCK_7B, ALLOWED_MODEL_TYPES_2),
+# A mapping of block numbers to ModelParameters.
+MODEL_PARAMETERS_BY_BLOCK = [
+    (
+        0,
+        ModelParameters(
+            sequence_length=1024,
+            optimized=False,
+            max_model_bytes=5 * 1024 * 1024 * 1024,
+            max_model_parameters=186_000_000,
+            allowed_model_types=ALLOWED_MODEL_TYPES_1,
+        ),
+    ),
+    (
+        2_405_920,
+        ModelParameters(
+            sequence_length=1024,
+            optimized=False,
+            max_model_bytes=5 * 1024 * 1024 * 1024,
+            max_model_parameters=772_000_000,
+            allowed_model_types=ALLOWED_MODEL_TYPES_1,
+        ),
+    ),
+    (
+        BLOCK_7B,
+        ModelParameters(
+            sequence_length=2048,
+            optimized=True,
+            max_model_bytes=15 * 1024 * 1024 * 1024,
+            max_model_parameters=7_300_000_000,
+            allowed_model_types=ALLOWED_MODEL_TYPES_2,
+        ),
+    ),
 ]
+
 # The number of run steps to log to single wandb run.
 MAX_RUN_STEPS_PER_WANDB_RUN = 100
 
