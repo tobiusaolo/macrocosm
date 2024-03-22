@@ -99,6 +99,50 @@ def compute_losses(
     model.to(device)
     model.eval()
 
+    # First do a sanity check that the model outputs look reasonable.
+    # Grab 100 tokens from the first two batches as 'prompts'. (1 x Seq Length tensors.)
+    prompt_length = 100
+    falcon_token_inputs_1 = batches[0][:, :prompt_length]
+    falcon_token_inputs_2 = batches[1][:, :prompt_length]
+
+    # Generate 30 tokens of output from the model for each prompt.
+    output_length = 30
+    # Only take the last 30 tokens since otherwise we also get the prompt ids.
+    generate_id1s = model.generate(
+        falcon_token_inputs_1.cuda(),
+        min_new_tokens=output_length,
+        max_new_tokens=output_length,
+    )[:, -output_length:]
+    generate_id2s = model.generate(
+        falcon_token_inputs_2.cuda(),
+        min_new_tokens=output_length,
+        max_new_tokens=output_length,
+    )[:, -output_length:]
+
+    # Check if too many of the generated ids are the same between the two outputs.
+    if torch.sum(torch.eq(generate_id1s, generate_id2s)).item() >= output_length / 3:
+        bt.logging.info(
+            f"Model with config {model.config} had too much overlap between generated outputs."
+        )
+        return [math.inf for _ in batches]
+
+    # Check if internally either response is too repetitive.
+    for tensor in [generate_id1s, generate_id2s]:
+        # Find unique elements and their counts
+        _, counts = torch.unique(tensor, return_counts=True)
+        # Find the index of the maximum count
+        max_count_index = torch.argmax(counts)
+        # Extract the count of the most common element
+        most_common_count = counts[max_count_index].item()
+
+        if most_common_count > output_length / 3:
+            bt.logging.info(
+                f"Model with config {model.config} had too much repetition in generated output."
+            )
+            return [math.inf for _ in batches]
+
+    # Everything looks good! Continue to computing actual losses.
+
     # Iterate over each page and corresponding batches
     losses = []
     for batch in batches:
