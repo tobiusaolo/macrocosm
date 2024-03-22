@@ -24,6 +24,7 @@ import typing
 import constants
 import traceback
 import bittensor as bt
+import pretrain as pt
 
 
 def iswin(loss_i, loss_j, block_i, block_j):
@@ -97,16 +98,19 @@ def check_for_reasonable_output(
     """
     # Generate 30 tokens of output from the model for each prompt.
     output_length = 30
+    tokenizer = pt.model.get_tokenizer()
     # Only take the last 30 tokens since otherwise we also get the prompt ids.
     generate_id1s = model.generate(
         input1,
         min_new_tokens=output_length,
         max_new_tokens=output_length,
+        pad_token_id=tokenizer.eos_token_id,
     )[:, -output_length:]
     generate_id2s = model.generate(
         input2,
         min_new_tokens=output_length,
         max_new_tokens=output_length,
+        pad_token_id=tokenizer.eos_token_id,
     )[:, -output_length:]
 
     # Check if too many of the generated ids are the same between the two outputs.
@@ -136,7 +140,9 @@ def check_for_reasonable_output(
 
 
 def compute_losses(
-    model, batches: typing.List[torch.Tensor], device: str
+    model,
+    batches: typing.List[torch.Tensor],
+    device: str,
 ) -> typing.List[float]:
     """
     Computes the losses for a given model on provided batches.
