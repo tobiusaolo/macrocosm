@@ -102,19 +102,19 @@ def compute_losses(
     # First do a sanity check that the model outputs look reasonable.
     # Grab 100 tokens from the first two batches as 'prompts'. (1 x Seq Length tensors.)
     prompt_length = 100
-    falcon_token_inputs_1 = batches[0][:, :prompt_length]
-    falcon_token_inputs_2 = batches[1][:, :prompt_length]
+    falcon_token_inputs_1 = (batches[0][:, :prompt_length]).to(device)
+    falcon_token_inputs_2 = (batches[1][:, :prompt_length]).to(device)
 
     # Generate 30 tokens of output from the model for each prompt.
     output_length = 30
     # Only take the last 30 tokens since otherwise we also get the prompt ids.
     generate_id1s = model.generate(
-        falcon_token_inputs_1.cuda(),
+        falcon_token_inputs_1,
         min_new_tokens=output_length,
         max_new_tokens=output_length,
     )[:, -output_length:]
     generate_id2s = model.generate(
-        falcon_token_inputs_2.cuda(),
+        falcon_token_inputs_2,
         min_new_tokens=output_length,
         max_new_tokens=output_length,
     )[:, -output_length:]
