@@ -30,10 +30,10 @@ WANDB_PROJECT = "pretraining-subnet"
 SUBNET_UID = 9
 # The root directory of this project.
 ROOT_DIR = Path(__file__).parent.parent
-# Block at which 7b models, 2048 sequence lengths, bfloat16, and flash attention are used.
-BLOCK_7B = 9_999_999
+# Block at which 7b models, 8192 sequence lengths, bfloat16, and flash attention are used.
+BLOCK_7B = 2_735_661
 SEQUENCE_LENGTH_1 = 1024
-SEQUENCE_LENGTH_2 = 2048
+SEQUENCE_LENGTH_2 = 8192
 # A mapping of block numbers to the supported model types as of that block.
 ALLOWED_MODEL_TYPES_1 = {
     GPT2LMHeadModel,
@@ -58,7 +58,7 @@ MODEL_CRITERIA_BY_BLOCK = [
     (
         2_405_920,
         ModelCriteria(
-            sequence_length=1024,
+            sequence_length=SEQUENCE_LENGTH_1,
             optimized=False,
             max_model_bytes=5 * 1024 * 1024 * 1024,
             max_model_parameters=772_000_000,
@@ -68,10 +68,10 @@ MODEL_CRITERIA_BY_BLOCK = [
     (
         BLOCK_7B,
         ModelCriteria(
-            sequence_length=2048,
+            sequence_length=SEQUENCE_LENGTH_2,
             optimized=True,
             max_model_bytes=15 * 1024 * 1024 * 1024,
-            max_model_parameters=7_300_000_000,
+            max_model_parameters=6_900_000_000,
             allowed_model_types=ALLOWED_MODEL_TYPES_2,
         ),
     ),

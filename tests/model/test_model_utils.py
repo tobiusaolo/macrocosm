@@ -13,15 +13,15 @@ class TestModelUtils(unittest.TestCase):
         allowed_model_types=ALLOWED_MODEL_TYPES_1,
     )
     MODEL_CRITERIA_7B = ModelCriteria(
-        sequence_length=2048,
+        sequence_length=8192,
         optimized=True,
         max_model_bytes=15 * 1024 * 1024 * 1024,
-        max_model_parameters=7_300_000_000,
+        max_model_parameters=6_900_000_000,
         allowed_model_types=ALLOWED_MODEL_TYPES_2,
     )
     model_criteria_cases = [
         (2_405_920, MODEL_CRITERIA_772M),
-        (3_405_920, MODEL_CRITERIA_772M),
+        (2_605_920, MODEL_CRITERIA_772M),
         (BLOCK_7B - 1, MODEL_CRITERIA_772M),
         (BLOCK_7B, MODEL_CRITERIA_7B),
         (BLOCK_7B + 1, MODEL_CRITERIA_7B),
