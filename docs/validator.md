@@ -53,7 +53,7 @@ It is important to note that this affects the game theoretics of the incentive l
 
 Validators will need enough disk space to store the models of miners being evaluated. Each model has a max size by block defined in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L57) and the validator has cleanup logic to remove old models. It is recommended to have at least 1 TB of disk space.
 
-Validators will need enough processing power to evaluate their model. As of Apr 1st, 2024 it is required to have a GPU that supports [flash attention 2](https://github.com/Dao-AILab/flash-attention) with atleast 24 GB of VRAM.
+Validators will need enough processing power to evaluate their model. As of Apr 1st, 2024 it is required to have a GPU that supports [flash attention 2](https://github.com/Dao-AILab/flash-attention) with atleast 24 GB of VRAM and at least 27 TFLOPs for half precision (bfloat 16) operations.
 
 # Getting Started
 
