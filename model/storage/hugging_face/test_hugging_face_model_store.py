@@ -70,6 +70,7 @@ async def test_retrieve_oversized_model():
         model = await hf_model_store.download_model(
             model_id=model_id,
             local_path=utils.get_local_miner_dir("test-models", "hotkey0"),
+            model_size_limit=5 * 1024 * 1024 * 1024,
         )
     except ValueError as ve:
         print(f"Caught expected exception for downloading too large of a model: {ve}")

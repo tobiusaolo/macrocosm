@@ -1,11 +1,12 @@
 import constants
+from model.data import ModelCriteria
 
 
-def get_parameter_limit(block: int) -> int:
-    """Returns the maximum number of parameters allowed for a model at block."""
-    limit = None
-    for b, lim in constants.MAX_MODEL_PARAMETER_SIZES:
+def get_model_criteria(block: int) -> ModelCriteria:
+    """Returns the model criteria at block."""
+    criteria = None
+    for b, crit in constants.MODEL_CRITERIA_BY_BLOCK:
         if block >= b:
-            limit = lim
-    assert limit is not None, f"No parameter limit found for block {block}"
-    return limit
+            criteria = crit
+    assert criteria is not None, f"No model criteria found for block {block}"
+    return criteria

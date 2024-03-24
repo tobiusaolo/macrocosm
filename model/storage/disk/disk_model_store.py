@@ -2,6 +2,8 @@ import trace
 import traceback
 import bittensor as bt
 from typing import Dict
+
+import torch
 from model.data import Model, ModelId
 from model.storage.disk import utils
 from model.storage.local_model_store import LocalModelStore
@@ -34,17 +36,32 @@ class DiskModelStore(LocalModelStore):
         # Return the same model id used as we do not edit the commit information.
         return model.id
 
-    def retrieve_model(self, hotkey: str, model_id: ModelId) -> Model:
-        """Retrieves a trained model locally."""
+    def retrieve_model(
+        self, hotkey: str, model_id: ModelId, optimized: bool = False
+    ) -> Model:
+        """Retrieves a trained model locally. If optimized use bfloat16 and flash attention."""
 
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name_or_path=utils.get_local_model_snapshot_dir(
-                self.base_dir, hotkey, model_id
-            ),
-            revision=model_id.commit,
-            local_files_only=True,
-            use_safetensors=True,
-        )
+        model = None
+        if optimized:
+            model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path=utils.get_local_model_snapshot_dir(
+                    self.base_dir, hotkey, model_id
+                ),
+                revision=model_id.commit,
+                local_files_only=True,
+                use_safetensors=True,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path=utils.get_local_model_snapshot_dir(
+                    self.base_dir, hotkey, model_id
+                ),
+                revision=model_id.commit,
+                local_files_only=True,
+                use_safetensors=True,
+            )
 
         return Model(id=model_id, pt_model=model)
 

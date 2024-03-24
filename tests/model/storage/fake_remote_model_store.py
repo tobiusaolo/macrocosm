@@ -1,3 +1,4 @@
+import sys
 from model.data import Model, ModelId
 from model.storage.disk import utils
 from model.storage.remote_model_store import RemoteModelStore
@@ -17,7 +18,9 @@ class FakeRemoteModelStore(RemoteModelStore):
 
         return model.id
 
-    async def download_model(self, model_id: ModelId, local_path: str) -> Model:
+    async def download_model(
+        self, model_id: ModelId, local_path: str, model_size_limit: int = sys.maxsize
+    ) -> Model:
         """Retrieves a trained model from memory."""
 
         model = self.remote_models[model_id]

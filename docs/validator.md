@@ -51,9 +51,9 @@ It is important to note that this affects the game theoretics of the incentive l
 
 # System Requirements
 
-Validators will need enough disk space to store the model of every miner in the subnet. Each model (As of Jan 1st, 2024) is limited to 1 GB and the validator has cleanup logic to remove old models. It is recommended to have at least 500 GB of disk space.
+Validators will need enough disk space to store the models of miners being evaluated. Each model has a max size by block defined in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L57) and the validator has cleanup logic to remove old models. It is recommended to have at least 1 TB of disk space.
 
-Validators will need enough processing power to evaluate their model. As of Jan 1st, 2024 it is required to have a GPU with atleast 20 GB of VRAM.
+Validators will need enough processing power to evaluate their model. As of Apr 1st, 2024 it is required to have a GPU that supports [flash attention 2](https://github.com/Dao-AILab/flash-attention) with atleast 48 GB of VRAM and at least 38 TFLOPs for half precision (bfloat 16) operations.
 
 # Getting Started
 
@@ -71,6 +71,13 @@ git clone https://github.com/RaoFoundation/pretraining.git
 ```shell
 cd pretraining
 python -m pip install -e .
+```
+
+Note: flash-attn may not have their dependencies set up correctly. If you run into issues try installing those requirements separately first:
+```shell
+pip install packaging
+pip install wheel
+pip install torch
 ```
 
 4. Make sure you've [created a Wallet](https://docs.bittensor.com/getting-started/wallets) and [registered a hotkey](https://docs.bittensor.com/subnets/register-and-participate).

@@ -1,3 +1,4 @@
+import dataclasses
 from typing import Any, ClassVar, Dict, Optional, Type
 from transformers import PreTrainedModel
 from pydantic import BaseModel, Field, PositiveInt
@@ -67,3 +68,23 @@ class ModelMetadata(BaseModel):
     block: PositiveInt = Field(
         description="Block on which this model was claimed on the chain."
     )
+
+
+@dataclasses.dataclass()
+class ModelCriteria:
+    """Collection of criteria that are relevant for interacting with models in the subnet."""
+
+    # Sequence length used for inference.
+    sequence_length: int
+
+    # Whether bfloat16 and flash attention optimizations should be used.
+    optimized: bool
+
+    # Maximum model size in bytes.
+    max_model_bytes: int
+
+    # Maximum model parameter size.
+    max_model_parameters: int
+
+    # Allowed model types.
+    allowed_model_types: dict[type]

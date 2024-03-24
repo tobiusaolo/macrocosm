@@ -36,6 +36,7 @@ from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
 from model.storage.disk.disk_model_store import DiskModelStore
 from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
+import model.utils as model_utils
 import traceback
 import threading
 import multiprocessing
@@ -80,7 +81,7 @@ class Validator:
         parser.add_argument(
             "--pages_per_eval",
             type=int,
-            default=3,
+            default=constants.n_eval_pages,
             help="Number of pages used to eval each step.",
         )
         parser.add_argument(
@@ -571,10 +572,11 @@ class Validator:
             random.randint(1, pt.dataset.SubsetFalconLoader.max_pages)
             for _ in range(self.config.pages_per_eval)
         ]
+        # Use the largest sequence length and truncate as necessary for smaller ones.
         batches = list(
             pt.dataset.SubsetFalconLoader(
                 batch_size=constants.batch_size,
-                sequence_length=constants.sequence_length,
+                sequence_length=constants.SEQUENCE_LENGTH_2,
                 pages=pages,
             )
         )
@@ -602,13 +604,24 @@ class Validator:
                 try:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
+                    # Use bfloat16 and flash attention optimization based on block.
+                    optimized = model_utils.get_model_criteria(
+                        model_i_metadata.block
+                    ).optimized
 
                     # Get the model locally and evaluate its loss.
                     model_i = None
                     with load_model_perf.sample():
                         model_i = self.local_store.retrieve_model(
-                            hotkey, model_i_metadata.id
+                            hotkey,
+                            model_i_metadata.id,
+                            optimized,
                         )
+
+                    # Use sequence length for inference based on block.
+                    sequence_length = model_utils.get_model_criteria(
+                        model_i_metadata.block
+                    ).sequence_length
 
                     with compute_loss_perf.sample():
                         # Run each computation in a subprocess so that the GPU is reset between each model.
@@ -618,8 +631,9 @@ class Validator:
                                 model_i.pt_model,
                                 batches,
                                 self.config.device,
+                                sequence_length,
                             ),
-                            ttl=60,
+                            ttl=240,
                             mode="spawn",
                         )
                     del model_i
