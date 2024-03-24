@@ -87,8 +87,14 @@ class Validator:
         parser.add_argument(
             "--sample_min",
             type=int,
-            default=30,
-            help="Number of uids to eval each step.",
+            default=constants.sample_min,
+            help="Number of uids to bring to next eval.",
+        )
+        parser.add_argument(
+            "--sample_max",
+            type=int,
+            default=constants.sample_max,
+            help="Maximum number of new uids to eval each step.",
         )
         parser.add_argument(
             "--dont_set_weights",
@@ -342,8 +348,10 @@ class Validator:
         self.model_tracker.save_state(self.tracker_filepath)
 
     def update_models(self):
-        # Track how recently we updated each uid
-        uid_last_checked = dict()
+        # Track how recently we updated each uid from sequential iteration.
+        uid_last_checked_sequential = dict()
+        # Track how recently we updated each uid from incentives.
+        uid_last_checked_incentive = dict()
 
         # The below loop iterates across all miner uids and checks to see
         # if they should be updated.
@@ -356,13 +364,11 @@ class Validator:
                     pending_uid_count = len(self.pending_uids_to_eval)
                     current_uid_count = len(self.uids_to_eval)
 
-                # Only allow at most 20 pending uids + sample min (for new vali startup).
-                while (
-                    pending_uid_count + current_uid_count >= 20 + self.config.sample_min
-                ):
+                # Only allow at most sample max models. Typically this will be carryover from sample_min + new models.
+                while pending_uid_count + current_uid_count >= self.config.sample_max:
                     # Wait 5 minutes for the eval loop to process them.
                     bt.logging.info(
-                        f"Update loop: Already 20 synced models pending eval. Checking again in 5 minutes."
+                        f"Update loop: Already {self.config.sample_max} synced models pending eval. Checking again in 5 minutes."
                     )
                     time.sleep(300)
                     # Check to see if the pending uids have been cleared yet.
@@ -371,29 +377,56 @@ class Validator:
                         current_uid_count = len(self.uids_to_eval)
 
                 # Get the next uid to check
-                next_uid = next(self.miner_iterator)
+                next_uid = None
 
-                # Confirm that we haven't checked it in the last 5 minutes.
-                time_diff = (
-                    dt.datetime.now() - uid_last_checked[next_uid]
-                    if next_uid in uid_last_checked
-                    else None
-                )
+                # First check for any uids with incentives above threshold on the chain.
+                # This will catch updates to current best models and models other valis have incentivized faster.
+                with self.metagraph_lock:
+                    incentives = self.metagraph.I
 
-                if time_diff and time_diff < dt.timedelta(minutes=5):
-                    # If we have seen it within 5 minutes then sleep until it has been at least 5 minutes.
-                    time_to_sleep = (
-                        dt.timedelta(minutes=5) - time_diff
-                    ).total_seconds()
-                    bt.logging.trace(
-                        f"Update loop has already processed all UIDs in the last 5 minutes. Sleeping {time_to_sleep} seconds."
+                for uid, incentive in enumerate(incentives):
+                    # Use .item() to get the number value since this is a tensor.
+                    if (
+                        incentive.item()
+                        >= constants.update_priority_incentive_threshold
+                    ):
+                        # Confirm that we haven't checked it within the chain update cadence in this path.
+                        time_diff = (
+                            dt.datetime.now() - uid_last_checked_incentive[uid]
+                            if uid in uid_last_checked_incentive
+                            else constants.chain_update_cadence  # Default to being stale enough to check again.
+                        )
+                        if time_diff >= constants.chain_update_cadence:
+                            # Check this uid next and update that we have checked it in this path..
+                            next_uid = uid
+                            uid_last_checked_incentive[uid] = dt.datetime.now()
+                            break
+
+                # Then iterate sequentially for new models.
+                # In this case if we have seen the uid in chain update cadence we have seen all of them and should wait.
+                if next_uid is None:
+                    next_uid = next(self.miner_iterator)
+
+                    # Confirm that we haven't checked it in the chain update cadence
+                    time_diff = (
+                        dt.datetime.now() - uid_last_checked_sequential[next_uid]
+                        if next_uid in uid_last_checked_sequential
+                        else None
                     )
-                    time.sleep(time_to_sleep)
 
-                uid_last_checked[next_uid] = dt.datetime.now()
+                    if time_diff and time_diff < constants.chain_update_cadence:
+                        # If we have seen it within chain update cadence then sleep until it has been at least that long.
+                        time_to_sleep = (
+                            constants.chain_update_cadence - time_diff
+                        ).total_seconds()
+                        bt.logging.trace(
+                            f"Update loop has already processed all UIDs in the last {constants.chain_update_cadence}. Sleeping {time_to_sleep} seconds."
+                        )
+                        time.sleep(time_to_sleep)
+
+                    uid_last_checked_sequential[next_uid] = dt.datetime.now()
 
                 # Get their hotkey from the metagraph.
-                hotkey = "NoHotkey"
                 with self.metagraph_lock:
                     hotkey = self.metagraph.hotkeys[next_uid]
 
