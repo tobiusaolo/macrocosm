@@ -57,6 +57,17 @@ ALLOWED_MODEL_TYPES_2 = {
 # A mapping of block numbers to ModelCriteria. Must be ordered by block.
 MODEL_CRITERIA_BY_BLOCK = [
     (
+        0,
+        ModelCriteria(
+            sequence_length=SEQUENCE_LENGTH_1,
+            optimized=False,
+            max_model_bytes=5 * 1024 * 1024 * 1024,
+            max_model_parameters=186_000_000,
+            allowed_model_types=ALLOWED_MODEL_TYPES_1,
+            tokenizer_identifier=TokenizerIdentifier.DISTILGPT_2,
+        ),
+    ),
+    (
         2_405_920,
         ModelCriteria(
             sequence_length=SEQUENCE_LENGTH_1,

@@ -5,6 +5,14 @@ from model.data import ModelCriteria, TokenizerIdentifier
 
 
 class TestModelUtils(unittest.TestCase):
+    MODEL_CRITERIA_186M = ModelCriteria(
+        sequence_length=1024,
+        optimized=False,
+        max_model_bytes=5 * 1024 * 1024 * 1024,
+        max_model_parameters=186_000_000,
+        allowed_model_types=ALLOWED_MODEL_TYPES_1,
+        tokenizer_identifier=TokenizerIdentifier.DISTILGPT_2,
+    )
     MODEL_CRITERIA_772M = ModelCriteria(
         sequence_length=1024,
         optimized=False,
@@ -22,6 +30,8 @@ class TestModelUtils(unittest.TestCase):
         tokenizer_identifier=TokenizerIdentifier.GPT3_5_TURBO,
     )
     model_criteria_cases = [
+        (0, MODEL_CRITERIA_186M),
+        (2_405_919, MODEL_CRITERIA_186M),
         (2_405_920, MODEL_CRITERIA_772M),
         (2_605_920, MODEL_CRITERIA_772M),
         (BLOCK_7B - 1, MODEL_CRITERIA_772M),
