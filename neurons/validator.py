@@ -610,21 +610,23 @@ class Validator:
         # Temporary ugliness to load the batches with both the previous tokenizer
         # and the new tokenizer. batches_old can be removed once the block is newer
         # than the point we allow 7B parameter models.
+        old_tokenizer = pt.model.get_old_tokenizer(cache_dir=self.config.model_dir)
         batches_old = list(
             pt.dataset.SubsetFalconLoader(
                 batch_size=constants.batch_size,
                 sequence_length=constants.SEQUENCE_LENGTH_1,
                 pages=pages,
-                tokenizer=pt.model.get_old_tokenizer(cache_dir=self.config.model_dir),
+                tokenizer=old_tokenizer,
             )
         )
 
+        new_tokenizer = pt.model.get_tokenizer(cache_dir=self.config.model_dir)
         batches = list(
             pt.dataset.SubsetFalconLoader(
                 batch_size=constants.batch_size,
                 sequence_length=constants.SEQUENCE_LENGTH_2,
                 pages=pages,
-                tokenizer=pt.model.get_tokenizer(cache_dir=self.config.model_dir),
+                tokenizer=new_tokenizer,
             )
         )
 
@@ -669,17 +671,24 @@ class Validator:
 
                     with compute_loss_perf.sample():
                         # Run each computation in a subprocess so that the GPU is reset between each model.
-                        batches_to_use = (
-                            batches_old
-                            if tokenizer_identifier == TokenizerIdentifier.DISTILGPT_2
-                            else batches
-                        )
+                        batches_to_use = None
+                        # Keeping identical behavior of getting this from eos token id.
+                        # Currently we set pad token = eos token but not the ids on the get tokenizer methods.
+                        pad_token_id = None
+                        if (tokenizer_identifier == TokenizerIdentifier.DISTILGPT_2):
+                            batches_to_use = batches_old
+                            pad_token_id = old_tokenizer.eos_token_id
+                        else:
+                            batches_to_use = batches
+                            pad_token_id = new_tokenizer.eos_token_id
+
                         losses = utils.run_in_subprocess(
                             functools.partial(
                                 pt.validation.compute_losses,
                                 model_i.pt_model,
                                 batches_to_use,
                                 self.config.device,
+                                pad_token_id
                             ),
                             ttl=360,
                             mode="spawn",
