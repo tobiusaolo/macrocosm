@@ -24,6 +24,7 @@ import typing
 import constants
 import traceback
 import bittensor as bt
+import pretrain as pt
 
 
 def iswin(loss_i, loss_j, block_i, block_j):
@@ -82,8 +83,64 @@ def compute_wins(
     return wins, win_rate
 
 
+def check_for_reasonable_output(
+    model, input1: torch.Tensor, input2: torch.Tensor
+) -> bool:
+    """Checks that a model generates reasonable outputs for two given inputs.
+
+    Args:
+        model (torch.nn.Module): The model for which outputs are to be checked. Already loaded to device.
+        input1 (torch.Tensor]): Tokenized input1 to check. Already loaded to device.
+        input2 (torch.Tensor]): Tokenized input2 to check. Already loaded to device.
+
+    Returns:
+        bool: If the model generates reasonable outputs.
+    """
+    # Generate 30 tokens of output from the model for each prompt.
+    output_length = 30
+    tokenizer = pt.model.get_tokenizer()
+    # Only take the last 30 tokens since otherwise we also get the prompt ids.
+    generate_id1s = model.generate(
+        input1,
+        min_new_tokens=output_length,
+        max_new_tokens=output_length,
+        pad_token_id=tokenizer.eos_token_id,
+    )[:, -output_length:]
+    generate_id2s = model.generate(
+        input2,
+        min_new_tokens=output_length,
+        max_new_tokens=output_length,
+        pad_token_id=tokenizer.eos_token_id,
+    )[:, -output_length:]
+
+    # Check if too many of the generated ids are the same between the two outputs.
+    if torch.sum(torch.eq(generate_id1s, generate_id2s)).item() >= output_length / 3:
+        bt.logging.info(
+            f"Model with config {model.config} had too much overlap between generated outputs."
+        )
+        return False
+
+    # Check if internally either response is too repetitive.
+    for tensor in [generate_id1s, generate_id2s]:
+        # Find unique elements and their counts
+        _, counts = torch.unique(tensor, return_counts=True)
+        # Find the index of the maximum count
+        max_count_index = torch.argmax(counts)
+        # Extract the count of the most common element
+        most_common_count = counts[max_count_index].item()
+
+        if most_common_count > output_length / 3:
+            bt.logging.info(
+                f"Model with config {model.config} had too much repetition in generated output."
+            )
+            return False
+
+    # Passed all the checks, return True.
+    return True
+
+
 def compute_losses(
-    model, batches: typing.List[torch.Tensor], device: str
+    model, batches: typing.List[torch.Tensor], device: str, sequence_length: int
 ) -> typing.List[float]:
     """
     Computes the losses for a given model on provided batches.
@@ -92,6 +149,7 @@ def compute_losses(
         model (torch.nn.Module): The model for which losses are to be computed.
         batches (dict): A list of batches.
         device (str): The device to use for computation (e.g., 'cpu', 'gpu').
+        sequence_length: Sequence length to truncate batches to.
 
     Returns:
         dict: A dictionary with page indices as keys and lists of loss values as values.
@@ -99,11 +157,27 @@ def compute_losses(
     model.to(device)
     model.eval()
 
+    # First check that model generates reasonable looking outputs.
+    # Grab 100 tokens from the first two batches as 'prompts'. (1 x Seq Length tensors.)
+    prompt_length = 100
+    falcon_token_inputs_1 = (batches[0][:, :prompt_length]).to(device)
+    falcon_token_inputs_2 = (batches[1][:, :prompt_length]).to(device)
+
+    if not check_for_reasonable_output(
+        model, falcon_token_inputs_1, falcon_token_inputs_2
+    ):
+        return [math.inf for _ in batches]
+
+    # Everything looks good! Continue to computing actual losses.
+
     # Iterate over each page and corresponding batches
     losses = []
     for batch in batches:
         try:
-            inputs = batch.to(device)
+            # Each batch is a tensor(1, max_sequence_length) from the falcon dataset loader.
+            # We truncate the batch to the appropriate sequence length for the model here.
+            batch_truncated = batch[:, :sequence_length]
+            inputs = batch_truncated.to(device)
             logits = model(inputs).logits
 
             shift_logits = logits[..., :-1, :].contiguous()

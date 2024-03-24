@@ -1,4 +1,5 @@
 import abc
+import sys
 from model.data import Model, ModelId
 
 
@@ -11,6 +12,8 @@ class RemoteModelStore(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def download_model(self, model_id: ModelId, local_path: str) -> Model:
+    async def download_model(
+        self, model_id: ModelId, local_path: str, model_size_limit: int = sys.maxsize
+    ) -> Model:
         """Retrieves a trained model from the appropriate location and stores at the given path."""
         pass

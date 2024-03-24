@@ -51,7 +51,11 @@ class ModelUpdater:
 
         # Otherwise we need to download the new model based on the metadata.
         try:
-            model = await self.remote_store.download_model(metadata.id, path)
+            # Max size according to the block.
+            model_size_limit = utils.get_model_criteria(metadata.block).max_model_bytes
+            model = await self.remote_store.download_model(
+                metadata.id, path, model_size_limit
+            )
         except Exception as e:
             bt.logging.trace(
                 f"Failed to download model for hotkey {hotkey} due to {e}."
@@ -67,16 +71,19 @@ class ModelUpdater:
 
         # Check that the parameter count of the model is within allowed bounds.
         parameter_size = sum(p.numel() for p in model.pt_model.parameters())
-        parameter_limit = utils.get_parameter_limit(metadata.block)
+        parameter_limit = utils.get_model_criteria(metadata.block).max_model_parameters
         if parameter_size > parameter_limit:
             bt.logging.trace(
-                f"Sync for hotkey {hotkey} failed. Parameter size of the model {parameter_size} exceeded max size {parameter_limit}."
+                f"Sync for hotkey {hotkey} failed. Parameter size of the model {parameter_size} exceeded max size {parameter_limit} at block {metadata.block}."
             )
             return False
 
-        if type(model.pt_model) not in constants.allowed_model_types:
+        allowed_model_types = utils.get_model_criteria(
+            metadata.block
+        ).allowed_model_types
+        if type(model.pt_model) not in allowed_model_types:
             bt.logging.trace(
-                f"Sync for hotkey {hotkey} failed. Model type {type(model.pt_model)} is not allowed."
+                f"Sync for hotkey {hotkey} failed. Model type {type(model.pt_model)} is not allowed at block {metadata.block}."
             )
             return False
 

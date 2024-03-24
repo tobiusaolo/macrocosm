@@ -1,3 +1,4 @@
+import sys
 import tempfile
 import os
 from huggingface_hub import HfApi
@@ -44,7 +45,9 @@ class HuggingFaceModelStore(RemoteModelStore):
             # Return a ModelId with both the correct commit and hash.
             return model_with_hash.id
 
-    async def download_model(self, model_id: ModelId, local_path: str) -> Model:
+    async def download_model(
+        self, model_id: ModelId, local_path: str, model_size_limit: int = sys.maxsize
+    ) -> Model:
         """Retrieves a trained model from Hugging Face."""
         if not model_id.commit:
             raise ValueError("No Hugging Face commit id found to read from the hub.")
@@ -57,9 +60,9 @@ class HuggingFaceModelStore(RemoteModelStore):
             repo_id=repo_id, revision=model_id.commit, timeout=10, files_metadata=True
         )
         size = sum(repo_file.size for repo_file in model_info.siblings)
-        if size > constants.MAX_HUGGING_FACE_BYTES:
+        if size > model_size_limit:
             raise ValueError(
-                f"Hugging Face repo over maximum size limit. Size {size}. Limit {constants.MAX_HUGGING_FACE_BYTES}."
+                f"Hugging Face repo over maximum size limit. Size {size}. Limit {model_size_limit}."
             )
 
         # Transformers library can pick up a model based on the hugging face path (username/model) + rev.
