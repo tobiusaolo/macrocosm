@@ -75,7 +75,7 @@ class TokenizerIdentifier(IntEnum):
     """Identifiers the tokenizer to use. This may mean different tokenizers or different implementations."""
 
     DISTILGPT_2 = 1
-    GPT3_5_TURBO_16K = 2
+    GPT3_5_TURBO = 2
 
 
 @dataclasses.dataclass()

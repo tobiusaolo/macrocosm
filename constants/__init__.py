@@ -31,10 +31,10 @@ WANDB_PROJECT = "pretraining-subnet"
 SUBNET_UID = 9
 # The root directory of this project.
 ROOT_DIR = Path(__file__).parent.parent
-# Block at which 7b models, 8192 sequence lengths, new tokenizer, bfloat16, and flash attention are used.
+# Block at which 7b models, 4096 sequence lengths, new tokenizer, bfloat16, and flash attention are used.
 BLOCK_7B = 2_735_661
 SEQUENCE_LENGTH_1 = 1024
-SEQUENCE_LENGTH_2 = 8192
+SEQUENCE_LENGTH_2 = 4096
 # A mapping of block numbers to the supported model types as of that block.
 ALLOWED_MODEL_TYPES_1 = {
     GPT2LMHeadModel,
@@ -75,7 +75,7 @@ MODEL_CRITERIA_BY_BLOCK = [
             max_model_bytes=15 * 1024 * 1024 * 1024,
             max_model_parameters=6_900_000_000,
             allowed_model_types=ALLOWED_MODEL_TYPES_2,
-            tokenizer_identifier=TokenizerIdentifier.GPT3_5_TURBO_16K,
+            tokenizer_identifier=TokenizerIdentifier.GPT3_5_TURBO,
         ),
     ),
 ]
@@ -97,7 +97,7 @@ temperature = 0.01
 # validator score boosting for earlier models.
 timestamp_epsilon = 0.005
 # validators number of pages to eval over miners on each step.
-n_eval_pages = 24
+n_eval_pages = 12
 # validator eval batch size.
 batch_size = 1
 # validator eval batch min to keep for next loop.

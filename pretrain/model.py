@@ -49,7 +49,7 @@ def get_old_tokenizer(cache_dir: str = None):
 def get_tokenizer(cache_dir: str = None):
     """Returns the tokenizer used by the latest models."""
     tokenizer = GPT2TokenizerFast.from_pretrained(
-        "Xenova/gpt-3.5-turbo-16k", cache_dir=cache_dir
+        "Xenova/gpt-3.5-turbo", cache_dir=cache_dir
     )
     tokenizer.pad_token = tokenizer.eos_token
     return tokenizer

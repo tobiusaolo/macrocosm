@@ -14,12 +14,12 @@ class TestModelUtils(unittest.TestCase):
         tokenizer_identifier=TokenizerIdentifier.DISTILGPT_2,
     )
     MODEL_CRITERIA_7B = ModelCriteria(
-        sequence_length=8192,
+        sequence_length=4096,
         optimized=True,
         max_model_bytes=15 * 1024 * 1024 * 1024,
         max_model_parameters=6_900_000_000,
         allowed_model_types=ALLOWED_MODEL_TYPES_2,
-        tokenizer_identifier=TokenizerIdentifier.GPT3_5_TURBO_16K,
+        tokenizer_identifier=TokenizerIdentifier.GPT3_5_TURBO,
     )
     model_criteria_cases = [
         (2_405_920, MODEL_CRITERIA_772M),
