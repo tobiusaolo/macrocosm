@@ -675,7 +675,7 @@ class Validator:
                         # Keeping identical behavior of getting this from eos token id.
                         # Currently we set pad token = eos token but not the ids on the get tokenizer methods.
                         pad_token_id = None
-                        if (tokenizer_identifier == TokenizerIdentifier.DISTILGPT_2):
+                        if tokenizer_identifier == TokenizerIdentifier.DISTILGPT_2:
                             batches_to_use = batches_old
                             pad_token_id = old_tokenizer.eos_token_id
                         else:
@@ -688,7 +688,7 @@ class Validator:
                                 model_i.pt_model,
                                 batches_to_use,
                                 self.config.device,
-                                pad_token_id
+                                pad_token_id,
                             ),
                             ttl=360,
                             mode="spawn",
@@ -756,7 +756,6 @@ class Validator:
             uids,
             uid_to_block,
             pages,
-            batches,
             wins,
             win_rate,
             losses_per_uid,
@@ -772,7 +771,6 @@ class Validator:
         uids,
         uid_to_block,
         pages,
-        batches,
         wins,
         win_rate,
         losses_per_uid,
@@ -790,7 +788,7 @@ class Validator:
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
-                "average_loss": sum(losses_per_uid[uid]) / len(batches),
+                "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
                 "weight": self.weights[uid].item(),
