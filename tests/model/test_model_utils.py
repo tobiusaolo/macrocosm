@@ -27,7 +27,7 @@ class TestModelUtils(unittest.TestCase):
         max_model_bytes=15 * 1024 * 1024 * 1024,
         max_model_parameters=6_900_000_000,
         allowed_model_types=ALLOWED_MODEL_TYPES_2,
-        tokenizer_identifier=TokenizerIdentifier.GPT3_5_TURBO,
+        tokenizer_identifier=TokenizerIdentifier.GPT_4_TIKTOKEN,
     )
     model_criteria_cases = [
         (0, MODEL_CRITERIA_186M),

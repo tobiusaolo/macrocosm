@@ -50,10 +50,8 @@ def get_old_tokenizer(cache_dir: str = None):
 def get_tokenizer(cache_dir: str = None):
     """Returns the tokenizer used by the latest models."""
     bt.logging.info(
-        "Getting gpt-3.5-turbo tokenizer. Following logs about not matching GPT2TokenizerFast are expected."
+        "Getting gpt-4 tokenizer. Following logs about not matching GPT2TokenizerFast are expected."
     )
-    tokenizer = GPT2TokenizerFast.from_pretrained(
-        "Xenova/gpt-3.5-turbo", cache_dir=cache_dir
-    )
+    tokenizer = GPT2TokenizerFast.from_pretrained("Xenova/gpt-4", cache_dir=cache_dir)
     tokenizer.pad_token = tokenizer.eos_token
     return tokenizer
