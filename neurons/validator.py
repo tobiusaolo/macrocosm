@@ -730,14 +730,16 @@ class Validator:
         )
         self.weights = self.weights.nan_to_num(0.0)
 
-        # Filter based on win rate removing all by the sample_min best models for evaluation.
+        # Filter based on win rate removing all but the sample_min best models for evaluation.
         # First remove any models that have an infinite loss and 0 weight.
+        # Then override win rate for any model with weights to 1 to ensure they are included in the next run.
         filtered_win_rate = {
-            uid: wr
+            uid: (wr if self.weights[uid] == 0 else 1)
             for uid, wr in win_rate.items()
             if not all(math.isinf(x) for x in losses_per_uid.get(uid, [math.inf]))
             or self.weights[uid] > 0
         }
+
         self.uids_to_eval = set(
             sorted(filtered_win_rate, key=filtered_win_rate.get, reverse=True)[
                 : self.config.sample_min

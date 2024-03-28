@@ -113,7 +113,7 @@ def check_for_reasonable_output(
     )[:, -output_length:]
 
     # Check if too many of the generated ids are the same between the two outputs.
-    if torch.sum(torch.eq(generate_id1s, generate_id2s)).item() >= output_length / 3:
+    if torch.sum(torch.eq(generate_id1s, generate_id2s)).item() >= output_length / 2:
         bt.logging.info(
             f"Model with config {model.config} had too much overlap between generated outputs."
         )
@@ -128,7 +128,7 @@ def check_for_reasonable_output(
         # Extract the count of the most common element
         most_common_count = counts[max_count_index].item()
 
-        if most_common_count > output_length / 3:
+        if most_common_count > output_length / 2:
             bt.logging.info(
                 f"Model with config {model.config} had too much repetition in generated output."
             )
