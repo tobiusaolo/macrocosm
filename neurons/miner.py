@@ -122,7 +122,7 @@ def get_config():
         "--bs", type=int, default=constants.batch_size, help="Batch size"
     )
     parser.add_argument(
-        "--sl", type=int, default=constants.sequence_length, help="Sequence length"
+        "--sl", type=int, default=constants.SEQUENCE_LENGTH_2, help="Sequence length"
     )
     parser.add_argument(
         "--accumulation_steps",
@@ -291,6 +291,7 @@ async def main(config: bt.config):
     n_acc_steps = 0
     best_avg_loss = math.inf
     accumulation_steps = config.accumulation_steps
+    tokenizer = pt.model.get_tokenizer()
 
     try:
         while epoch_step < config.num_epochs or config.num_epochs == -1:
@@ -306,7 +307,10 @@ async def main(config: bt.config):
                 for _ in range(config.pages_per_epoch)
             ]
             loader = pt.dataset.SubsetFalconLoader(
-                batch_size=config.bs, sequence_length=config.sl, pages=random_pages
+                batch_size=config.bs,
+                sequence_length=config.sl,
+                pages=random_pages,
+                tokenizer=tokenizer,
             )
 
             # Enumerate over the data loader

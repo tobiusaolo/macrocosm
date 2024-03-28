@@ -31,11 +31,13 @@ import argparse
 
 import wandb
 import constants
+from model.data import TokenizerIdentifier
 from model.model_tracker import ModelTracker
 from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
 from model.storage.disk.disk_model_store import DiskModelStore
 from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
+import model.utils as model_utils
 import traceback
 import threading
 import multiprocessing
@@ -80,14 +82,20 @@ class Validator:
         parser.add_argument(
             "--pages_per_eval",
             type=int,
-            default=3,
+            default=constants.n_eval_pages,
             help="Number of pages used to eval each step.",
         )
         parser.add_argument(
             "--sample_min",
             type=int,
-            default=30,
-            help="Number of uids to eval each step.",
+            default=constants.sample_min,
+            help="Number of uids to bring to next eval.",
+        )
+        parser.add_argument(
+            "--sample_max",
+            type=int,
+            default=constants.sample_max,
+            help="Maximum number of new uids to eval each step.",
         )
         parser.add_argument(
             "--dont_set_weights",
@@ -341,8 +349,10 @@ class Validator:
         self.model_tracker.save_state(self.tracker_filepath)
 
     def update_models(self):
-        # Track how recently we updated each uid
-        uid_last_checked = dict()
+        # Track how recently we updated each uid from sequential iteration.
+        uid_last_checked_sequential = dict()
+        # Track how recently we updated each uid from incentives.
+        uid_last_checked_incentive = dict()
 
         # The below loop iterates across all miner uids and checks to see
         # if they should be updated.
@@ -355,13 +365,11 @@ class Validator:
                     pending_uid_count = len(self.pending_uids_to_eval)
                     current_uid_count = len(self.uids_to_eval)
 
-                # Only allow at most 20 pending uids + sample min (for new vali startup).
-                while (
-                    pending_uid_count + current_uid_count >= 20 + self.config.sample_min
-                ):
+                # Only allow at most sample max models. Typically this will be carryover from sample_min + new models.
+                while pending_uid_count + current_uid_count >= self.config.sample_max:
                     # Wait 5 minutes for the eval loop to process them.
                     bt.logging.info(
-                        f"Update loop: Already 20 synced models pending eval. Checking again in 5 minutes."
+                        f"Update loop: Already {self.config.sample_max} synced models pending eval. Checking again in 5 minutes."
                     )
                     time.sleep(300)
                     # Check to see if the pending uids have been cleared yet.
@@ -370,29 +378,56 @@ class Validator:
                         current_uid_count = len(self.uids_to_eval)
 
                 # Get the next uid to check
-                next_uid = next(self.miner_iterator)
+                next_uid = None
 
-                # Confirm that we haven't checked it in the last 5 minutes.
-                time_diff = (
-                    dt.datetime.now() - uid_last_checked[next_uid]
-                    if next_uid in uid_last_checked
-                    else None
-                )
+                # First check for any uids with incentives above threshold on the chain.
+                # This will catch updates to current best models and models other valis have incentivized faster.
+                with self.metagraph_lock:
+                    incentives = self.metagraph.I
 
-                if time_diff and time_diff < dt.timedelta(minutes=5):
-                    # If we have seen it within 5 minutes then sleep until it has been at least 5 minutes.
-                    time_to_sleep = (
-                        dt.timedelta(minutes=5) - time_diff
-                    ).total_seconds()
-                    bt.logging.trace(
-                        f"Update loop has already processed all UIDs in the last 5 minutes. Sleeping {time_to_sleep} seconds."
+                for uid, incentive in enumerate(incentives):
+                    # Use .item() to get the number value since this is a tensor.
+                    if (
+                        incentive.item()
+                        >= constants.update_priority_incentive_threshold
+                    ):
+                        # Confirm that we haven't checked it within the chain update cadence in this path.
+                        time_diff = (
+                            dt.datetime.now() - uid_last_checked_incentive[uid]
+                            if uid in uid_last_checked_incentive
+                            else constants.chain_update_cadence  # Default to being stale enough to check again.
+                        )
+                        if time_diff >= constants.chain_update_cadence:
+                            # Check this uid next and update that we have checked it in this path..
+                            next_uid = uid
+                            uid_last_checked_incentive[uid] = dt.datetime.now()
+                            break
+
+                # Then iterate sequentially for new models.
+                # In this case if we have seen the uid in chain update cadence we have seen all of them and should wait.
+                if next_uid is None:
+                    next_uid = next(self.miner_iterator)
+
+                    # Confirm that we haven't checked it in the chain update cadence
+                    time_diff = (
+                        dt.datetime.now() - uid_last_checked_sequential[next_uid]
+                        if next_uid in uid_last_checked_sequential
+                        else None
                     )
-                    time.sleep(time_to_sleep)
 
-                uid_last_checked[next_uid] = dt.datetime.now()
+                    if time_diff and time_diff < constants.chain_update_cadence:
+                        # If we have seen it within chain update cadence then sleep until it has been at least that long.
+                        time_to_sleep = (
+                            constants.chain_update_cadence - time_diff
+                        ).total_seconds()
+                        bt.logging.trace(
+                            f"Update loop has already processed all UIDs in the last {constants.chain_update_cadence}. Sleeping {time_to_sleep} seconds."
+                        )
+                        time.sleep(time_to_sleep)
+
+                    uid_last_checked_sequential[next_uid] = dt.datetime.now()
 
                 # Get their hotkey from the metagraph.
-                hotkey = "NoHotkey"
                 with self.metagraph_lock:
                     hotkey = self.metagraph.hotkeys[next_uid]
 
@@ -571,11 +606,27 @@ class Validator:
             random.randint(1, pt.dataset.SubsetFalconLoader.max_pages)
             for _ in range(self.config.pages_per_eval)
         ]
+
+        # Temporary ugliness to load the batches with both the previous tokenizer
+        # and the new tokenizer. batches_old can be removed once the block is newer
+        # than the point we allow 7B parameter models.
+        old_tokenizer = pt.model.get_old_tokenizer(cache_dir=self.config.model_dir)
+        batches_old = list(
+            pt.dataset.SubsetFalconLoader(
+                batch_size=constants.batch_size,
+                sequence_length=constants.SEQUENCE_LENGTH_1,
+                pages=pages,
+                tokenizer=old_tokenizer,
+            )
+        )
+
+        new_tokenizer = pt.model.get_tokenizer(cache_dir=self.config.model_dir)
         batches = list(
             pt.dataset.SubsetFalconLoader(
                 batch_size=constants.batch_size,
-                sequence_length=constants.sequence_length,
+                sequence_length=constants.SEQUENCE_LENGTH_2,
                 pages=pages,
+                tokenizer=new_tokenizer,
             )
         )
 
@@ -596,30 +647,50 @@ class Validator:
                 hotkey
             )
 
-            losses = [math.inf for _ in batches]
+            losses = [math.inf for _ in range(len(batches))]
 
             if model_i_metadata != None:
                 try:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
+                    # Get criteria to evaluate model with based on block.
+                    criteria = model_utils.get_model_criteria(model_i_metadata.block)
+                    # Use bfloat16 and flash attention optimization based on block.
+                    optimized = criteria.optimized
+                    # Use tokenizer based on block.
+                    tokenizer_identifier = criteria.tokenizer_identifier
 
                     # Get the model locally and evaluate its loss.
                     model_i = None
                     with load_model_perf.sample():
                         model_i = self.local_store.retrieve_model(
-                            hotkey, model_i_metadata.id
+                            hotkey,
+                            model_i_metadata.id,
+                            optimized,
                         )
 
                     with compute_loss_perf.sample():
                         # Run each computation in a subprocess so that the GPU is reset between each model.
+                        batches_to_use = None
+                        # Keeping identical behavior of getting this from eos token id.
+                        # Currently we set pad token = eos token but not the ids on the get tokenizer methods.
+                        pad_token_id = None
+                        if tokenizer_identifier == TokenizerIdentifier.DISTILGPT_2:
+                            batches_to_use = batches_old
+                            pad_token_id = old_tokenizer.eos_token_id
+                        else:
+                            batches_to_use = batches
+                            pad_token_id = new_tokenizer.eos_token_id
+
                         losses = utils.run_in_subprocess(
                             functools.partial(
                                 pt.validation.compute_losses,
                                 model_i.pt_model,
-                                batches,
+                                batches_to_use,
                                 self.config.device,
+                                pad_token_id,
                             ),
-                            ttl=60,
+                            ttl=360,
                             mode="spawn",
                         )
                     del model_i
@@ -685,7 +756,6 @@ class Validator:
             uids,
             uid_to_block,
             pages,
-            batches,
             wins,
             win_rate,
             losses_per_uid,
@@ -701,7 +771,6 @@ class Validator:
         uids,
         uid_to_block,
         pages,
-        batches,
         wins,
         win_rate,
         losses_per_uid,
@@ -719,7 +788,7 @@ class Validator:
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
-                "average_loss": sum(losses_per_uid[uid]) / len(batches),
+                "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
                 "weight": self.weights[uid].item(),
