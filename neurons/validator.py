@@ -732,12 +732,13 @@ class Validator:
 
         # Filter based on win rate removing all but the sample_min best models for evaluation.
         # First remove any models that have an infinite loss and 0 weight.
-        # Then override win rate for any model with weights to 1 to ensure they are included in the next run.
+        # Then override win rate for any model with weights to ensure they are included in the next run.
+        # Overrides are to 1 + weight to ensure that the best model is kept around first in case of all inf runs.
         filtered_win_rate = {
-            uid: (wr if self.weights[uid] == 0 else 1)
+            uid: (wr if self.weights[uid] == 0 else 1 + self.weights[uid].item())
             for uid, wr in win_rate.items()
             if not all(math.isinf(x) for x in losses_per_uid.get(uid, [math.inf]))
-            or self.weights[uid] > 0
+            or self.weights[uid].item() > 0
         }
 
         self.uids_to_eval = set(
