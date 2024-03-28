@@ -31,6 +31,7 @@ import argparse
 
 import wandb
 import constants
+from model.data import TokenizerIdentifier
 from model.model_tracker import ModelTracker
 from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
@@ -605,12 +606,27 @@ class Validator:
             random.randint(1, pt.dataset.SubsetFalconLoader.max_pages)
             for _ in range(self.config.pages_per_eval)
         ]
-        # Use the largest sequence length and truncate as necessary for smaller ones.
+
+        # Temporary ugliness to load the batches with both the previous tokenizer
+        # and the new tokenizer. batches_old can be removed once the block is newer
+        # than the point we allow 7B parameter models.
+        old_tokenizer = pt.model.get_old_tokenizer(cache_dir=self.config.model_dir)
+        batches_old = list(
+            pt.dataset.SubsetFalconLoader(
+                batch_size=constants.batch_size,
+                sequence_length=constants.SEQUENCE_LENGTH_1,
+                pages=pages,
+                tokenizer=old_tokenizer,
+            )
+        )
+
+        new_tokenizer = pt.model.get_tokenizer(cache_dir=self.config.model_dir)
         batches = list(
             pt.dataset.SubsetFalconLoader(
                 batch_size=constants.batch_size,
                 sequence_length=constants.SEQUENCE_LENGTH_2,
                 pages=pages,
+                tokenizer=new_tokenizer,
             )
         )
 
@@ -631,16 +647,18 @@ class Validator:
                 hotkey
             )
 
-            losses = [math.inf for _ in batches]
+            losses = [math.inf for _ in range(len(batches))]
 
             if model_i_metadata != None:
                 try:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
+                    # Get criteria to evaluate model with based on block.
+                    criteria = model_utils.get_model_criteria(model_i_metadata.block)
                     # Use bfloat16 and flash attention optimization based on block.
-                    optimized = model_utils.get_model_criteria(
-                        model_i_metadata.block
-                    ).optimized
+                    optimized = criteria.optimized
+                    # Use tokenizer based on block.
+                    tokenizer_identifier = criteria.tokenizer_identifier
 
                     # Get the model locally and evaluate its loss.
                     model_i = None
@@ -651,22 +669,28 @@ class Validator:
                             optimized,
                         )
 
-                    # Use sequence length for inference based on block.
-                    sequence_length = model_utils.get_model_criteria(
-                        model_i_metadata.block
-                    ).sequence_length
-
                     with compute_loss_perf.sample():
                         # Run each computation in a subprocess so that the GPU is reset between each model.
+                        batches_to_use = None
+                        # Keeping identical behavior of getting this from eos token id.
+                        # Currently we set pad token = eos token but not the ids on the get tokenizer methods.
+                        pad_token_id = None
+                        if tokenizer_identifier == TokenizerIdentifier.DISTILGPT_2:
+                            batches_to_use = batches_old
+                            pad_token_id = old_tokenizer.eos_token_id
+                        else:
+                            batches_to_use = batches
+                            pad_token_id = new_tokenizer.eos_token_id
+
                         losses = utils.run_in_subprocess(
                             functools.partial(
                                 pt.validation.compute_losses,
                                 model_i.pt_model,
-                                batches,
+                                batches_to_use,
                                 self.config.device,
-                                sequence_length,
+                                pad_token_id,
                             ),
-                            ttl=240,
+                            ttl=360,
                             mode="spawn",
                         )
                     del model_i
@@ -732,7 +756,6 @@ class Validator:
             uids,
             uid_to_block,
             pages,
-            batches,
             wins,
             win_rate,
             losses_per_uid,
@@ -748,7 +771,6 @@ class Validator:
         uids,
         uid_to_block,
         pages,
-        batches,
         wins,
         win_rate,
         losses_per_uid,
@@ -766,7 +788,7 @@ class Validator:
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
-                "average_loss": sum(losses_per_uid[uid]) / len(batches),
+                "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
                 "weight": self.weights[uid].item(),

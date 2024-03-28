@@ -24,7 +24,6 @@ import typing
 import constants
 import traceback
 import bittensor as bt
-import pretrain as pt
 
 
 def iswin(loss_i, loss_j, block_i, block_j):
@@ -84,7 +83,7 @@ def compute_wins(
 
 
 def check_for_reasonable_output(
-    model, input1: torch.Tensor, input2: torch.Tensor
+    model, input1: torch.Tensor, input2: torch.Tensor, pad_token_id: int
 ) -> bool:
     """Checks that a model generates reasonable outputs for two given inputs.
 
@@ -92,25 +91,25 @@ def check_for_reasonable_output(
         model (torch.nn.Module): The model for which outputs are to be checked. Already loaded to device.
         input1 (torch.Tensor]): Tokenized input1 to check. Already loaded to device.
         input2 (torch.Tensor]): Tokenized input2 to check. Already loaded to device.
+        pad_token_id (int): Pad token id for the tokenizer used to generate inputs 1 and 2.
 
     Returns:
         bool: If the model generates reasonable outputs.
     """
     # Generate 30 tokens of output from the model for each prompt.
     output_length = 30
-    tokenizer = pt.model.get_tokenizer()
     # Only take the last 30 tokens since otherwise we also get the prompt ids.
     generate_id1s = model.generate(
         input1,
         min_new_tokens=output_length,
         max_new_tokens=output_length,
-        pad_token_id=tokenizer.eos_token_id,
+        pad_token_id=pad_token_id,
     )[:, -output_length:]
     generate_id2s = model.generate(
         input2,
         min_new_tokens=output_length,
         max_new_tokens=output_length,
-        pad_token_id=tokenizer.eos_token_id,
+        pad_token_id=pad_token_id,
     )[:, -output_length:]
 
     # Check if too many of the generated ids are the same between the two outputs.
@@ -140,7 +139,7 @@ def check_for_reasonable_output(
 
 
 def compute_losses(
-    model, batches: typing.List[torch.Tensor], device: str, sequence_length: int
+    model, batches: typing.List[torch.Tensor], device: str, pad_token_id: int
 ) -> typing.List[float]:
     """
     Computes the losses for a given model on provided batches.
@@ -149,7 +148,7 @@ def compute_losses(
         model (torch.nn.Module): The model for which losses are to be computed.
         batches (dict): A list of batches.
         device (str): The device to use for computation (e.g., 'cpu', 'gpu').
-        sequence_length: Sequence length to truncate batches to.
+        pad_token_id int: Pad token id for the tokenizer used to tokenize the batches.
 
     Returns:
         dict: A dictionary with page indices as keys and lists of loss values as values.
@@ -164,9 +163,9 @@ def compute_losses(
     falcon_token_inputs_2 = (batches[1][:, :prompt_length]).to(device)
 
     if not check_for_reasonable_output(
-        model, falcon_token_inputs_1, falcon_token_inputs_2
+        model, falcon_token_inputs_1, falcon_token_inputs_2, pad_token_id
     ):
-        return [math.inf for _ in batches]
+        return [math.inf for _ in range(len(batches))]
 
     # Everything looks good! Continue to computing actual losses.
 
@@ -174,10 +173,7 @@ def compute_losses(
     losses = []
     for batch in batches:
         try:
-            # Each batch is a tensor(1, max_sequence_length) from the falcon dataset loader.
-            # We truncate the batch to the appropriate sequence length for the model here.
-            batch_truncated = batch[:, :sequence_length]
-            inputs = batch_truncated.to(device)
+            inputs = batch.to(device)
             logits = model(inputs).logits
 
             shift_logits = logits[..., :-1, :].contiguous()
