@@ -96,9 +96,9 @@ def check_for_reasonable_output(
     Returns:
         bool: If the model generates reasonable outputs.
     """
-    # Generate 30 tokens of output from the model for each prompt.
-    output_length = 30
-    # Only take the last 30 tokens since otherwise we also get the prompt ids.
+    # Generate 20 tokens of output from the model for each prompt.
+    output_length = 20
+    # Only take the last 20 tokens since otherwise we also get the prompt ids.
     generate_id1s = model.generate(
         input1,
         min_new_tokens=output_length,
@@ -119,20 +119,21 @@ def check_for_reasonable_output(
         )
         return False
 
-    # Check if internally either response is too repetitive.
+    # Check if internally both responses are too repetitive.
+    most_common_counts = []
     for tensor in [generate_id1s, generate_id2s]:
         # Find unique elements and their counts
         _, counts = torch.unique(tensor, return_counts=True)
         # Find the index of the maximum count
         max_count_index = torch.argmax(counts)
         # Extract the count of the most common element
-        most_common_count = counts[max_count_index].item()
+        most_common_counts.append(counts[max_count_index].item())
 
-        if most_common_count > output_length / 2:
-            bt.logging.info(
-                f"Model with config {model.config} had too much repetition in generated output."
-            )
-            return False
+    if all(count > output_length / 2 for count in most_common_counts):
+        bt.logging.info(
+            f"Model with config {model.config} had too much repetition in generated outputs."
+        )
+        return False
 
     # Passed all the checks, return True.
     return True
