@@ -235,14 +235,7 @@ class Validator:
                     f"Failed to load model tracker state. Reason: {e}. Starting from scratch."
                 )
 
-        # Initialize the UIDs to eval. Need to include all tracked models in the case we can't load state.
-        hotkeys = self.model_tracker.get_miner_hotkey_to_model_metadata_dict().keys()
-        uids = []
-        for hotkey in hotkeys:
-            if hotkey in self.metagraph.hotkeys:
-                uids.append(self.metagraph.hotkeys.index(hotkey))
-        self.uids_to_eval = set(uids)
-
+        # Initialize the UIDs to eval.
         if not os.path.exists(self.uids_filepath):
             bt.logging.warning("No uids state file found. Starting from scratch.")
         else:
@@ -254,6 +247,8 @@ class Validator:
                 bt.logging.warning(
                     f"Failed to load uids to eval state. Reason: {e}. Starting from scratch."
                 )
+                # We also need to wipe the tracker state in this case to ensure we re-evaluate all the models.
+                self.model_tracker = ModelTracker()
 
         # Setup a miner iterator to ensure we update all miners.
         # This subnet does not differentiate between miner and validators so this is passed all uids.
