@@ -249,6 +249,11 @@ class Validator:
                 )
                 # We also need to wipe the tracker state in this case to ensure we re-evaluate all the models.
                 self.model_tracker = ModelTracker()
+                if os.path.exists(self.tracker_filepath):
+                    bt.logging.warning(
+                        f"Because the uids to eval state failed to load, deleting tracker state at {self.tracker_filepath} so everything is re-evaluated."
+                    )
+                    os.remove(self.tracker_filepath)
 
         # Setup a miner iterator to ensure we update all miners.
         # This subnet does not differentiate between miner and validators so this is passed all uids.
