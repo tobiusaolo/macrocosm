@@ -118,6 +118,8 @@ async def test_retrieve_multiple_models_for_hotkey():
 
 if __name__ == "__main__":
     asyncio.run(test_retrieve_model())
+    # Test redownloading a model from cache.
+    asyncio.run(test_retrieve_model())
     asyncio.run(test_roundtrip_model())
     asyncio.run(test_retrieve_oversized_model())
     asyncio.run(test_retrieve_multiple_models_for_hotkey())
