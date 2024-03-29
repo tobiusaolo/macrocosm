@@ -228,7 +228,12 @@ class Validator:
         if not os.path.exists(self.tracker_filepath):
             bt.logging.warning("No tracker state file found. Starting from scratch.")
         else:
-            self.model_tracker.load_state(self.tracker_filepath)
+            try:
+                self.model_tracker.load_state(self.tracker_filepath)
+            except Exception as e:
+                bt.logging.warning(
+                    f"Failed to load model tracker state. Reason: {e}. Starting from scratch."
+                )
 
         # Initialize the UIDs to eval.
         if not os.path.exists(self.uids_filepath):
