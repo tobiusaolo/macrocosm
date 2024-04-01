@@ -362,6 +362,8 @@ class Validator:
         uid_last_checked_sequential = dict()
         # Track how recently we updated each uid from incentives.
         uid_last_checked_incentive = dict()
+        # Track how recently we retried a model with incentive we've already dropped.
+        uid_last_retried_evaluation = dict()
 
         # The below loop iterates across all miner uids and checks to see
         # if they should be updated.
@@ -443,18 +445,38 @@ class Validator:
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
                 updated = asyncio.run(self.model_updater.sync_model(hotkey))
 
-                if updated:
-                    bt.logging.trace(
-                        f"Updated model for UID={next_uid}. Was new = {updated}"
-                    )
-
-                # Ensure we eval the new model on the next loop.
-                if updated:
-                    with self.pending_uids_to_eval_lock:
+                with self.pending_uids_to_eval_lock:
+                    # If the UID was updated we always want to include it in the next batch.
+                    if updated:
                         self.pending_uids_to_eval.add(next_uid)
                         bt.logging.debug(
                             f"Found a new model for UID={next_uid}. It will be evaluated on the next loop."
                         )
+                    # Else if the UID has incentive and we aren't already evaluating it, then include in next batch.
+                    # This code path should only be reached when this validator has discarded a model with 0 (local) incentive
+                    # but the chain as a whole still has incentive for the model. In this case we retry periodically.
+                    elif (
+                        incentives[next_uid].item()
+                        > constants.update_priority_incentive_threshold
+                        and next_uid not in self.uids_to_eval
+                    ):
+                        # We can only get here as often as we check for updates to top models and the regular loop.
+                        # However we do not want to retry models we've already discarded too often, so use a slower cadence.
+                        time_diff = (
+                            dt.datetime.now() - uid_last_retried_evaluation[uid]
+                            if uid in uid_last_retried_evaluation
+                            else constants.model_retry_cadence  # Default to being stale enough to check again.
+                        )
+                        if (
+                            time_diff >= constants.model_retry_cadence
+                            and next_uid
+                            not in self.pending_uids_to_eval  # Although set, avoid duplicate logs and timestamp updates.
+                        ):
+                            self.pending_uids_to_eval.add(next_uid)
+                            bt.logging.debug(
+                                f"Retrying evaluation for previously discarded model with incentive for UID={next_uid}."
+                            )
+                            uid_last_retried_evaluation[uid] = dt.datetime.now()
 
             except Exception as e:
                 bt.logging.error(
@@ -744,7 +766,8 @@ class Validator:
         # Then for the unweighted models, prioritize by win_rate.
         model_prioritization = {
             uid: (
-                1 + self.weights[uid].item() # Add 1 to ensure it is always greater than a win rate.
+                # Add 1 to ensure it is always greater than a win rate.
+                1 + self.weights[uid].item()
                 if self.weights[uid].item() >= 0.001
                 else wr
             )
