@@ -238,18 +238,22 @@ class Validator:
         # Initialize the UIDs to eval.
         if not os.path.exists(self.uids_filepath):
             bt.logging.warning("No uids state file found. Starting from scratch.")
-            hotkeys = (
-                self.model_tracker.get_miner_hotkey_to_model_metadata_dict().keys()
-            )
-            uids = []
-            for hotkey in hotkeys:
-                if hotkey in self.metagraph.hotkeys:
-                    uids.append(self.metagraph.hotkeys.index(hotkey))
-            self.uids_to_eval = set(uids)
         else:
-            with open(self.uids_filepath, "rb") as f:
-                self.uids_to_eval = pickle.load(f)
-                self.pending_uids_to_eval = pickle.load(f)
+            try:
+                with open(self.uids_filepath, "rb") as f:
+                    self.uids_to_eval = pickle.load(f)
+                    self.pending_uids_to_eval = pickle.load(f)
+            except Exception as e:
+                bt.logging.warning(
+                    f"Failed to load uids to eval state. Reason: {e}. Starting from scratch."
+                )
+                # We also need to wipe the tracker state in this case to ensure we re-evaluate all the models.
+                self.model_tracker = ModelTracker()
+                if os.path.exists(self.tracker_filepath):
+                    bt.logging.warning(
+                        f"Because the uids to eval state failed to load, deleting tracker state at {self.tracker_filepath} so everything is re-evaluated."
+                    )
+                    os.remove(self.tracker_filepath)
 
         # Setup a miner iterator to ensure we update all miners.
         # This subnet does not differentiate between miner and validators so this is passed all uids.
