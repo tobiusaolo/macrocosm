@@ -228,23 +228,32 @@ class Validator:
         if not os.path.exists(self.tracker_filepath):
             bt.logging.warning("No tracker state file found. Starting from scratch.")
         else:
-            self.model_tracker.load_state(self.tracker_filepath)
+            try:
+                self.model_tracker.load_state(self.tracker_filepath)
+            except Exception as e:
+                bt.logging.warning(
+                    f"Failed to load model tracker state. Reason: {e}. Starting from scratch."
+                )
 
         # Initialize the UIDs to eval.
         if not os.path.exists(self.uids_filepath):
             bt.logging.warning("No uids state file found. Starting from scratch.")
-            hotkeys = (
-                self.model_tracker.get_miner_hotkey_to_model_metadata_dict().keys()
-            )
-            uids = []
-            for hotkey in hotkeys:
-                if hotkey in self.metagraph.hotkeys:
-                    uids.append(self.metagraph.hotkeys.index(hotkey))
-            self.uids_to_eval = set(uids)
         else:
-            with open(self.uids_filepath, "rb") as f:
-                self.uids_to_eval = pickle.load(f)
-                self.pending_uids_to_eval = pickle.load(f)
+            try:
+                with open(self.uids_filepath, "rb") as f:
+                    self.uids_to_eval = pickle.load(f)
+                    self.pending_uids_to_eval = pickle.load(f)
+            except Exception as e:
+                bt.logging.warning(
+                    f"Failed to load uids to eval state. Reason: {e}. Starting from scratch."
+                )
+                # We also need to wipe the tracker state in this case to ensure we re-evaluate all the models.
+                self.model_tracker = ModelTracker()
+                if os.path.exists(self.tracker_filepath):
+                    bt.logging.warning(
+                        f"Because the uids to eval state failed to load, deleting tracker state at {self.tracker_filepath} so everything is re-evaluated."
+                    )
+                    os.remove(self.tracker_filepath)
 
         # Setup a miner iterator to ensure we update all miners.
         # This subnet does not differentiate between miner and validators so this is passed all uids.
@@ -353,6 +362,8 @@ class Validator:
         uid_last_checked_sequential = dict()
         # Track how recently we updated each uid from incentives.
         uid_last_checked_incentive = dict()
+        # Track how recently we retried a model with incentive we've already dropped.
+        uid_last_retried_evaluation = dict()
 
         # The below loop iterates across all miner uids and checks to see
         # if they should be updated.
@@ -434,18 +445,38 @@ class Validator:
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
                 updated = asyncio.run(self.model_updater.sync_model(hotkey))
 
-                if updated:
-                    bt.logging.trace(
-                        f"Updated model for UID={next_uid}. Was new = {updated}"
-                    )
-
-                # Ensure we eval the new model on the next loop.
-                if updated:
-                    with self.pending_uids_to_eval_lock:
+                with self.pending_uids_to_eval_lock:
+                    # If the UID was updated we always want to include it in the next batch.
+                    if updated:
                         self.pending_uids_to_eval.add(next_uid)
                         bt.logging.debug(
                             f"Found a new model for UID={next_uid}. It will be evaluated on the next loop."
                         )
+                    # Else if the UID has incentive and we aren't already evaluating it, then include in next batch.
+                    # This code path should only be reached when this validator has discarded a model with 0 (local) incentive
+                    # but the chain as a whole still has incentive for the model. In this case we retry periodically.
+                    elif (
+                        incentives[next_uid].item()
+                        > constants.update_priority_incentive_threshold
+                        and next_uid not in self.uids_to_eval
+                    ):
+                        # We can only get here as often as we check for updates to top models and the regular loop.
+                        # However we do not want to retry models we've already discarded too often, so use a slower cadence.
+                        time_diff = (
+                            dt.datetime.now() - uid_last_retried_evaluation[uid]
+                            if uid in uid_last_retried_evaluation
+                            else constants.model_retry_cadence  # Default to being stale enough to check again.
+                        )
+                        if (
+                            time_diff >= constants.model_retry_cadence
+                            and next_uid
+                            not in self.pending_uids_to_eval  # Although set, avoid duplicate logs and timestamp updates.
+                        ):
+                            self.pending_uids_to_eval.add(next_uid)
+                            bt.logging.debug(
+                                f"Retrying evaluation for previously discarded model with incentive for UID={next_uid}."
+                            )
+                            uid_last_retried_evaluation[uid] = dt.datetime.now()
 
             except Exception as e:
                 bt.logging.error(
@@ -730,16 +761,21 @@ class Validator:
         )
         self.weights = self.weights.nan_to_num(0.0)
 
-        # Filter based on win rate removing all by the sample_min best models for evaluation.
-        # First remove any models that have an infinite loss and 0 weight.
-        filtered_win_rate = {
-            uid: wr
+        # Prioritize models for keeping up to the sample_min for the next eval loop.
+        # If the model has any significant weight, prioritize by weight with greater weights being kept first.
+        # Then for the unweighted models, prioritize by win_rate.
+        model_prioritization = {
+            uid: (
+                # Add 1 to ensure it is always greater than a win rate.
+                1 + self.weights[uid].item()
+                if self.weights[uid].item() >= 0.001
+                else wr
+            )
             for uid, wr in win_rate.items()
-            if not all(math.isinf(x) for x in losses_per_uid.get(uid, [math.inf]))
-            or self.weights[uid] > 0
         }
+
         self.uids_to_eval = set(
-            sorted(filtered_win_rate, key=filtered_win_rate.get, reverse=True)[
+            sorted(model_prioritization, key=model_prioritization.get, reverse=True)[
                 : self.config.sample_min
             ]
         )
