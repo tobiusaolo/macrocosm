@@ -42,8 +42,8 @@ def get_config():
     )
     parser.add_argument(
         "--upload_b16",
-        action="store_true",  # Currently defaults to false. Flip post 7b block.
-        help="If provided, upload the model using bfloat16.",
+        action="store_false",  # Defaults to True.
+        help="If true, upload the model using bfloat16.",
     )
     parser.add_argument(
         "--netuid",
