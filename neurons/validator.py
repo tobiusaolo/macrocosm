@@ -60,6 +60,7 @@ class Validator:
 
     @staticmethod
     def config():
+        """Add argument parser for the validator."""
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "--device",
@@ -298,6 +299,7 @@ class Validator:
 
     def new_wandb_run(self):
         """Creates a new wandb run to save information to."""
+        
         # Create a unique run id for this run.
         run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         name = "validator-" + str(self.uid) + "-" + run_id
@@ -319,6 +321,7 @@ class Validator:
 
     def maybe_migrate_state_files(self):
         """Performs a one-time migration of the state files from the old path to the new path."""
+        
         if utils.move_file_if_exists(
             os.path.join(self.state_path_old(), Validator.UIDS_FILENAME),
             self.uids_filepath,
@@ -358,6 +361,8 @@ class Validator:
         self.model_tracker.save_state(self.tracker_filepath)
 
     def update_models(self):
+        """Updates the models in the local store based on the latest metadata from the chain."""
+
         # Track how recently we updated each uid from sequential iteration.
         uid_last_checked_sequential = dict()
         # Track how recently we updated each uid from incentives.
@@ -486,6 +491,8 @@ class Validator:
         bt.logging.info("Exiting update models loop.")
 
     def clean_models(self):
+        """Cleans up models that are no longer referenced."""
+        
         # Delay the clean-up thread until the update loop has had time to run one full pass after an upgrade.
         # This helps prevent unnecessarily deleting a model which is on disk, but hasn't yet been re-added to the
         # model tracker by the update loop.
@@ -535,6 +542,8 @@ class Validator:
         bt.logging.info("Exiting clean models loop.")
 
     async def try_set_weights(self, ttl: int):
+        """Sets the weights on the chain with ttl, without raising exceptions if it times out."""
+        
         async def _try_set_weights():
             try:
                 self.weights.nan_to_num(0.0)
@@ -566,6 +575,8 @@ class Validator:
             bt.logging.error(f"Failed to set weights after {ttl} seconds")
 
     async def try_sync_metagraph(self, ttl: int):
+        """Syncs the metagraph with ttl in a background process, without raising exceptions if it times out."""
+        
         def sync_metagraph(endpoint):
             metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid)
             metagraph.save()
@@ -588,6 +599,7 @@ class Validator:
             self.model_tracker.on_hotkeys_updated(set(self.metagraph.hotkeys))
 
     async def try_run_step(self, ttl: int):
+        """Runs a step with ttl in a background process, without raising exceptions if it times out."""
         async def _try_run_step():
             await self.run_step()
 
@@ -601,13 +613,13 @@ class Validator:
     async def run_step(self):
         """
         Executes a step in the evaluation process of models. This function performs several key tasks:
-        1. Identifies valid models for evaluation (top 30 from last run + newly updated models).
-        2. Generates random pages for evaluation and prepares batches for each page from the dataset.
-        3. Computes the scoring for each model based on the losses incurred on the evaluation batches.
-        4. Calculates wins and win rates for each model to determine their performance relative to others.
-        5. Updates the weights of each model based on their performance and applies a softmax normalization.
-        6. Implements a blacklist mechanism to remove underperforming models from the evaluation set.
-        7. Logs all relevant data for the step, including model IDs, pages, batches, wins, win rates, and losses.
+            1. Identifies valid models for evaluation (top 30 from last run + newly updated models).
+            2. Generates random pages for evaluation and prepares batches for each page from the dataset.
+            3. Computes the scoring for each model based on the losses incurred on the evaluation batches.
+            4. Calculates wins and win rates for each model to determine their performance relative to others.
+            5. Updates the weights of each model based on their performance and applies a softmax normalization.
+            6. Implements a blacklist mechanism to remove underperforming models from the evaluation set.
+            7. Logs all relevant data for the step, including model IDs, pages, batches, wins, win rates, and losses.
         """
 
         # Add uids with newly updated models to the upcoming batch of evaluations.
@@ -811,6 +823,7 @@ class Validator:
         load_model_perf_str,
         compute_loss_perf_str,
     ):
+        """Logs the results of the step to the console and wandb (if enabled)."""
         # Build step log
         step_log = {
             "timestamp": time.time(),
@@ -896,6 +909,7 @@ class Validator:
             )
 
     async def run(self):
+        """Runs the validator loop, which continuously evaluates models and sets weights."""
         while True:
             try:
                 while (
