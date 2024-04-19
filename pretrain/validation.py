@@ -172,23 +172,24 @@ def compute_losses(
 
     # Iterate over each page and corresponding batches
     losses = []
-    for batch in batches:
-        try:
-            inputs = batch.to(device)
-            logits = model(inputs).logits
+    with torch.no_grad():
+        for batch in batches:
+            try:
+                inputs = batch.to(device)
+                logits = model(inputs).logits
 
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = inputs[..., 1:].contiguous()
-            # Flatten the tokens
-            loss_fct = torch.nn.CrossEntropyLoss()
-            shift_logits = shift_logits.view(-1, model.config.vocab_size)
-            shift_labels = shift_labels.view(-1)
-            loss = loss_fct(shift_logits, shift_labels).item()
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = inputs[..., 1:].contiguous()
+                # Flatten the tokens
+                loss_fct = torch.nn.CrossEntropyLoss()
+                shift_logits = shift_logits.view(-1, model.config.vocab_size)
+                shift_labels = shift_labels.view(-1)
+                loss = loss_fct(shift_logits, shift_labels).item()
 
-            losses.append(loss)
-        except Exception as e:
-            bt.logging.error(f"Exception occurred: {e}")
-            traceback.print_exc()  # Print the stack trace
-            losses.append(math.inf)  # Use infinity to indicate failure
+                losses.append(loss)
+            except Exception as e:
+                bt.logging.error(f"Exception occurred: {e}")
+                traceback.print_exc()  # Print the stack trace
+                losses.append(math.inf)  # Use infinity to indicate failure
 
     return losses
