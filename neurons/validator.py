@@ -17,6 +17,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 from collections import defaultdict
+import copy
 import datetime as dt
 import functools
 import os
@@ -299,7 +300,7 @@ class Validator:
 
     def new_wandb_run(self):
         """Creates a new wandb run to save information to."""
-        
+
         # Create a unique run id for this run.
         run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         name = "validator-" + str(self.uid) + "-" + run_id
@@ -321,7 +322,7 @@ class Validator:
 
     def maybe_migrate_state_files(self):
         """Performs a one-time migration of the state files from the old path to the new path."""
-        
+
         if utils.move_file_if_exists(
             os.path.join(self.state_path_old(), Validator.UIDS_FILENAME),
             self.uids_filepath,
@@ -365,8 +366,8 @@ class Validator:
 
         # Track how recently we updated each uid from sequential iteration.
         uid_last_checked_sequential = dict()
-        # Track how recently we updated each uid from incentives.
-        uid_last_checked_incentive = dict()
+        # Track how recently we checked the list of top models.
+        last_checked_top_models_time = None
         # Track how recently we retried a model with incentive we've already dropped.
         uid_last_retried_evaluation = dict()
 
@@ -374,7 +375,53 @@ class Validator:
         # if they should be updated.
         while not self.stop_event.is_set():
             try:
-                # Limit the number of pending uids, waiting for the eval loop to process them.
+                # At most once per `chain_update_cadence`, check which models are being assigned weight by
+                # the top validators and ensure they'll be evaluated soon.
+                if (
+                    not last_checked_top_models_time
+                    or dt.datetime.now() - last_checked_top_models_time
+                    > constants.chain_update_cadence
+                ):
+                    last_checked_top_models_time = dt.datetime.now()
+                    with self.metagraph_lock:
+                        metagraph = copy.deepcopy(self.metagraph)
+
+                    # Find any miner UIDs which top valis are assigning weight and aren't currently scheduled for an eval.
+                    top_miner_uids = set(utils.list_top_models(metagraph))
+                    with self.pending_uids_to_eval_lock:
+                        uids_to_add = (
+                            top_miner_uids
+                            - self.uids_to_eval
+                            - self.pending_uids_to_eval
+                        )
+
+                    for uid in uids_to_add:
+                        # Limit how often we'll retry these top models.
+                        time_diff = (
+                            dt.datetime.now() - uid_last_retried_evaluation[uid]
+                            if uid in uid_last_retried_evaluation
+                            else constants.model_retry_cadence  # Default to being stale enough to check again.
+                        )
+                        if time_diff >= constants.model_retry_cadence:
+                            try:
+                                uid_last_retried_evaluation[uid] = dt.datetime.now()
+
+                                # Redownload this model and schedule it for eval.
+                                hotkey = metagraph.hotkeys[uid]
+                                asyncio.run(
+                                    self.model_updater.sync_model(hotkey, force=True)
+                                )
+                                self.pending_uids_to_eval.add(uid)
+                                bt.logging.debug(
+                                    f"Retrying evaluation for previously discarded model with incentive for UID={uid}."
+                                )
+                            except Exception:
+                                bt.logging.debug(
+                                    f"Failure in update loop for UID={uid} during top model check. {traceback.format_exc()}"
+                                )
+
+                # Top model check complete. Now continue with the sequential iterator to check for the next miner
+                # to update.
                 pending_uid_count = 0
                 current_uid_count = 0
                 with self.pending_uids_to_eval_lock:
@@ -385,7 +432,7 @@ class Validator:
                 while pending_uid_count + current_uid_count >= self.config.sample_max:
                     # Wait 5 minutes for the eval loop to process them.
                     bt.logging.info(
-                        f"Update loop: Already {self.config.sample_max} synced models pending eval. Checking again in 5 minutes."
+                        f"Update loop: Already {pending_uid_count + current_uid_count} synced models pending eval. Checking again in 5 minutes."
                     )
                     time.sleep(300)
                     # Check to see if the pending uids have been cleared yet.
@@ -393,99 +440,41 @@ class Validator:
                         pending_uid_count = len(self.pending_uids_to_eval)
                         current_uid_count = len(self.uids_to_eval)
 
-                # Get the next uid to check.
-                next_uid = None
-                # Force sync only if we are retrying due to a model with incentive.
-                force_sync = False
+                # We have space to add more models for eval. Process the next UID.
+                next_uid = next(self.miner_iterator)
 
-                # First check for any uids with incentives above threshold on the chain.
-                # This will catch updates to current best models and models other valis have incentivized faster.
-                with self.metagraph_lock:
-                    incentives = self.metagraph.I
-
-                for uid, incentive in enumerate(incentives):
-                    # Use .item() to get the number value since this is a tensor.
-                    if (
-                        incentive.item()
-                        >= constants.update_priority_incentive_threshold
-                    ):
-                        # Confirm that we haven't checked it within the chain update cadence in this path.
-                        time_diff = (
-                            dt.datetime.now() - uid_last_checked_incentive[uid]
-                            if uid in uid_last_checked_incentive
-                            else constants.chain_update_cadence  # Default to being stale enough to check again.
-                        )
-                        if time_diff >= constants.chain_update_cadence:
-                            # Check this uid next and update that we have checked it in this path..
-                            next_uid = uid
-                            force_sync = True
-                            uid_last_checked_incentive[uid] = dt.datetime.now()
-                            break
-
-                # Then iterate sequentially for new models.
-                # In this case if we have seen the uid in chain update cadence we have seen all of them and should wait.
-                if next_uid is None:
-                    next_uid = next(self.miner_iterator)
-
-                    # Confirm that we haven't checked it in the chain update cadence
-                    time_diff = (
-                        dt.datetime.now() - uid_last_checked_sequential[next_uid]
-                        if next_uid in uid_last_checked_sequential
-                        else None
+                # Confirm that we haven't already checked it in the chain update cadence.
+                time_diff = (
+                    dt.datetime.now() - uid_last_checked_sequential[next_uid]
+                    if next_uid in uid_last_checked_sequential
+                    else None
+                )
+                if time_diff and time_diff < constants.chain_update_cadence:
+                    # If we have seen it within chain update cadence then sleep until it has been at least that long.
+                    time_to_sleep = (
+                        constants.chain_update_cadence - time_diff
+                    ).total_seconds()
+                    bt.logging.trace(
+                        f"Update loop has already processed all UIDs in the last {constants.chain_update_cadence}. Sleeping {time_to_sleep} seconds."
                     )
+                    time.sleep(time_to_sleep)
 
-                    if time_diff and time_diff < constants.chain_update_cadence:
-                        # If we have seen it within chain update cadence then sleep until it has been at least that long.
-                        time_to_sleep = (
-                            constants.chain_update_cadence - time_diff
-                        ).total_seconds()
-                        bt.logging.trace(
-                            f"Update loop has already processed all UIDs in the last {constants.chain_update_cadence}. Sleeping {time_to_sleep} seconds."
-                        )
-                        time.sleep(time_to_sleep)
-
-                    uid_last_checked_sequential[next_uid] = dt.datetime.now()
+                uid_last_checked_sequential[next_uid] = dt.datetime.now()
 
                 # Get their hotkey from the metagraph.
                 with self.metagraph_lock:
                     hotkey = self.metagraph.hotkeys[next_uid]
 
-                # Compare metadata and tracker, syncing new model from remote store to local if necessary.
-                updated = asyncio.run(self.model_updater.sync_model(hotkey, force_sync))
-
-                with self.pending_uids_to_eval_lock:
-                    # If the UID was updated we always want to include it in the next batch.
-                    if updated:
+                # Sync the model, if necessary.
+                updated = asyncio.run(
+                    self.model_updater.sync_model(hotkey, force=False)
+                )
+                if updated:
+                    with self.pending_uids_to_eval_lock:
                         self.pending_uids_to_eval.add(next_uid)
                         bt.logging.debug(
                             f"Found a new model for UID={next_uid}. It will be evaluated on the next loop."
                         )
-                    # Else if the UID has incentive and we aren't already evaluating it, then include in next batch.
-                    # This code path should only be reached when this validator has discarded a model with 0 (local) incentive
-                    # but the chain as a whole still has incentive for the model. In this case we retry periodically.
-                    elif (
-                        incentives[next_uid].item()
-                        > constants.update_priority_incentive_threshold
-                        and next_uid not in self.uids_to_eval
-                    ):
-                        # We can only get here as often as we check for updates to top models and the regular loop.
-                        # However we do not want to retry models we've already discarded too often, so use a slower cadence.
-                        time_diff = (
-                            dt.datetime.now() - uid_last_retried_evaluation[next_uid]
-                            if next_uid in uid_last_retried_evaluation
-                            else constants.model_retry_cadence  # Default to being stale enough to check again.
-                        )
-                        if (
-                            time_diff >= constants.model_retry_cadence
-                            and next_uid
-                            not in self.pending_uids_to_eval  # Although set, avoid duplicate logs and timestamp updates.
-                        ):
-                            self.pending_uids_to_eval.add(next_uid)
-                            bt.logging.debug(
-                                f"Retrying evaluation for previously discarded model with incentive for UID={next_uid}."
-                            )
-                            uid_last_retried_evaluation[next_uid] = dt.datetime.now()
-
             except Exception as e:
                 bt.logging.error(
                     f"Error in update loop: {e} \n {traceback.format_exc()}"
@@ -495,7 +484,7 @@ class Validator:
 
     def clean_models(self):
         """Cleans up models that are no longer referenced."""
-        
+
         # Delay the clean-up thread until the update loop has had time to run one full pass after an upgrade.
         # This helps prevent unnecessarily deleting a model which is on disk, but hasn't yet been re-added to the
         # model tracker by the update loop.
@@ -546,7 +535,7 @@ class Validator:
 
     async def try_set_weights(self, ttl: int):
         """Sets the weights on the chain with ttl, without raising exceptions if it times out."""
-        
+
         async def _try_set_weights():
             try:
                 self.weights.nan_to_num(0.0)
@@ -579,7 +568,7 @@ class Validator:
 
     async def try_sync_metagraph(self, ttl: int):
         """Syncs the metagraph with ttl in a background process, without raising exceptions if it times out."""
-        
+
         def sync_metagraph(endpoint):
             metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid)
             metagraph.save()
@@ -603,6 +592,7 @@ class Validator:
 
     async def try_run_step(self, ttl: int):
         """Runs a step with ttl in a background process, without raising exceptions if it times out."""
+
         async def _try_run_step():
             await self.run_step()
 

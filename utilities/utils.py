@@ -1,7 +1,7 @@
 import functools
 import multiprocessing
 import os
-from typing import Any, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 import bittensor as bt
 
 from model.data import ModelId, ModelMetadata
@@ -130,3 +130,45 @@ def move_file_if_exists(src: str, dst: str) -> bool:
         os.replace(src, dst)
         return True
     return False
+
+
+def list_top_models(metagraph: bt.metagraph) -> List[int]:
+    """Returns the list of top models, chosen based on weights set on the largest valis."""
+
+    top_miners = set()
+
+    # Find the top 10 valis by stake.
+    valis_by_stake = get_top_valis(metagraph, 10)
+
+    # For each, find the miner that has more than 50% of the weights.
+    for uid in valis_by_stake:
+        # Weights is a list of (uid, weight) pairs
+        weights: List[Tuple[int, float]] = metagraph.neurons[uid].weights
+        total_weight = sum(weight for _, weight in weights)
+
+        # Only look for miners with at least half the weight from this vali
+        threshold = total_weight / 2.0
+        for uid, weight in weights:
+            if weight > threshold:
+                top_miners.add(uid)
+                # Break now because only 1 miner can have more than half the weight.
+                break
+
+    return list(top_miners)
+
+
+def get_top_valis(metagraph: bt.metagraph, n: int) -> List[int]:
+    """Returns the N top validators, ordered by stake descending.
+
+    Returns:
+      List[int]: Ordered list of UIDs of the top N validators, or all validators if N is greater than the number of validators.
+    """
+    valis = []
+    for uid, stake in enumerate(metagraph.S):
+        # Use vPermit to check for validators rather than vTrust because we'd rather
+        # cast a wide net in the case that vTrust is 0 due to an unhealthy state of the
+        # subnet.
+        if metagraph.validator_permit[uid]:
+            valis.append((stake, uid))
+
+    return [uid for _, uid in sorted(valis, reverse=True)[:n]]
