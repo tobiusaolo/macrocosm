@@ -26,7 +26,7 @@ import traceback
 import bittensor as bt
 
 
-def iswin(loss_i, loss_j, block_i, block_j):
+def iswin(loss_i, loss_j, block_i, block_j) -> bool:
     """
     Determines the winner between two models based on the epsilon adjusted loss.
 
@@ -49,7 +49,7 @@ def compute_wins(
     losses_per_uid: typing.Dict[int, typing.List[float]],
     batches: typing.List[torch.FloatTensor],
     uid_to_block: typing.Dict[int, int],
-):
+) -> typing.Tuple[typing.Dict[int, int], typing.Dict[int, float]]:
     """
     Computes the wins and win rate for each model based on loss comparison.
 
@@ -152,7 +152,7 @@ def compute_losses(
         pad_token_id int: Pad token id for the tokenizer used to tokenize the batches.
 
     Returns:
-        dict: A dictionary with page indices as keys and lists of loss values as values.
+        list: A list of losses for each batch.
     """
     model.to(device)
     model.eval()
