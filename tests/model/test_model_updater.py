@@ -94,6 +94,47 @@ class TestModelUpdater(unittest.TestCase):
             model_metadata,
         )
 
+    def test_sync_model_same_metadata_force(self):
+        hotkey = "test_hotkey"
+        model_id = ModelId(
+            namespace="test_model",
+            name="test_name",
+            hash="test_hash",
+            commit="test_commit",
+        )
+        model_metadata = ModelMetadata(id=model_id, block=1)
+
+        # Make a small enough model to pass lowest parameter count.
+        config = GPT2Config(
+            n_head=10,
+            n_layer=12,
+            n_embd=760,
+        )
+        pt_model = GPT2LMHeadModel(config)
+
+        model = Model(id=model_id, pt_model=pt_model)
+
+        # Setup the metadata, local, and model_tracker to match.
+        asyncio.run(
+            self.metadata_store.store_model_metadata_exact(hotkey, model_metadata)
+        )
+        self.local_store.store_model(hotkey, model)
+        # Also setup remote store for redownload.
+        asyncio.run(self.remote_store.upload_model(model))
+
+        self.model_tracker.on_miner_model_updated(hotkey, model_metadata)
+
+        updated = asyncio.run(self.model_updater.sync_model(hotkey, force=True))
+
+        # Tracker information did not change.
+        self.assertEqual(
+            self.model_tracker.get_model_metadata_for_miner_hotkey(hotkey),
+            model_metadata,
+        )
+
+        # We did return updated from the sync_model.
+        self.assertTrue(updated)
+
     def test_sync_model_new_metadata(self):
         hotkey = "test_hotkey"
         model_id = ModelId(

@@ -388,8 +388,10 @@ class Validator:
                         pending_uid_count = len(self.pending_uids_to_eval)
                         current_uid_count = len(self.uids_to_eval)
 
-                # Get the next uid to check
+                # Get the next uid to check.
                 next_uid = None
+                # Force sync only if we are retrying due to a model with incentive.
+                force_sync = False
 
                 # First check for any uids with incentives above threshold on the chain.
                 # This will catch updates to current best models and models other valis have incentivized faster.
@@ -411,6 +413,7 @@ class Validator:
                         if time_diff >= constants.chain_update_cadence:
                             # Check this uid next and update that we have checked it in this path..
                             next_uid = uid
+                            force_sync = True
                             uid_last_checked_incentive[uid] = dt.datetime.now()
                             break
 
@@ -443,7 +446,7 @@ class Validator:
                     hotkey = self.metagraph.hotkeys[next_uid]
 
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
-                updated = asyncio.run(self.model_updater.sync_model(hotkey))
+                updated = asyncio.run(self.model_updater.sync_model(hotkey, force_sync))
 
                 with self.pending_uids_to_eval_lock:
                     # If the UID was updated we always want to include it in the next batch.
@@ -463,8 +466,8 @@ class Validator:
                         # We can only get here as often as we check for updates to top models and the regular loop.
                         # However we do not want to retry models we've already discarded too often, so use a slower cadence.
                         time_diff = (
-                            dt.datetime.now() - uid_last_retried_evaluation[uid]
-                            if uid in uid_last_retried_evaluation
+                            dt.datetime.now() - uid_last_retried_evaluation[next_uid]
+                            if next_uid in uid_last_retried_evaluation
                             else constants.model_retry_cadence  # Default to being stale enough to check again.
                         )
                         if (
@@ -476,7 +479,7 @@ class Validator:
                             bt.logging.debug(
                                 f"Retrying evaluation for previously discarded model with incentive for UID={next_uid}."
                             )
-                            uid_last_retried_evaluation[uid] = dt.datetime.now()
+                            uid_last_retried_evaluation[next_uid] = dt.datetime.now()
 
             except Exception as e:
                 bt.logging.error(
