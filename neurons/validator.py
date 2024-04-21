@@ -387,7 +387,7 @@ class Validator:
                         metagraph = copy.deepcopy(self.metagraph)
 
                     # Find any miner UIDs which top valis are assigning weight and aren't currently scheduled for an eval.
-                    top_miner_uids = set(utils.list_top_models(metagraph))
+                    top_miner_uids = set(utils.list_top_miners(metagraph))
                     with self.pending_uids_to_eval_lock:
                         uids_to_add = (
                             top_miner_uids
