@@ -20,7 +20,9 @@ class FakeModelMetadataStore(ModelMetadataStore):
         if len(self.store_errors) > 0:
             raise self.store_errors.popleft()
 
-        model_metadata = ModelMetadata(id=model_id, block=self.current_block)
+        model_metadata = ModelMetadata(
+            id=model_id, block=self.current_block, extrinisic_index=0
+        )
         self.current_block += 1
 
         self.metadata[hotkey] = model_metadata

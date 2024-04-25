@@ -1,6 +1,7 @@
 import functools
 import multiprocessing
 import os
+import time
 from typing import Any, List, Optional, Tuple
 import bittensor as bt
 
@@ -172,3 +173,28 @@ def get_top_valis(metagraph: bt.metagraph, n: int) -> List[int]:
             valis.append((stake, uid))
 
     return [uid for _, uid in sorted(valis, reverse=True)[:n]]
+
+
+def run_with_retry(func, max_retries=3, delay_seconds=1, single_try_timeout=30):
+    """
+    Retry a function with constant backoff.
+
+    Parameters:
+    - func: The function to be retried.
+    - max_retries: Maximum number of retry attempts (default is 3).
+    - delay_seconds: Initial delay between retries in seconds (default is 1).
+
+    Returns:
+    - The result of the successful function execution.
+    - Raises the exception from the last attempt if all attempts fail.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            return func()
+        except Exception as e:
+            if attempt == max_retries:
+                # If it's the last attempt, raise the exception
+                raise e
+            # Wait before the next retry.
+            time.sleep(delay_seconds)
+    raise Exception("Unexpected state: Ran with retry but didn't hit a terminal state")
