@@ -80,7 +80,7 @@ class Validator:
         # Secondary archive subtensor to enable reading extrinsics of older blocks.
         self.archive_subtensor = bt.subtensor(network=self.config.archive_endpoint)
         self.dendrite = bt.dendrite(wallet=self.wallet)
-        self.metagraph = self.subtensor.metagraph(self.config.netuid)
+        self.metagraph = self.subtensor.metagraph(self.config.netuid, lite=False)
         torch.backends.cudnn.benchmark = True
 
         # Dont check registration status if offline.
@@ -462,7 +462,7 @@ class Validator:
         """Syncs the metagraph with ttl in a background process, without raising exceptions if it times out."""
 
         def sync_metagraph(endpoint):
-            metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid)
+            metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid, lite=False)
             metagraph.save()
 
         process = multiprocessing.Process(
