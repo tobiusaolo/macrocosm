@@ -69,7 +69,8 @@ class ChainModelMetadataStore(ModelMetadataStore):
             hotkey,
             block,
         )
-        return utils.run_in_subprocess(partial, 60)
+        subprocess_partial = functools.partial(utils.run_in_subprocess, partial, 60)
+        return utils.run_with_retry(subprocess_partial, single_try_timeout=65)
 
     async def store_model_metadata(self, hotkey: str, model_id: ModelId):
         """Stores model metadata on this subnet for a specific wallet."""
@@ -83,7 +84,8 @@ class ChainModelMetadataStore(ModelMetadataStore):
             self.subnet_uid,
             model_id.to_compressed_str(),
         )
-        utils.run_in_subprocess(partial, 60)
+        subprocess_partial = functools.partial(utils.run_in_subprocess, partial, 60)
+        utils.run_with_retry(subprocess_partial, single_try_timeout=65)
 
     async def retrieve_model_metadata(self, hotkey: str) -> Optional[ModelMetadata]:
         """Retrieves model metadata on this subnet for specific hotkey"""
@@ -92,8 +94,8 @@ class ChainModelMetadataStore(ModelMetadataStore):
         partial = functools.partial(
             bt.extrinsics.serving.get_metadata, self.subtensor, self.subnet_uid, hotkey
         )
-
-        metadata = utils.run_in_subprocess(partial, 60)
+        subprocess_partial = functools.partial(utils.run_in_subprocess, partial, 60)
+        metadata = utils.run_with_retry(subprocess_partial, single_try_timeout=65)
 
         if not metadata:
             return None
