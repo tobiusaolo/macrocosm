@@ -65,12 +65,6 @@ def validator_config():
         default=constants.SUBNET_UID,
         help="The subnet UID.",
     )
-    parser.add_argument(
-        "--archive_endpoint",
-        type=str,
-        default="archive",
-        help="Endpoint to a custom archive subtensor to use instead of a default.",
-    )
 
     bt.subtensor.add_args(parser)
     bt.logging.add_args(parser)

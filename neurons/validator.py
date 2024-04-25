@@ -77,8 +77,6 @@ class Validator:
         # === Bittensor objects ====
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
-        # Secondary archive subtensor to enable reading extrinsics of older blocks.
-        self.archive_subtensor = bt.subtensor(network=self.config.archive_endpoint)
         self.dendrite = bt.dendrite(wallet=self.wallet)
         self.metagraph = self.subtensor.metagraph(self.config.netuid)
         torch.backends.cudnn.benchmark = True
