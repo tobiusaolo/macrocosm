@@ -26,21 +26,21 @@ import traceback
 import bittensor as bt
 
 
-def iswin(loss_i, loss_j, i_earlier) -> bool:
+def iswin(loss_i, loss_j, block_i, block_j) -> bool:
     """
     Determines the winner between two models based on the epsilon adjusted loss.
 
     Parameters:
         loss_i (float): Loss of uid i on batch
         loss_j (float): Loss of uid j on batch.
-        i_earlier (bool): If uid i committed their model earlier than uid j.
-
+        block_i (int): Block of uid i.
+        block_j (int): Block of uid j.
     Returns:
         bool: True if loss i is better, False otherwise.
     """
     # Adjust loss based on timestamp and pretrain epsilon
-    loss_i = (1 - constants.timestamp_epsilon) * loss_i if i_earlier else loss_i
-    loss_j = (1 - constants.timestamp_epsilon) * loss_j if not i_earlier else loss_j
+    loss_i = (1 - constants.timestamp_epsilon) * loss_i if block_i < block_j else loss_i
+    loss_j = (1 - constants.timestamp_epsilon) * loss_j if block_j < block_i else loss_j
     return loss_i < loss_j
 
 
@@ -49,7 +49,6 @@ def compute_wins(
     losses_per_uid: typing.Dict[int, typing.List[float]],
     batches: typing.List[torch.FloatTensor],
     uid_to_block: typing.Dict[int, int],
-    uid_to_extrinsic_index: typing.Dict[int, int],
 ) -> typing.Tuple[typing.Dict[int, int], typing.Dict[int, float]]:
     """
     Computes the wins and win rate for each model based on loss comparison.
@@ -59,7 +58,6 @@ def compute_wins(
         losses_per_uid (dict): A dictionary of losses for each uid by batch.
         batches (List): A list of data batches.
         uid_to_block (dict): A dictionary of blocks for each uid.
-        uid_to_extrinsic_index (dict): A dictionary of extrinsic indices for each uid.
 
     Returns:
         tuple: A tuple containing two dictionaries, one for wins and one for win rates.
@@ -69,28 +67,14 @@ def compute_wins(
     for i, uid_i in enumerate(uids):
         total_matches = 0
         block_i = uid_to_block[uid_i]
-        extrinsic_index_i = uid_to_extrinsic_index[uid_i]
         for j, uid_j in enumerate(uids):
             if i == j:
                 continue
             block_j = uid_to_block[uid_j]
-            extrinsic_index_j = uid_to_extrinsic_index[uid_j]
             for batch_idx, _ in enumerate(batches):
                 loss_i = losses_per_uid[uid_i][batch_idx]
                 loss_j = losses_per_uid[uid_j][batch_idx]
-                # Check if i was committed at an earlier block / extrinsic index.
-                i_earlier = (block_i < block_j) or (
-                    block_i == block_j and extrinsic_index_i < extrinsic_index_j
-                )
-                wins[uid_i] += (
-                    1
-                    if iswin(
-                        loss_i,
-                        loss_j,
-                        i_earlier,
-                    )
-                    else 0
-                )
+                wins[uid_i] += 1 if iswin(loss_i, loss_j, block_i, block_j) else 0
                 total_matches += 1
         # Calculate win rate for uid i
         win_rate[uid_i] = wins[uid_i] / total_matches if total_matches > 0 else 0
