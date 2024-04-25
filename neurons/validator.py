@@ -77,8 +77,6 @@ class Validator:
         # === Bittensor objects ====
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
-        # Secondary archive subtensor to enable reading extrinsics of older blocks.
-        self.archive_subtensor = bt.subtensor(network=self.config.archive_endpoint)
         self.dendrite = bt.dendrite(wallet=self.wallet)
         self.metagraph = self.subtensor.metagraph(self.config.netuid)
         torch.backends.cudnn.benchmark = True
@@ -174,7 +172,7 @@ class Validator:
 
         # Setup a ModelMetadataStore
         self.metadata_store = ChainModelMetadataStore(
-            self.subtensor, self.wallet, self.config.netuid, self.archive_subtensor
+            self.subtensor, self.wallet, self.config.netuid
         )
 
         # Setup a RemoteModelStore
@@ -522,10 +520,9 @@ class Validator:
             time.sleep(300)
             return
 
-        # Keep track of which block and extrinsic index this uid last updated their model.
+        # Keep track of which block this uid last updated their model.
         # Default to an infinite block if we can't retrieve the metadata for the miner.
         uid_to_block = defaultdict(lambda: math.inf)
-        uid_to_extrinsic_index = defaultdict(lambda: math.inf)
 
         # Generate random pages for evaluation and prepare batches for each page
         # the dataset contains >900 million pages to eval over.
@@ -578,9 +575,8 @@ class Validator:
 
             if model_i_metadata != None:
                 try:
-                    # Update the block and extrinsic index this uid last updated their model.
+                    # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
-                    uid_to_extrinsic_index[uid_i] = model_i_metadata.extrinisic_index
                     # Get criteria to evaluate model with based on block.
                     criteria = model_utils.get_model_criteria(model_i_metadata.block)
                     # Use bfloat16 and flash attention optimization based on block.
@@ -639,7 +635,7 @@ class Validator:
 
         # Compute wins and win rates per uid.
         wins, win_rate = pt.validation.compute_wins(
-            uids, losses_per_uid, batches, uid_to_block, uid_to_extrinsic_index
+            uids, losses_per_uid, batches, uid_to_block
         )
 
         # Compute softmaxed weights based on win rate.
@@ -688,7 +684,6 @@ class Validator:
         self.log_step(
             uids,
             uid_to_block,
-            uid_to_extrinsic_index,
             pages,
             wins,
             win_rate,
@@ -704,7 +699,6 @@ class Validator:
         self,
         uids,
         uid_to_block,
-        uid_to_extrinsic_index,
         pages,
         wins,
         win_rate,
@@ -724,7 +718,6 @@ class Validator:
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
-                "extrinsic_index": uid_to_extrinsic_index[uid],
                 "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],

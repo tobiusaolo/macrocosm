@@ -35,7 +35,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
+        model_metadata = ModelMetadata(id=model_id, block=1)
 
         asyncio.run(
             self.metadata_store.store_model_metadata_exact(hotkey, model_metadata)
@@ -54,7 +54,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="bad_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
+        model_metadata = ModelMetadata(id=model_id, block=1)
 
         # Setup the metadata with a commit that doesn't exist in the remote store.
         asyncio.run(
@@ -72,7 +72,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
+        model_metadata = ModelMetadata(id=model_id, block=1)
 
         pt_model = get_model()
 
@@ -102,7 +102,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
+        model_metadata = ModelMetadata(id=model_id, block=1)
 
         # Make a small enough model to pass lowest parameter count.
         config = GPT2Config(
@@ -143,15 +143,9 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
+        model_metadata = ModelMetadata(id=model_id, block=1)
 
-        # Make a small enough model to pass lowest parameter count.
-        config = GPT2Config(
-            n_head=10,
-            n_layer=12,
-            n_embd=760,
-        )
-        pt_model = GPT2LMHeadModel(config)
+        pt_model = get_model()
 
         model = Model(id=model_id, pt_model=pt_model)
 
@@ -164,6 +158,10 @@ class TestModelUpdater(unittest.TestCase):
         self.assertIsNone(
             self.model_tracker.get_model_metadata_for_miner_hotkey(hotkey)
         )
+
+        # Our local store raises an exception from the Transformers.from_pretrained method if not found.
+        with self.assertRaises(Exception):
+            self.local_store.retrieve_model(hotkey, model_id)
 
         asyncio.run(self.model_updater.sync_model(hotkey))
 
@@ -183,7 +181,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id_chain, block=1, extrinisic_index=0)
+        model_metadata = ModelMetadata(id=model_id_chain, block=1)
 
         model_id = ModelId(
             namespace="test_model",
@@ -214,7 +212,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
+        model_metadata = ModelMetadata(id=model_id, block=1)
 
         config = GPT2Config(
             n_head=10,
@@ -255,7 +253,7 @@ class TestModelUpdater(unittest.TestCase):
         )
 
         # Upload the large model before the block that uses the new limit.
-        model_metadata = ModelMetadata(id=model_id, block=2_405_919, extrinisic_index=0)
+        model_metadata = ModelMetadata(id=model_id, block=2_405_919)
 
         model = Model(id=model_id, pt_model=pt_model)
 
@@ -269,7 +267,7 @@ class TestModelUpdater(unittest.TestCase):
         self.assertFalse(asyncio.run(self.model_updater.sync_model(hotkey)))
 
         # Upload the model again, this time after the block that allows this size of model.
-        model_metadata = ModelMetadata(id=model_id, block=2_405_920, extrinisic_index=0)
+        model_metadata = ModelMetadata(id=model_id, block=2_405_920)
         asyncio.run(
             self.metadata_store.store_model_metadata_exact(hotkey, model_metadata)
         )

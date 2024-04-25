@@ -65,14 +65,9 @@ class Model(BaseModel):
 
 
 class ModelMetadata(BaseModel):
-    """Information about the chain commitment made by miners on this subnet for claiming a model."""
-
     id: ModelId = Field(description="Identifier for this trained model.")
     block: PositiveInt = Field(
         description="Block on which this model was claimed on the chain."
-    )
-    extrinisic_index: int = Field(
-        description="Index of the extrinsic in the block on which this model was claimed on the chain.",
     )
 
 
