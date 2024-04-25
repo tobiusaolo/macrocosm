@@ -51,7 +51,7 @@ class ChainModelMetadataStore(ModelMetadataStore):
                 return idx
 
         # This should never happen since we already confirmed there was metadata for this block.
-        bt.logging.warning(
+        bt.logging.trace(
             f"Did not find any set_commitment for block {block} by hotkey {hotkey}"
         )
         return None
@@ -103,9 +103,6 @@ class ChainModelMetadataStore(ModelMetadataStore):
         extrinsic_index = await self._get_index_in_extrinsics(hotkey, metadata["block"])
 
         if not extrinsic_index:
-            bt.logging.warning(
-                f"Failed to find extrinsic index for hotkey: {hotkey} at block: {metadata['block']}"
-            )
             return None
 
         commitment = metadata["info"]["fields"][0]
