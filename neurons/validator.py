@@ -28,7 +28,6 @@ import time
 import torch
 import random
 import asyncio
-import argparse
 
 import wandb
 import constants
@@ -38,6 +37,7 @@ from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
 from model.storage.disk.disk_model_store import DiskModelStore
 from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
+from neurons import config
 import model.utils as model_utils
 import traceback
 import threading
@@ -59,94 +59,6 @@ class Validator:
     UIDS_FILENAME = "uids_2.pickle"
     VERSION_FILENAME = "version.txt"
 
-    @staticmethod
-    def config():
-        """Add argument parser for the validator."""
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "--device",
-            type=str,
-            default="cuda" if torch.cuda.is_available() else "cpu",
-            help="Device name.",
-        )
-        parser.add_argument(
-            "--wandb.off",
-            dest="wandb.on",
-            action="store_false",
-            help="Turn off wandb logging.",
-        )
-        parser.add_argument(
-            "--blocks_per_epoch",
-            type=int,
-            default=50,
-            help="Number of blocks to wait before setting weights.",
-        )
-        parser.add_argument(
-            "--pages_per_eval",
-            type=int,
-            default=constants.n_eval_pages,
-            help="Number of pages used to eval each step.",
-        )
-        parser.add_argument(
-            "--sample_min",
-            type=int,
-            default=constants.sample_min,
-            help="Number of uids to bring to next eval.",
-        )
-        parser.add_argument(
-            "--sample_max",
-            type=int,
-            default=constants.sample_max,
-            help="Maximum number of new uids to eval each step.",
-        )
-        parser.add_argument(
-            "--dont_set_weights",
-            action="store_true",
-            help="Validator does not set weights on the chain.",
-        )
-        parser.add_argument(
-            "--offline",
-            action="store_true",
-            help="Does not launch a wandb run, does not set weights, does not check that your key is registered.",
-        )
-        parser.add_argument(
-            "--model_dir",
-            default=os.path.join(constants.ROOT_DIR, "model-store/"),
-            help="Where to store downloaded models",
-        )
-        parser.add_argument(
-            "--netuid",
-            type=str,
-            default=constants.SUBNET_UID,
-            help="The subnet UID.",
-        )
-
-        bt.subtensor.add_args(parser)
-        bt.logging.add_args(parser)
-        bt.wallet.add_args(parser)
-        bt.axon.add_args(parser)
-        config = bt.config(parser)
-        return config
-
-    def state_path_old(self) -> str:
-        """
-        Constructs the old file path for storing validator state.
-
-        This will soon be deprecated.
-
-        Returns:
-        str: A string representing the file path.
-        """
-        return os.path.expanduser(
-            "{}/{}/{}/netuid{}/{}".format(
-                bt.logging.config().logging.logging_dir,
-                self.wallet.name,
-                self.wallet.hotkey_str,
-                self.config.netuid,
-                "vali-state",
-            )
-        )
-
     def state_path(self) -> str:
         """
         Returns the file path for storing validator state.
@@ -157,7 +69,7 @@ class Validator:
         return os.path.join(self.config.model_dir, "vali-state")
 
     def __init__(self):
-        self.config = Validator.config()
+        self.config = config.validator_config()
         bt.logging(config=self.config)
 
         bt.logging.info(f"Starting validator with config: {self.config}")
@@ -202,9 +114,6 @@ class Validator:
         self.uids_filepath = os.path.join(state_dir, Validator.UIDS_FILENAME)
         self.tracker_filepath = os.path.join(state_dir, Validator.TRACKER_FILENAME)
         self.version_filepath = os.path.join(state_dir, Validator.VERSION_FILENAME)
-
-        # Perform a one-time migration of the state files from the old path to the new path
-        self.maybe_migrate_state_files()
 
         # Check if the version has changed since we last restarted.
         previous_version = utils.get_version(self.version_filepath)
@@ -319,31 +228,6 @@ class Validator:
         )
 
         bt.logging.debug(f"Started a new wandb run: {name}")
-
-    def maybe_migrate_state_files(self):
-        """Performs a one-time migration of the state files from the old path to the new path."""
-
-        if utils.move_file_if_exists(
-            os.path.join(self.state_path_old(), Validator.UIDS_FILENAME),
-            self.uids_filepath,
-        ):
-            bt.logging.success(
-                f"Moved {Validator.UIDS_FILENAME} from old state path to new state path."
-            )
-        if utils.move_file_if_exists(
-            os.path.join(self.state_path_old(), Validator.TRACKER_FILENAME),
-            self.tracker_filepath,
-        ):
-            bt.logging.success(
-                f"Moved {Validator.TRACKER_FILENAME} from old state path to new state path."
-            )
-        if utils.move_file_if_exists(
-            os.path.join(self.state_path_old(), Validator.VERSION_FILENAME),
-            self.version_filepath,
-        ):
-            bt.logging.success(
-                f"Moved {Validator.VERSION_FILENAME} from old state path to new state path."
-            )
 
     def save_state(self):
         """Saves the state of the validator to a file."""
