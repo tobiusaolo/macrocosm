@@ -145,13 +145,7 @@ class TestModelUpdater(unittest.TestCase):
         )
         model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
-        # Make a small enough model to pass lowest parameter count.
-        config = GPT2Config(
-            n_head=10,
-            n_layer=12,
-            n_embd=760,
-        )
-        pt_model = GPT2LMHeadModel(config)
+        pt_model = get_model()
 
         model = Model(id=model_id, pt_model=pt_model)
 
@@ -164,6 +158,10 @@ class TestModelUpdater(unittest.TestCase):
         self.assertIsNone(
             self.model_tracker.get_model_metadata_for_miner_hotkey(hotkey)
         )
+
+        # Our local store raises an exception from the Transformers.from_pretrained method if not found.
+        with self.assertRaises(Exception):
+            self.local_store.retrieve_model(hotkey, model_id)
 
         asyncio.run(self.model_updater.sync_model(hotkey))
 
