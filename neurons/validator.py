@@ -173,7 +173,7 @@ class Validator:
 
         # Setup a ModelMetadataStore
         self.metadata_store = ChainModelMetadataStore(
-            self.subtensor, self.wallet, self.config.netuid
+            self.subtensor, self.wallet, self.config.netuid, self.archive_subtensor
         )
 
         # Setup a RemoteModelStore
