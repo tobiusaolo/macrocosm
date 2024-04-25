@@ -29,7 +29,12 @@ class ModelUpdater:
         return await self.metadata_store.retrieve_model_metadata(hotkey)
 
     async def sync_model(self, hotkey: str, force: bool = False) -> bool:
-        """Updates local model for a hotkey if out of sync and returns if it was updated."""
+        """Updates local model for a hotkey if out of sync and returns if it was updated.
+
+        Args:
+           hotkey (str): The hotkey of the model to sync.
+           force (bool): Whether to force a sync for this model, even if it's chain metadata hasn't changed.
+        """
         # Get the metadata for the miner.
         metadata = await self._get_metadata(hotkey)
 
