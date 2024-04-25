@@ -17,7 +17,7 @@ class TestModelTracker(unittest.TestCase):
             commit="test_commit",
             hash="test_hash",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         state_path = ".test_tracker_state.pickle"
         self.model_tracker.on_miner_model_updated(hotkey, model_metadata)
@@ -41,7 +41,7 @@ class TestModelTracker(unittest.TestCase):
             commit="test_commit",
             hash="test_hash",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         self.model_tracker.on_miner_model_updated(hotkey, model_metadata)
 
@@ -61,7 +61,7 @@ class TestModelTracker(unittest.TestCase):
             commit="test_commit",
             hash="test_hash",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         new_model_id = ModelId(
             namespace="test_model2",
@@ -69,7 +69,7 @@ class TestModelTracker(unittest.TestCase):
             commit="test_commit2",
             hash="test_hash2",
         )
-        new_model_metadata = ModelMetadata(id=new_model_id, block=2)
+        new_model_metadata = ModelMetadata(id=new_model_id, block=2, extrinisic_index=0)
 
         self.model_tracker.on_miner_model_updated(hotkey, model_metadata)
         self.model_tracker.on_miner_model_updated(hotkey, new_model_metadata)
@@ -90,7 +90,7 @@ class TestModelTracker(unittest.TestCase):
             commit="test_commit",
             hash="test_hash",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         self.model_tracker.on_miner_model_updated(hotkey, model_metadata)
         returned_model_metadata = (
@@ -116,7 +116,7 @@ class TestModelTracker(unittest.TestCase):
             commit="test_commit",
             hash="test_hash",
         )
-        model_metadata_1 = ModelMetadata(id=model_id_1, block=1)
+        model_metadata_1 = ModelMetadata(id=model_id_1, block=1, extrinisic_index=0)
 
         hotkey_2 = "test_hotkey2"
         model_id_2 = ModelId(
@@ -125,7 +125,7 @@ class TestModelTracker(unittest.TestCase):
             commit="test_commit2",
             hash="test_hash2",
         )
-        model_metadata_2 = ModelMetadata(id=model_id_2, block=2)
+        model_metadata_2 = ModelMetadata(id=model_id_2, block=2, extrinisic_index=0)
 
         self.model_tracker.on_miner_model_updated(hotkey_1, model_metadata_1)
         self.model_tracker.on_miner_model_updated(hotkey_2, model_metadata_2)
@@ -146,7 +146,7 @@ class TestModelTracker(unittest.TestCase):
             commit="test_commit",
             hash="test_hash",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         self.model_tracker.on_miner_model_updated(hotkey, model_metadata)
         self.model_tracker.on_hotkeys_updated(set([hotkey, "extra_hotkey"]))
@@ -161,7 +161,7 @@ class TestModelTracker(unittest.TestCase):
             commit="test_commit",
             hash="test_hash",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         self.model_tracker.on_miner_model_updated(hotkey, model_metadata)
         self.model_tracker.on_hotkeys_updated(set(["extra_hotkey"]))

@@ -35,7 +35,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         asyncio.run(
             self.metadata_store.store_model_metadata_exact(hotkey, model_metadata)
@@ -54,7 +54,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="bad_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         # Setup the metadata with a commit that doesn't exist in the remote store.
         asyncio.run(
@@ -72,7 +72,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         pt_model = get_model()
 
@@ -102,7 +102,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         # Make a small enough model to pass lowest parameter count.
         config = GPT2Config(
@@ -143,7 +143,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         pt_model = get_model()
 
@@ -181,7 +181,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id_chain, block=1)
+        model_metadata = ModelMetadata(id=model_id_chain, block=1, extrinisic_index=0)
 
         model_id = ModelId(
             namespace="test_model",
@@ -212,7 +212,7 @@ class TestModelUpdater(unittest.TestCase):
             hash="test_hash",
             commit="test_commit",
         )
-        model_metadata = ModelMetadata(id=model_id, block=1)
+        model_metadata = ModelMetadata(id=model_id, block=1, extrinisic_index=0)
 
         config = GPT2Config(
             n_head=10,
@@ -253,7 +253,7 @@ class TestModelUpdater(unittest.TestCase):
         )
 
         # Upload the large model before the block that uses the new limit.
-        model_metadata = ModelMetadata(id=model_id, block=2_405_919)
+        model_metadata = ModelMetadata(id=model_id, block=2_405_919, extrinisic_index=0)
 
         model = Model(id=model_id, pt_model=pt_model)
 
@@ -267,7 +267,7 @@ class TestModelUpdater(unittest.TestCase):
         self.assertFalse(asyncio.run(self.model_updater.sync_model(hotkey)))
 
         # Upload the model again, this time after the block that allows this size of model.
-        model_metadata = ModelMetadata(id=model_id, block=2_405_920)
+        model_metadata = ModelMetadata(id=model_id, block=2_405_920, extrinisic_index=0)
         asyncio.run(
             self.metadata_store.store_model_metadata_exact(hotkey, model_metadata)
         )
