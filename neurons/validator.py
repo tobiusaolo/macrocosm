@@ -411,6 +411,12 @@ class Validator:
                                 asyncio.run(
                                     self.model_updater.sync_model(hotkey, force=True)
                                 )
+
+                                # Since this is a top model (as determined by other valis),
+                                # we don't worry if self.pending_uids is already "full". At most
+                                # there can be 10 top models that we'd add here and that would be
+                                # a wildy exceptional case. It would require every vali to have a
+                                # different top model.
                                 self.pending_uids_to_eval.add(uid)
                                 bt.logging.debug(
                                     f"Retrying evaluation for previously discarded model with incentive for UID={uid}."
