@@ -82,9 +82,9 @@ async def push(
     # If using hotkey in the hash then adjust the hash.
     if use_hotkey_in_hash:
         bt.logging.info(
-            f"Hashing miner hotkey {wallet.hotkey} into the hash before uploading."
+            f"Hashing miner hotkey {wallet.hotkey.ss58_address} into the hash before uploading."
         )
-        new_hash = get_hash_of_two_strings(model_id.hash, wallet.hotkey)
+        new_hash = get_hash_of_two_strings(model_id.hash, wallet.hotkey.ss58_address)
         model_id = model_id.copy(update={"hash": new_hash})
 
     bt.logging.success(f"Now committing to the chain with model_id: {model_id}")
