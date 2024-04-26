@@ -17,7 +17,7 @@ from model.data import ModelCriteria, TokenizerIdentifier
 # Project Constants.
 # ---------------------------------
 
-__version__ = "3.1.4"
+__version__ = "2.2.2"
 version_split = __version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
