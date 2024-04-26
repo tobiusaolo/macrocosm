@@ -51,6 +51,11 @@ def get_config():
         default=constants.SUBNET_UID,
         help="The subnet UID.",
     )
+    parser.add_argument(
+        "--use_hotkey_in_hash",
+        action="store_false",  # Defaults to True.
+        help="If true, use the hotkey of the miner when generating the hash.",
+    )
 
     # Include wallet and logging arguments from bittensor
     bt.wallet.add_args(parser)
@@ -77,7 +82,9 @@ async def main(config: bt.config):
 
     # Load the model from disk and push it to the chain and Hugging Face.
     model = pt.mining.load_local_model(config.load_model_dir, config.upload_b16)
-    await pt.mining.push(model, config.hf_repo_id, wallet)
+    await pt.mining.push(
+        model, config.hf_repo_id, wallet, use_hotkey_in_hash=config.use_hotkey_in_hash
+    )
 
 
 if __name__ == "__main__":

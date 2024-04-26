@@ -33,6 +33,7 @@ import pretrain as pt
 from safetensors.torch import load_model
 
 from utilities import utils
+from model.utils import get_hash_of_two_strings
 
 
 def model_path(base_dir: str, run_id: str) -> str:
@@ -49,6 +50,7 @@ async def push(
     retry_delay_secs: int = 60,
     metadata_store: Optional[ModelMetadataStore] = None,
     remote_model_store: Optional[RemoteModelStore] = None,
+    use_hotkey_in_hash: bool = True,
 ):
     """Pushes the model to Hugging Face and publishes it on the chain for evaluation by validators.
 
@@ -60,6 +62,7 @@ async def push(
         metadata_store (Optional[ModelMetadataStore]): The metadata store. If None, defaults to writing to the
             chain.
         remote_model_store (Optional[RemoteModelStore]): The remote model store. If None, defaults to writing to HuggingFace
+        use_hotkey_in_hash (bool): If the hash used in the metadata should include the miner hotkey.
     """
     bt.logging.info("Pushing model")
 
@@ -74,9 +77,17 @@ async def push(
     model_id = ModelId(namespace=namespace, name=name)
     model_id = await remote_model_store.upload_model(Model(id=model_id, pt_model=model))
 
-    bt.logging.success(
-        f"Uploaded model to hugging face. Now committing to the chain with model_id: {model_id}"
-    )
+    bt.logging.success("Uploaded model to hugging face.")
+
+    # If using hotkey in the hash then adjust the hash.
+    if use_hotkey_in_hash:
+        bt.logging.info(
+            f"Hashing miner hotkey {wallet.hotkey} into the hash before uploading."
+        )
+        new_hash = get_hash_of_two_strings(model_id.hash, wallet.hotkey)
+        model_id = model_id.copy(update={"hash": new_hash})
+
+    bt.logging.success(f"Now committing to the chain with model_id: {model_id}")
 
     # We can only commit to the chain every 20 minutes, so run this in a loop, until
     # successful.

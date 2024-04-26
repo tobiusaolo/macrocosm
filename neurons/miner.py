@@ -147,6 +147,11 @@ def get_config():
         default=constants.SUBNET_UID,
         help="The subnet UID.",
     )
+    parser.add_argument(
+        "--use_hotkey_in_hash",
+        action="store_false",  # Defaults to True.
+        help="If true, use the hotkey of the miner when generating the hash.",
+    )
 
     # Include wallet and logging arguments from bittensor
     bt.wallet.add_args(parser)
@@ -390,6 +395,7 @@ async def main(config: bt.config):
                     wallet,
                     metadata_store=metadata_store,
                     remote_model_store=remote_store,
+                    use_hotkey_in_hash=config.use_hotkey_in_hash,
                 )
             else:
                 bt.logging.success(
