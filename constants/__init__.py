@@ -108,7 +108,7 @@ temperature = 0.01
 # validator score boosting for earlier models.
 timestamp_epsilon = 0.005
 # validators number of pages to eval over miners on each step.
-n_eval_pages = 12
+n_eval_pages = 18
 # validator eval batch size.
 batch_size = 1
 # validator eval batch min to keep for next loop.

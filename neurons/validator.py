@@ -17,6 +17,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 from collections import defaultdict
+import copy
 import datetime as dt
 import functools
 import os
@@ -27,7 +28,6 @@ import time
 import torch
 import random
 import asyncio
-import argparse
 
 import wandb
 import constants
@@ -37,6 +37,7 @@ from model.model_updater import ModelUpdater
 from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
 from model.storage.disk.disk_model_store import DiskModelStore
 from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
+from neurons import config
 import model.utils as model_utils
 import traceback
 import threading
@@ -58,94 +59,6 @@ class Validator:
     UIDS_FILENAME = "uids_2.pickle"
     VERSION_FILENAME = "version.txt"
 
-    @staticmethod
-    def config():
-        """Add argument parser for the validator."""
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "--device",
-            type=str,
-            default="cuda" if torch.cuda.is_available() else "cpu",
-            help="Device name.",
-        )
-        parser.add_argument(
-            "--wandb.off",
-            dest="wandb.on",
-            action="store_false",
-            help="Turn off wandb logging.",
-        )
-        parser.add_argument(
-            "--blocks_per_epoch",
-            type=int,
-            default=50,
-            help="Number of blocks to wait before setting weights.",
-        )
-        parser.add_argument(
-            "--pages_per_eval",
-            type=int,
-            default=constants.n_eval_pages,
-            help="Number of pages used to eval each step.",
-        )
-        parser.add_argument(
-            "--sample_min",
-            type=int,
-            default=constants.sample_min,
-            help="Number of uids to bring to next eval.",
-        )
-        parser.add_argument(
-            "--sample_max",
-            type=int,
-            default=constants.sample_max,
-            help="Maximum number of new uids to eval each step.",
-        )
-        parser.add_argument(
-            "--dont_set_weights",
-            action="store_true",
-            help="Validator does not set weights on the chain.",
-        )
-        parser.add_argument(
-            "--offline",
-            action="store_true",
-            help="Does not launch a wandb run, does not set weights, does not check that your key is registered.",
-        )
-        parser.add_argument(
-            "--model_dir",
-            default=os.path.join(constants.ROOT_DIR, "model-store/"),
-            help="Where to store downloaded models",
-        )
-        parser.add_argument(
-            "--netuid",
-            type=str,
-            default=constants.SUBNET_UID,
-            help="The subnet UID.",
-        )
-
-        bt.subtensor.add_args(parser)
-        bt.logging.add_args(parser)
-        bt.wallet.add_args(parser)
-        bt.axon.add_args(parser)
-        config = bt.config(parser)
-        return config
-
-    def state_path_old(self) -> str:
-        """
-        Constructs the old file path for storing validator state.
-
-        This will soon be deprecated.
-
-        Returns:
-        str: A string representing the file path.
-        """
-        return os.path.expanduser(
-            "{}/{}/{}/netuid{}/{}".format(
-                bt.logging.config().logging.logging_dir,
-                self.wallet.name,
-                self.wallet.hotkey_str,
-                self.config.netuid,
-                "vali-state",
-            )
-        )
-
     def state_path(self) -> str:
         """
         Returns the file path for storing validator state.
@@ -156,7 +69,7 @@ class Validator:
         return os.path.join(self.config.model_dir, "vali-state")
 
     def __init__(self):
-        self.config = Validator.config()
+        self.config = config.validator_config()
         bt.logging(config=self.config)
 
         bt.logging.info(f"Starting validator with config: {self.config}")
@@ -165,7 +78,7 @@ class Validator:
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
         self.dendrite = bt.dendrite(wallet=self.wallet)
-        self.metagraph = self.subtensor.metagraph(self.config.netuid)
+        self.metagraph = self.subtensor.metagraph(self.config.netuid, lite=False)
         torch.backends.cudnn.benchmark = True
 
         # Dont check registration status if offline.
@@ -201,9 +114,6 @@ class Validator:
         self.uids_filepath = os.path.join(state_dir, Validator.UIDS_FILENAME)
         self.tracker_filepath = os.path.join(state_dir, Validator.TRACKER_FILENAME)
         self.version_filepath = os.path.join(state_dir, Validator.VERSION_FILENAME)
-
-        # Perform a one-time migration of the state files from the old path to the new path
-        self.maybe_migrate_state_files()
 
         # Check if the version has changed since we last restarted.
         previous_version = utils.get_version(self.version_filepath)
@@ -299,7 +209,7 @@ class Validator:
 
     def new_wandb_run(self):
         """Creates a new wandb run to save information to."""
-        
+
         # Create a unique run id for this run.
         run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         name = "validator-" + str(self.uid) + "-" + run_id
@@ -318,31 +228,6 @@ class Validator:
         )
 
         bt.logging.debug(f"Started a new wandb run: {name}")
-
-    def maybe_migrate_state_files(self):
-        """Performs a one-time migration of the state files from the old path to the new path."""
-        
-        if utils.move_file_if_exists(
-            os.path.join(self.state_path_old(), Validator.UIDS_FILENAME),
-            self.uids_filepath,
-        ):
-            bt.logging.success(
-                f"Moved {Validator.UIDS_FILENAME} from old state path to new state path."
-            )
-        if utils.move_file_if_exists(
-            os.path.join(self.state_path_old(), Validator.TRACKER_FILENAME),
-            self.tracker_filepath,
-        ):
-            bt.logging.success(
-                f"Moved {Validator.TRACKER_FILENAME} from old state path to new state path."
-            )
-        if utils.move_file_if_exists(
-            os.path.join(self.state_path_old(), Validator.VERSION_FILENAME),
-            self.version_filepath,
-        ):
-            bt.logging.success(
-                f"Moved {Validator.VERSION_FILENAME} from old state path to new state path."
-            )
 
     def save_state(self):
         """Saves the state of the validator to a file."""
@@ -365,8 +250,8 @@ class Validator:
 
         # Track how recently we updated each uid from sequential iteration.
         uid_last_checked_sequential = dict()
-        # Track how recently we updated each uid from incentives.
-        uid_last_checked_incentive = dict()
+        # Track how recently we checked the list of top models.
+        last_checked_top_models_time = None
         # Track how recently we retried a model with incentive we've already dropped.
         uid_last_retried_evaluation = dict()
 
@@ -374,7 +259,59 @@ class Validator:
         # if they should be updated.
         while not self.stop_event.is_set():
             try:
-                # Limit the number of pending uids, waiting for the eval loop to process them.
+                # At most once per `chain_update_cadence`, check which models are being assigned weight by
+                # the top validators and ensure they'll be evaluated soon.
+                if (
+                    not last_checked_top_models_time
+                    or dt.datetime.now() - last_checked_top_models_time
+                    > constants.chain_update_cadence
+                ):
+                    last_checked_top_models_time = dt.datetime.now()
+                    with self.metagraph_lock:
+                        metagraph = copy.deepcopy(self.metagraph)
+
+                    # Find any miner UIDs which top valis are assigning weight and aren't currently scheduled for an eval.
+                    top_miner_uids = set(utils.list_top_miners(metagraph))
+                    with self.pending_uids_to_eval_lock:
+                        uids_to_add = (
+                            top_miner_uids
+                            - self.uids_to_eval
+                            - self.pending_uids_to_eval
+                        )
+
+                    for uid in uids_to_add:
+                        # Limit how often we'll retry these top models.
+                        time_diff = (
+                            dt.datetime.now() - uid_last_retried_evaluation[uid]
+                            if uid in uid_last_retried_evaluation
+                            else constants.model_retry_cadence  # Default to being stale enough to check again.
+                        )
+                        if time_diff >= constants.model_retry_cadence:
+                            try:
+                                uid_last_retried_evaluation[uid] = dt.datetime.now()
+
+                                # Redownload this model and schedule it for eval.
+                                hotkey = metagraph.hotkeys[uid]
+                                asyncio.run(
+                                    self.model_updater.sync_model(hotkey, force=True)
+                                )
+
+                                # Since this is a top model (as determined by other valis),
+                                # we don't worry if self.pending_uids is already "full". At most
+                                # there can be 10 top models that we'd add here and that would be
+                                # a wildy exceptional case. It would require every vali to have a
+                                # different top model.
+                                self.pending_uids_to_eval.add(uid)
+                                bt.logging.debug(
+                                    f"Retrying evaluation for previously discarded model with incentive for UID={uid}."
+                                )
+                            except Exception:
+                                bt.logging.debug(
+                                    f"Failure in update loop for UID={uid} during top model check. {traceback.format_exc()}"
+                                )
+
+                # Top model check complete. Now continue with the sequential iterator to check for the next miner
+                # to update.
                 pending_uid_count = 0
                 current_uid_count = 0
                 with self.pending_uids_to_eval_lock:
@@ -385,7 +322,7 @@ class Validator:
                 while pending_uid_count + current_uid_count >= self.config.sample_max:
                     # Wait 5 minutes for the eval loop to process them.
                     bt.logging.info(
-                        f"Update loop: Already {self.config.sample_max} synced models pending eval. Checking again in 5 minutes."
+                        f"Update loop: Already {pending_uid_count + current_uid_count} synced models pending eval. Checking again in 5 minutes."
                     )
                     time.sleep(300)
                     # Check to see if the pending uids have been cleared yet.
@@ -393,99 +330,41 @@ class Validator:
                         pending_uid_count = len(self.pending_uids_to_eval)
                         current_uid_count = len(self.uids_to_eval)
 
-                # Get the next uid to check.
-                next_uid = None
-                # Force sync only if we are retrying due to a model with incentive.
-                force_sync = False
+                # We have space to add more models for eval. Process the next UID.
+                next_uid = next(self.miner_iterator)
 
-                # First check for any uids with incentives above threshold on the chain.
-                # This will catch updates to current best models and models other valis have incentivized faster.
-                with self.metagraph_lock:
-                    incentives = self.metagraph.I
-
-                for uid, incentive in enumerate(incentives):
-                    # Use .item() to get the number value since this is a tensor.
-                    if (
-                        incentive.item()
-                        >= constants.update_priority_incentive_threshold
-                    ):
-                        # Confirm that we haven't checked it within the chain update cadence in this path.
-                        time_diff = (
-                            dt.datetime.now() - uid_last_checked_incentive[uid]
-                            if uid in uid_last_checked_incentive
-                            else constants.chain_update_cadence  # Default to being stale enough to check again.
-                        )
-                        if time_diff >= constants.chain_update_cadence:
-                            # Check this uid next and update that we have checked it in this path..
-                            next_uid = uid
-                            force_sync = True
-                            uid_last_checked_incentive[uid] = dt.datetime.now()
-                            break
-
-                # Then iterate sequentially for new models.
-                # In this case if we have seen the uid in chain update cadence we have seen all of them and should wait.
-                if next_uid is None:
-                    next_uid = next(self.miner_iterator)
-
-                    # Confirm that we haven't checked it in the chain update cadence
-                    time_diff = (
-                        dt.datetime.now() - uid_last_checked_sequential[next_uid]
-                        if next_uid in uid_last_checked_sequential
-                        else None
+                # Confirm that we haven't already checked it in the chain update cadence.
+                time_diff = (
+                    dt.datetime.now() - uid_last_checked_sequential[next_uid]
+                    if next_uid in uid_last_checked_sequential
+                    else None
+                )
+                if time_diff and time_diff < constants.chain_update_cadence:
+                    # If we have seen it within chain update cadence then sleep until it has been at least that long.
+                    time_to_sleep = (
+                        constants.chain_update_cadence - time_diff
+                    ).total_seconds()
+                    bt.logging.trace(
+                        f"Update loop has already processed all UIDs in the last {constants.chain_update_cadence}. Sleeping {time_to_sleep} seconds."
                     )
+                    time.sleep(time_to_sleep)
 
-                    if time_diff and time_diff < constants.chain_update_cadence:
-                        # If we have seen it within chain update cadence then sleep until it has been at least that long.
-                        time_to_sleep = (
-                            constants.chain_update_cadence - time_diff
-                        ).total_seconds()
-                        bt.logging.trace(
-                            f"Update loop has already processed all UIDs in the last {constants.chain_update_cadence}. Sleeping {time_to_sleep} seconds."
-                        )
-                        time.sleep(time_to_sleep)
-
-                    uid_last_checked_sequential[next_uid] = dt.datetime.now()
+                uid_last_checked_sequential[next_uid] = dt.datetime.now()
 
                 # Get their hotkey from the metagraph.
                 with self.metagraph_lock:
                     hotkey = self.metagraph.hotkeys[next_uid]
 
-                # Compare metadata and tracker, syncing new model from remote store to local if necessary.
-                updated = asyncio.run(self.model_updater.sync_model(hotkey, force_sync))
-
-                with self.pending_uids_to_eval_lock:
-                    # If the UID was updated we always want to include it in the next batch.
-                    if updated:
+                # Sync the model, if necessary.
+                updated = asyncio.run(
+                    self.model_updater.sync_model(hotkey, force=False)
+                )
+                if updated:
+                    with self.pending_uids_to_eval_lock:
                         self.pending_uids_to_eval.add(next_uid)
                         bt.logging.debug(
                             f"Found a new model for UID={next_uid}. It will be evaluated on the next loop."
                         )
-                    # Else if the UID has incentive and we aren't already evaluating it, then include in next batch.
-                    # This code path should only be reached when this validator has discarded a model with 0 (local) incentive
-                    # but the chain as a whole still has incentive for the model. In this case we retry periodically.
-                    elif (
-                        incentives[next_uid].item()
-                        > constants.update_priority_incentive_threshold
-                        and next_uid not in self.uids_to_eval
-                    ):
-                        # We can only get here as often as we check for updates to top models and the regular loop.
-                        # However we do not want to retry models we've already discarded too often, so use a slower cadence.
-                        time_diff = (
-                            dt.datetime.now() - uid_last_retried_evaluation[next_uid]
-                            if next_uid in uid_last_retried_evaluation
-                            else constants.model_retry_cadence  # Default to being stale enough to check again.
-                        )
-                        if (
-                            time_diff >= constants.model_retry_cadence
-                            and next_uid
-                            not in self.pending_uids_to_eval  # Although set, avoid duplicate logs and timestamp updates.
-                        ):
-                            self.pending_uids_to_eval.add(next_uid)
-                            bt.logging.debug(
-                                f"Retrying evaluation for previously discarded model with incentive for UID={next_uid}."
-                            )
-                            uid_last_retried_evaluation[next_uid] = dt.datetime.now()
-
             except Exception as e:
                 bt.logging.error(
                     f"Error in update loop: {e} \n {traceback.format_exc()}"
@@ -495,7 +374,7 @@ class Validator:
 
     def clean_models(self):
         """Cleans up models that are no longer referenced."""
-        
+
         # Delay the clean-up thread until the update loop has had time to run one full pass after an upgrade.
         # This helps prevent unnecessarily deleting a model which is on disk, but hasn't yet been re-added to the
         # model tracker by the update loop.
@@ -546,7 +425,7 @@ class Validator:
 
     async def try_set_weights(self, ttl: int):
         """Sets the weights on the chain with ttl, without raising exceptions if it times out."""
-        
+
         async def _try_set_weights():
             try:
                 self.weights.nan_to_num(0.0)
@@ -579,9 +458,9 @@ class Validator:
 
     async def try_sync_metagraph(self, ttl: int):
         """Syncs the metagraph with ttl in a background process, without raising exceptions if it times out."""
-        
+
         def sync_metagraph(endpoint):
-            metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid)
+            metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid, lite=False)
             metagraph.save()
 
         process = multiprocessing.Process(
@@ -603,6 +482,7 @@ class Validator:
 
     async def try_run_step(self, ttl: int):
         """Runs a step with ttl in a background process, without raising exceptions if it times out."""
+
         async def _try_run_step():
             await self.run_step()
 

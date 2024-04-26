@@ -29,7 +29,12 @@ class ModelUpdater:
         return await self.metadata_store.retrieve_model_metadata(hotkey)
 
     async def sync_model(self, hotkey: str, force: bool = False) -> bool:
-        """Updates local model for a hotkey if out of sync and returns if it was updated."""
+        """Updates local model for a hotkey if out of sync and returns if it was updated.
+
+        Args:
+           hotkey (str): The hotkey of the model to sync.
+           force (bool): Whether to force a sync for this model, even if it's chain metadata hasn't changed.
+        """
         # Get the metadata for the miner.
         metadata = await self._get_metadata(hotkey)
 
@@ -66,10 +71,15 @@ class ModelUpdater:
 
         # Check that the hash of the downloaded content matches.
         if model.id.hash != metadata.id.hash:
-            bt.logging.trace(
-                f"Sync for hotkey {hotkey} failed. Hash of content downloaded from hugging face does not match chain metadata. {metadata}"
-            )
-            return False
+            # If the hash does not match directly, also try it with the hotkey of the miner.
+            # This is allowed to help miners prevent same-block copiers.
+            hash_with_hotkey = utils.get_hash_of_two_strings(model.id.hash, hotkey)
+            if hash_with_hotkey != metadata.id.hash:
+                bt.logging.trace(
+                    f"Sync for hotkey {hotkey} failed. Hash of content downloaded from hugging face {model.id.hash} "
+                    + f"or the hash including the hotkey {hash_with_hotkey} do not match chain metadata {metadata}."
+                )
+                return False
 
         # Check that the parameter count of the model is within allowed bounds.
         parameter_size = sum(p.numel() for p in model.pt_model.parameters())
