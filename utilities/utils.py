@@ -134,7 +134,11 @@ def move_file_if_exists(src: str, dst: str) -> bool:
 
 
 def list_top_miners(metagraph: bt.metagraph) -> List[int]:
-    """Returns the list of top miners, chosen based on weights set on the largest valis."""
+    """Returns the list of top miners, chosen based on weights set on the largest valis.
+
+    Args:
+        metagraph (bt.metagraph): Metagraph to use. Must not be lite.
+    """
 
     top_miners = set()
 
@@ -144,7 +148,7 @@ def list_top_miners(metagraph: bt.metagraph) -> List[int]:
     # For each, find the miner that has more than 50% of the weights.
     for uid in valis_by_stake:
         # Weights is a list of (uid, weight) pairs
-        weights: List[Tuple[int, float]] = metagraph.weights[uid]
+        weights: List[Tuple[int, float]] = metagraph.neurons[uid].weights
         total_weight = sum(weight for _, weight in weights)
 
         # Only look for miners with at least half the weight from this vali

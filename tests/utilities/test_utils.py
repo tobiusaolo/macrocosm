@@ -2,8 +2,10 @@ import functools
 import os
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 import time
+from typing import List, Tuple
 import unittest
 from unittest import mock
+import bittensor as bt
 
 import torch
 import constants
@@ -158,12 +160,46 @@ class TestUtils(unittest.TestCase):
         mock_metagraph.validator_permit = stakes >= 30
         return mock_metagraph
 
+    def _neuron_info_with_weights(
+        self, uid: int, weights: List[Tuple[int, float]]
+    ) -> bt.NeuronInfo:
+        return bt.NeuronInfo(
+            uid=uid,
+            netuid=0,
+            active=0,
+            stake=bt.Balance.from_rao(0),
+            stake_dict={},
+            total_stake=bt.Balance.from_rao(0),
+            rank=0,
+            emission=0,
+            incentive=0,
+            consensus=0,
+            trust=0,
+            validator_trust=0,
+            dividends=0,
+            last_update=0,
+            validator_permit=False,
+            weights=weights,
+            bonds=[],
+            prometheus_info=None,
+            axon_info=None,
+            is_null=True,
+            coldkey="000000000000000000000000000000000000000000000000",
+            hotkey="000000000000000000000000000000000000000000000000",
+            pruning_score=0,
+        )
+
     def test_list_top_miners_deduplicated(self):
         """Tests list_top_miners, when validators agree on the top miner."""
         metagraph = self._create_metagraph()
 
         # Set validator weights such that they agree on miner 0 as the top miner.
-        metagraph.weights = [[], [(0, 1)], [], [(0, 1)]]
+        metagraph.neurons = [
+            self._neuron_info_with_weights(uid=0, weights=[]),
+            self._neuron_info_with_weights(uid=1, weights=[(0, 1)]),
+            self._neuron_info_with_weights(uid=2, weights=[]),
+            self._neuron_info_with_weights(uid=3, weights=[(0, 1)]),
+        ]
 
         # Verify the miner UID is deduped.
         self.assertSequenceEqual(utils.list_top_miners(metagraph), [0])
@@ -172,8 +208,12 @@ class TestUtils(unittest.TestCase):
         """Tests list_top_miners, when validators disagree on the top miner."""
         metagraph = self._create_metagraph()
 
-        metagraph.weights = [[], [(0, 1)], [], [(2, 1)]]
-
+        metagraph.neurons = [
+            self._neuron_info_with_weights(uid=0, weights=[]),
+            self._neuron_info_with_weights(uid=1, weights=[(0, 1)]),
+            self._neuron_info_with_weights(uid=2, weights=[]),
+            self._neuron_info_with_weights(uid=3, weights=[(2, 1)]),
+        ]
         top_miners = utils.list_top_miners(metagraph)
         self.assertEqual(len(top_miners), 2)
         self.assertEqual(set(top_miners), set([0, 2]))
@@ -184,7 +224,12 @@ class TestUtils(unittest.TestCase):
 
         # Have vali 1 set multiple weights, ensuring it assigns more than
         # 50% relative weight to UID 0.
-        metagraph.weights = [[], [(0, 1), (1, 0.1), (2, 0.5)], [], []]
+        metagraph.neurons = [
+            self._neuron_info_with_weights(uid=0, weights=[]),
+            self._neuron_info_with_weights(uid=1, weights=[(0, 1), (1, 0.1), (2, 0.5)]),
+            self._neuron_info_with_weights(uid=2, weights=[]),
+            self._neuron_info_with_weights(uid=3, weights=[]),
+        ]
         self.assertEqual(utils.list_top_miners(metagraph), [0])
 
 
