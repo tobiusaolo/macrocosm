@@ -50,7 +50,7 @@ async def push(
     retry_delay_secs: int = 60,
     metadata_store: Optional[ModelMetadataStore] = None,
     remote_model_store: Optional[RemoteModelStore] = None,
-    use_hotkey_in_hash: bool = True,
+    use_hotkey_in_hash: bool = False,
 ):
     """Pushes the model to Hugging Face and publishes it on the chain for evaluation by validators.
 
