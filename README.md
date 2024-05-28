@@ -1,3 +1,9 @@
+<picture>
+    <source srcset="./assets/macrocosmos-white.png"  media="(prefers-color-scheme: dark)">
+    <source srcset="./assets/macrocosmos-black.png"  media="(prefers-color-scheme: light)">
+    <img src="macrocosmos-black.png">
+</picture>
+
 <div align="center">
 
 # **Bittensor Pretrain Subnet** <!-- omit in toc -->
