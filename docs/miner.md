@@ -2,13 +2,13 @@
 
 Miners train locally and periodically publish their best model to hugging face and commit the metadata for that model to the Bittensor chain.
 
-Miners can only have one model associated with them on the chain for evaluation by validators at a time. The list of allowed model types by block can be found in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L57). Other relevant constraints are also listed in that file.
+Miners can only have one model associated with them on the chain for evaluation by validators at a time. The list of allowed model types by block can be found in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py#L57). Other relevant constraints are also listed in that file.
 
 The communication between a miner and a validator happens asynchronously chain and therefore Miners do not need to be running continuously. Validators will use whichever metadata was most recently published by the miner to know which model to download from hugging face.
 
 # System Requirements
 
-Miners will need enough disk space to store their model as they work on. Max size of model is defined in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L57). It is recommended to have at least 50 GB of disk space.
+Miners will need enough disk space to store their model as they work on. Max size of model is defined in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py#L57). It is recommended to have at least 50 GB of disk space.
 
 Miners will need enough processing power to train their model. The device the model is trained on is recommended to be a large GPU with atleast 20 GB of VRAM.
 
@@ -25,7 +25,7 @@ Make sure that any repo you create for uploading is public so that the validator
 2. Clone the repo
 
 ```shell
-git clone https://github.com/RaoFoundation/pretraining.git
+git clone https://github.com/macrocosm-os/pretraining.git
 ```
 
 3. Setup your python [virtual environment](https://docs.python.org/3/library/venv.html) or [Conda environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands).
@@ -131,7 +131,7 @@ Note: By default this will upload using bfloat16 (unlike the miner). You can pas
 
 ## Running a custom Miner
 
-The list of allowed model types by block can be found in [constants/__init__.py](https://github.com/RaoFoundation/pretraining/blob/main/constants/__init__.py#L57)
+The list of allowed model types by block can be found in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py#L57)
 
 In that file are also the constraints per block for
 1. Total number of parameters.

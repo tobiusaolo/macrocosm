@@ -1,3 +1,9 @@
+<picture>
+    <source srcset="./assets/macrocosmos-white.png"  media="(prefers-color-scheme: dark)">
+    <source srcset="./assets/macrocosmos-black.png"  media="(prefers-color-scheme: light)">
+    <img src="macrocosmos-black.png">
+</picture>
+
 <div align="center">
 
 # **Bittensor Pretrain Subnet** <!-- omit in toc -->
@@ -6,7 +12,7 @@
 
 ---
 
-[Leaderboard](https://huggingface.co/spaces/RaoFoundation/pretraining-leaderboard) • [Discord](https://discord.gg/bittensor) • [Network](https://taostats.io/subnets/netuid-9/) • [Research](https://bittensor.com/whitepaper) 
+[Leaderboard](https://huggingface.co/spaces/macrocosm-os/pretraining-leaderboard) • [Discord](https://discord.gg/bittensor) • [Network](https://taostats.io/subnets/netuid-9/) • [Research](https://bittensor.com/whitepaper) 
 </div>
 
 ---
@@ -37,7 +43,7 @@ Miners within this subnet are evaluated based on the number of times the model t
 
 TL;DR:
 1. [Chat](https://discord.gg/bittensor)
-2. [Leaderboard](https://huggingface.co/spaces/RaoFoundation/pretraining-leaderboard)
+2. [Leaderboard](https://huggingface.co/spaces/macrocosm-os/pretraining-leaderboard)
 
 This repo's main conversation is carried out in the Bittensor [Discord](https://discord.gg/bittensor). Visit the 'pretraining' channel to ask questions and get real time feedback. You can view the ongoing running of the incentive mechanism, the best miners (see 'incentive'), the most in consensus validators (see 'vtrust') using this [taostats link](https://taostats.io/subnets/netuid-9/). The table shows all 256 participant UIDs with corresponding YC stats and earnings. 
 

@@ -19,17 +19,16 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from torch.nn import CrossEntropyLoss
 from collections import defaultdict
 import os
-import wandb
 import pandas as pd
 from dotenv import load_dotenv
 import bittensor as bt
 import constants
 import model.utils as model_utils
 
-load_dotenv()  # take environment variables from .env.
+load_dotenv()  # take environment variables from .env. (do not forget to add HF_TOKEN)
 
-PROJECT = "pretraining-leaderboard-data"
-ENTITY = "raofoundation"
+PROJECT = "pretraining-benchmark-data"
+#ENTITY = "raofoundation"
 WANDB_TOKEN = os.getenv("WANDB_API_KEY")
 
 
@@ -265,6 +264,16 @@ def get_falcon() -> str:
     return "\n\n".join(rows)
 
 
+def get_finewebedu2() -> str:
+    """Returns a random subset of text from the FineWeb Edu 2 dataset."""
+
+    # Create a dataloader object
+    dataloader = pt.dataset.SubsetFineWebEdu2Loader()
+
+    rows = dataloader.fetch_data_to_rows(num_pages=15)
+    return "\n\n".join(rows)
+
+
 def format_model_size(size: int) -> str:
     """Formats a model size into a human readable format."""
     if size >= 1e12:
@@ -287,7 +296,7 @@ def run_benchmarks(args: ArgumentParser, datasets: Dict[str, str], config: bt.co
         "gpt2-large": HuggingFaceModelProvider(
             "gpt2-large", args.cache_dir, sequence_length=1024, use_flash=False
         ),
-        # # Also run a 3b for comparison.
+        # Also run a 3b for comparison.
         "phi-2": HuggingFaceModelProvider(
             "microsoft/phi-2", args.cache_dir, sequence_length=2048
         ),
@@ -339,7 +348,7 @@ def run_benchmarks(args: ArgumentParser, datasets: Dict[str, str], config: bt.co
 
     # Log to wandb.
     wandb.login(key=WANDB_TOKEN)
-    with wandb.init(project=PROJECT, entity=ENTITY):
+    with wandb.init(project=PROJECT):#, entity=ENTITY):
         table = wandb.Table(
             dataframe=pd.DataFrame(
                 {"Model": models.keys(), "Size": model_sizes, **ppls}
@@ -354,6 +363,7 @@ def main(args: ArgumentParser, config: bt.config):
     datasets = {
         "Wikitext103 (PPL)": get_wikitext103(args.cache_dir),
         "Falcon Refined Web (PPL)": get_falcon(),
+        "FineWeb Edu 2": get_finewebedu2(),
     }
 
     while True:
