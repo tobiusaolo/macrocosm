@@ -18,7 +18,7 @@ from model.data import ModelCriteria, TokenizerIdentifier
 # ---------------------------------
 
 # Release
-__version__ = "3.2.0"
+__version__ = "3.2.1"
 
 # Validator schema version
 __validator_version__ = "2.2.2"
@@ -31,8 +31,10 @@ __spec_version__ = (
 
 # The validator WANDB project.
 WANDB_PROJECT = "pretraining-subnet"
+
 # The uid for this subnet.
 SUBNET_UID = 9
+
 # The root directory of this project.
 ROOT_DIR = Path(__file__).parent.parent
 
@@ -41,7 +43,7 @@ ROOT_DIR = Path(__file__).parent.parent
 BLOCK_7B = 2_786_061
 
 # Block at which FineWeb edu score 2 dataset is used for evaluation
-BLOCK_FW_EDU_SCORE_2 = 3_256_604
+BLOCK_FW_EDU_SCORE_2 = 3_307_004
 
 # FIXING MODEL CRITERIA
 
@@ -86,7 +88,6 @@ MODEL_CRITERIA_BY_BLOCK = [
             max_model_parameters=186_000_000,
             allowed_model_types=ALLOWED_MODEL_TYPES_1,
             tokenizer_identifier=TokenizerIdentifier.DISTILGPT_2,
-            evaluation_dataset=DATASET_1,
         ),
     ),
     (
@@ -98,7 +99,6 @@ MODEL_CRITERIA_BY_BLOCK = [
             max_model_parameters=772_000_000,
             allowed_model_types=ALLOWED_MODEL_TYPES_1,
             tokenizer_identifier=TokenizerIdentifier.DISTILGPT_2,
-            evaluation_dataset=DATASET_1,
         ),
     ),
     (
@@ -110,19 +110,6 @@ MODEL_CRITERIA_BY_BLOCK = [
             max_model_parameters=6_900_000_000,
             allowed_model_types=ALLOWED_MODEL_TYPES_2,
             tokenizer_identifier=TokenizerIdentifier.GPT_4_TIKTOKEN,
-            evaluation_dataset=DATASET_1,
-        ),
-    ),
-    (
-        BLOCK_FW_EDU_SCORE_2,
-        ModelCriteria(
-            sequence_length=SEQUENCE_LENGTH_2,
-            optimized=True,
-            max_model_bytes=15 * 1024 * 1024 * 1024,
-            max_model_parameters=6_900_000_000,
-            allowed_model_types=ALLOWED_MODEL_TYPES_2,
-            tokenizer_identifier=TokenizerIdentifier.GPT_4_TIKTOKEN,
-            evaluation_dataset=DATASET_2,
         ),
     ),
 ]
