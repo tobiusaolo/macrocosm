@@ -216,12 +216,13 @@ class Validator:
         self.wandb_run = wandb.init(
             name=name,
             project=constants.WANDB_PROJECT,
-            entity="opentensor-dev",
+            entity="macrocosmos",
             config={
                 "uid": self.uid,
                 "hotkey": self.wallet.hotkey.ss58_address,
                 "run_name": run_id,
-                "version": constants.__validator_version__,
+                "version": constants.__version__,
+                "validator version": constants.__validator_version__,
                 "type": "validator",
             },
             allow_val_change=True,
