@@ -135,9 +135,9 @@ n_eval_pages = 18
 # validator eval batch size.
 batch_size = 1
 # validator eval batch min to keep for next loop.
-sample_min = 6
-# validator eval batch max. Difference from min is room to eval newly uploaded models.
-sample_max = 14
+sample_min = 5
+# Max number of uids that can be either pending eval or currently being evaluated.
+updated_models_limit = 15
 # validator incentive threshold to prioritize updates. All incentives add up to 1.
 update_priority_incentive_threshold = 0.01
 # time required between updates to the chain.

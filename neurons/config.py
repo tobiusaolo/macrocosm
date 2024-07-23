@@ -45,6 +45,12 @@ def validator_config():
         help="Maximum number of new uids to eval each step.",
     )
     parser.add_argument(
+        "--updated_models_limit",
+        type=int,
+        default=constants.updated_models_limit,
+        help="Max number of uids that can be either pending eval or currently being evaluated.",
+    )
+    parser.add_argument(
         "--dont_set_weights",
         action="store_true",
         help="Validator does not set weights on the chain.",
