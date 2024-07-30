@@ -36,11 +36,18 @@ from taoverse.model.competition.competition_tracker import CompetitionTracker
 from taoverse.model.competition.data import Competition
 from taoverse.model.model_tracker import ModelTracker
 from taoverse.model.model_updater import ModelUpdater
+from taoverse.model.storage.disk.disk_model_store import DiskModelStore
+from taoverse.model.storage.hugging_face.hugging_face_model_store import (
+    HuggingFaceModelStore,
+)
+from taoverse.model.storage.chain.chain_model_metadata_store import (
+    ChainModelMetadataStore,
+)
+
+from taoverse.utilities.perf_monitor import PerfMonitor
+
 from model.data import TokenizerIdentifier
 
-from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
-from model.storage.disk.disk_model_store import DiskModelStore
-from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
 from neurons import config
 import model.utils as model_utils
 import traceback
@@ -53,7 +60,7 @@ import bittensor as bt
 import pretrain as pt
 from utilities.miner_iterator import MinerIterator
 from utilities import utils
-from utilities.perf_monitor import PerfMonitor
+
 
 from competitions.data import CompetitionId
 
@@ -97,7 +104,7 @@ class Validator:
 
         # Dont log to wandb if offline.
         if not self.config.offline and self.config.wandb.on:
-            self.new_wandb_run()
+            self._new_wandb_run()
 
         # === Running args ===
         self.weights = torch.zeros_like(torch.tensor(self.metagraph.S))
@@ -204,9 +211,11 @@ class Validator:
 
         # Setup a ModelMetadataStore
         self.metadata_store = ChainModelMetadataStore(
-            self.subtensor, self.wallet, self.config.netuid
+            subtensor=self.subtensor,
+            subnet_uid=self.config.netuid,
+            wallet=self.wallet,
         )
-
+        
         # Setup a RemoteModelStore
         self.remote_store = HuggingFaceModelStore()
 
@@ -239,7 +248,7 @@ class Validator:
             self.update_thread.join()
             self.clean_thread.join()
 
-    def new_wandb_run(self):
+    def _new_wandb_run(self):
         """Creates a new wandb run to save information to."""
 
         # Create a unique run id for this run.
@@ -670,51 +679,31 @@ class Validator:
 
         bt.logging.trace(f'Current block: {cur_block}')
 
-        # Decide on which dataset loader class to use
-        if cur_block >= constants.BLOCK_FW_EDU_SCORE_2:
-            bt.logging.trace(f'Dataset in use: {constants.DATASET_2}.')
-            SubsetDataLoader = pt.dataset.SubsetFineWebEdu2Loader
-        else:
-            bt.logging.trace(f'Dataset in use: {constants.DATASET_1}.')
-            SubsetDataLoader = pt.dataset.SubsetFalconLoader
+        bt.logging.trace(f'Dataset in use: {constants.DATASET_2}.')
+        SubsetDataLoader = pt.dataset.SubsetFineWebEdu2Loader
 
-        # Temporary ugliness to load the batches with both the previous tokenizer
-        # and the new tokenizer. batches_old can be removed once the block is newer
-        # than the point we allow 7B parameter models.
-
-        ## First tokenizer (Prior to 7B models)
-        tokenizer_old = pt.model.get_old_tokenizer(cache_dir=self.config.model_dir)
-        dataloader_old = SubsetDataLoader(
-                batch_size=constants.batch_size,
-                sequence_length=constants.SEQUENCE_LENGTH_1,
-                num_pages=self.config.pages_per_eval, # The pages will be sampled inside the object
-                tokenizer=tokenizer_old,
+        # Get the tokenizer
+        tokenizer = pt.model.load_tokenizer(
+            competition.constraints, cache_dir=self.config.model_dir
+        )
+        
+        dataloader = SubsetDataLoader(
+            batch_size=constants.batch_size,
+            sequence_length=competition.constraints.sequence_length,
+            num_pages=self.config.pages_per_eval, # The pages will be sampled inside the object
+            tokenizer=tokenizer,
             )
 
-        batches_old = list(
-            dataloader_old
-        )
+        batches = list(dataloader)
 
         # This is useful for logging to wandb
-        pages = dataloader_old.get_page_names()
+        pages = dataloader.get_page_names()
 
-        ## Second tokenizer (For 7B models)
-        tokenizer_new = pt.model.get_tokenizer(cache_dir=self.config.model_dir)
-        dataloader_new = SubsetDataLoader(
-            batch_size=constants.batch_size,
-            sequence_length=constants.SEQUENCE_LENGTH_2,
-            num_pages=None, # Do not automatically generate pages. They will be manually set.
-            tokenizer=tokenizer_new,
-            )
-
-        # Use the same pages as for models with old tokenizers
-        dataloader_new.fetch_data_for_pages(pages=dataloader_old.pages)
-
-        batches_new = list(
-            dataloader_new
-        )
-
-        bt.logging.debug(f"Computing losses on {uids} with pages {pages}")
+        # Prepare evaluation.
+        kwargs = competition.constraints.kwargs.copy()
+        kwargs["use_cache"] = True
+        
+        bt.logging.debug(f"Competition {competition.id} | Computing losses on {uids}")
 
         # Compute model losses on batches.
         losses_per_uid = {muid: None for muid in uids}
@@ -725,57 +714,41 @@ class Validator:
         for uid_i in uids:
             bt.logging.trace(f"Computing model losses for uid:{uid_i}.")
 
+            # This variable should be overwritten below if the model has metadata.
+            losses: typing.List[float] = [math.inf for _ in range(len(batches))]
+            
             # Check that the model is in the tracker.
-            hotkey = self.metagraph.hotkeys[uid_i]
+            with self.metagraph_lock:
+                hotkey = self.metagraph.hotkeys[uid_i]
+                
             model_i_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
                 hotkey
             )
 
-            # This variable should be overwritten below if the model has metadata.
-            losses = [math.inf for _ in range(len(batches_new))]
-
-            if model_i_metadata != None:
+            if (
+                model_i_metadata is not None
+                and model_i_metadata.id.competition_id == competition.id
+            ):
                 try:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
-                    # Get criteria to evaluate model with based on block.
-                    criteria = model_utils.get_model_criteria(model_i_metadata.block)
-                    # Use bfloat16 and flash attention optimization based on block.
-                    optimized = criteria.optimized
-                    # Use tokenizer based on block.
-                    tokenizer_identifier = criteria.tokenizer_identifier
-
+                    
                     # Get the model locally and evaluate its loss.
                     model_i = None
                     with load_model_perf.sample():
                         model_i = self.local_store.retrieve_model(
-                            hotkey,
-                            model_i_metadata.id,
-                            optimized,
+                            hotkey, model_i_metadata.id, kwargs
                         )
 
                     with compute_loss_perf.sample():
                         # Run each computation in a subprocess so that the GPU is reset between each model.
-                        batches_to_use = None
-
-                        # Keeping identical behavior of getting this from eos token id.
-                        # Currently we set pad token = eos token but not the ids on the get tokenizer methods.
-                        pad_token_id = None
-
-                        if tokenizer_identifier == TokenizerIdentifier.DISTILGPT_2:
-                            batches_to_use = batches_old
-                            pad_token_id = tokenizer_old.eos_token_id
-                        else:
-                            batches_to_use = batches_new
-                            pad_token_id = tokenizer_new.eos_token_id
-
                         losses = utils.run_in_subprocess(
                             functools.partial(
                                 pt.validation.compute_losses,
                                 model_i.pt_model,
-                                batches_to_use,
+                                batches,
                                 self.config.device,
-                                pad_token_id,
+                                tokenizer_new.eos_token_id,
                             ),
                             ttl=360,
                             mode="spawn",
@@ -787,7 +760,7 @@ class Validator:
                     )
             else:
                 bt.logging.debug(
-                    f"Unable to load the model for {uid_i}. Setting loss to inifinity."
+                    f"Unable to load the model for {uid_i} or it belongs to another competition. Setting loss to inifinity for this competition."
                 )
 
             losses_per_uid[uid_i] = losses
@@ -798,7 +771,7 @@ class Validator:
 
         # Compute wins and win rates per uid.
         wins, win_rate = pt.validation.compute_wins(
-            uids, losses_per_uid, batches_new, uid_to_block
+            uids, losses_per_uid, batches, uid_to_block
         )
 
         # Compute softmaxed weights based on win rate.
@@ -807,15 +780,24 @@ class Validator:
         )
         step_weights = torch.softmax(model_weights / constants.temperature, dim=0)
 
-        # Update weights based on moving average.
-        new_weights = torch.zeros_like(self.weights)
+        # Fill in metagraph sized tensor with the step weights of the evaluated models.
+        with self.metagraph_lock:
+            competition_weights = torch.zeros_like(self.metagraph.S)
+
         for i, uid_i in enumerate(uids):
-            new_weights[uid_i] = step_weights[i]
-        new_weights /= new_weights.sum()
-        self.weights = (
-            constants.alpha * self.weights + (1 - constants.alpha) * new_weights
+            competition_weights[uid_i] = step_weights[i]
+
+        # Record weights for the current competition.
+        self.competition_tracker.record_competition_weights(
+            competition.id, competition_weights
         )
-        self.weights = self.weights.nan_to_num(0.0)
+
+        # Get ids for all competitions in the schedule.
+        active_competition_ids = set([comp.id for comp in competition_schedule])
+        # Align competition_tracker to only track active competitions.
+        self.competition_tracker.reset_competitions(active_competition_ids)
+        # Update self.weights to the merged values across active competitions.
+        self.weights = self.competition_tracker.get_subnet_weights(competition_schedule)
 
         # Prioritize models for keeping up to the sample_min for the next eval loop.
         # If the model has any significant weight, prioritize by weight with greater weights being kept first.
@@ -830,11 +812,12 @@ class Validator:
             for uid, wr in win_rate.items()
         }
 
-        self.uids_to_eval = set(
-            sorted(model_prioritization, key=model_prioritization.get, reverse=True)[
-                : self.config.sample_min
-            ]
-        )
+        with self.pending_uids_to_eval_lock:
+            self.uids_to_eval[competition.id] = set(
+                sorted(
+                    model_prioritization, key=model_prioritization.get, reverse=True
+                )[: self.config.sample_min]
+            )
 
         # Save state
         self.save_state()
@@ -845,14 +828,16 @@ class Validator:
 
         # Log to screen and wandb.
         self.log_step(
+            competition.id,            
             uids,
             uid_to_block,
+            self._get_uids_to_competition_ids(),            
             pages,
             wins,
             win_rate,
             losses_per_uid,
-            load_model_perf.summary_str(),
-            compute_loss_perf.summary_str(),
+            load_model_perf,
+            compute_loss_perf,
         )
 
         # Increment the number of completed run steps by 1
@@ -860,27 +845,31 @@ class Validator:
 
     def log_step(
         self,
-        uids,
-        uid_to_block,
-        pages,
-        wins,
-        win_rate,
-        losses_per_uid,
-        load_model_perf_str,
-        compute_loss_perf_str,
+        competition_id: CompetitionId,
+        uids: typing.List[int],
+        uid_to_block: typing.Dict[int, int],
+        uid_to_competition_id: typing.Dict[int, typing.Optional[CompetitionId]],
+        pages: typing.List[str],
+        wins: typing.Dict[int, int],
+        win_rate: typing.Dict[int, float],
+        losses_per_uid: typing.Dict[int, typing.List[float]],
+        load_model_perf: PerfMonitor,
+        compute_loss_perf: PerfMonitor,
     ):
         """Logs the results of the step to the console and wandb (if enabled)."""
         # Build step log
         step_log = {
             "timestamp": time.time(),
+            "competition_id": competition_id,            
             "pages": pages,
             "uids": uids,
             "uid_data": {},
         }
-        for i, uid in enumerate(uids):
+        for uid in uids:
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
+                "competition_id": uid_to_competition_id[uid],                
                 "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
@@ -893,6 +882,7 @@ class Validator:
         table.add_column("win_total", style="magenta")
         table.add_column("weights", style="magenta")
         table.add_column("block", style="magenta")
+        table.add_column("competition", style="magenta")        
         for uid in uids:
             try:
                 table.add_row(
@@ -902,6 +892,7 @@ class Validator:
                     str(step_log["uid_data"][str(uid)]["win_total"]),
                     str(round(self.weights[uid].item(), 4)),
                     str(step_log["uid_data"][str(uid)]["block"]),
+                    str(step_log["uid_data"][str(uid)]["competition_id"]),                    
                 )
             except:
                 pass
@@ -931,28 +922,71 @@ class Validator:
                     f"Validator has completed {self.run_step_count} run steps. Creating a new wandb run."
                 )
                 self.wandb_run.finish()
-                self.new_wandb_run()
+                self._new_wandb_run()
 
             original_format_json = json.dumps(step_log)
             uids = step_log["uids"]
             uid_data = step_log["uid_data"]
 
             # Create a new dictionary with the required format
+            with self.metagraph_lock:
+                block = self.metagraph.block.item()
             graphed_data = {
                 "time": time.time(),
-                "block": self.metagraph.block.item(),
+                "step_competition_id": competition_id,                
+                "block": block,
                 "uid_data": {
                     str(uid): uid_data[str(uid)]["average_loss"] for uid in uids
                 },
+                "win_rate_data": {
+                    str(uid): uid_data[str(uid)]["win_rate"] for uid in uids
+                },
+                "win_total_data": {
+                    str(uid): uid_data[str(uid)]["win_total"] for uid in uids
+                },
                 "weight_data": {str(uid): self.weights[uid].item() for uid in uids},
-                "load_model_perf_log": load_model_perf_str,
-                "compute_model_perf_log": compute_loss_perf_str,
+                "competition_id": {
+                    str(uid): uid_to_competition_id[uid]
+                    for uid in uids
+                    if uid_to_competition_id[uid] is not None
+                },
+                "load_model_perf": {
+                    "min": load_model_perf.min(),
+                    "median": load_model_perf.median(),
+                    "max": load_model_perf.max(),
+                    "P90": load_model_perf.percentile(90),
+                },
+                "compute_model_perf": {
+                    "min": compute_loss_perf.min(),
+                    "median": compute_loss_perf.median(),
+                    "max": compute_loss_perf.max(),
+                    "P90": compute_loss_perf.percentile(90),
+                },
             }
             bt.logging.trace("Logging to Wandb")
             self.wandb_run.log(
                 {**graphed_data, "original_format_json": original_format_json},
                 step=self.global_step,
             )
+            
+    def _get_uids_to_competition_ids(
+        self,
+    ) -> typing.Dict[int, typing.Optional[CompetitionId]]:
+        """Returns a mapping of uids to competition ids, based on the validator's current state"""
+        hotkey_to_metadata = (
+            self.model_tracker.get_miner_hotkey_to_model_metadata_dict()
+        )
+        with self.metagraph_lock:
+            uids_to_competition_ids = {}
+            # Check all uids currently registered as we default to None if they don't have metadata.
+            for uid in range(len(self.metagraph.uids)):
+                hotkey = self.metagraph.hotkeys[uid]
+                metadata = hotkey_to_metadata.get(hotkey, None)
+                uids_to_competition_ids[uid] = (
+                    metadata.id.competition_id if metadata else None
+                )
+
+            return uids_to_competition_ids
 
     async def run(self):
         """Runs the validator loop, which continuously evaluates models and sets weights."""
