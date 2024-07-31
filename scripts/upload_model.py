@@ -13,10 +13,14 @@ import asyncio
 import os
 import argparse
 import constants
-from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
+from taoverse.model.storage.hugging_face.hugging_face_model_store import (
+    HuggingFaceModelStore,
+)
+from taoverse.utilities.enum_action import IntEnumAction
 import pretrain as pt
 import bittensor as bt
 from utilities import utils
+from competitions.data import CompetitionId
 
 from dotenv import load_dotenv
 
@@ -50,6 +54,16 @@ def get_config():
         type=str,
         default=constants.SUBNET_UID,
         help="The subnet UID.",
+    )
+    parser.add_argument(
+        "--competition_id",
+        type=CompetitionId,
+        required=True,
+        action=IntEnumAction,
+        help="competition to mine for (use --list-competitions to get all competitions)",
+    )
+    parser.add_argument(
+        "--list_competitions", action="store_true", help="Print out all competitions"
     )
     parser.add_argument(
         "--use_hotkey_in_hash",
@@ -90,6 +104,9 @@ async def main(config: bt.config):
 if __name__ == "__main__":
     # Parse and print configuration
     config = get_config()
-    print(config)
+    if config.list_competitions:
+        print(constants.COMPETITION_SCHEDULE_BY_BLOCK)
+    else:
+        print(config)
+        asyncio.run(main(config))
 
-    asyncio.run(main(config))

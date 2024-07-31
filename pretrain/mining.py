@@ -20,21 +20,30 @@ import os
 import sys
 import time
 import torch
-from typing import Optional
 import constants
-from model.data import Model, ModelId
-from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
-from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
-from model.storage.model_metadata_store import ModelMetadataStore
-from model.storage.remote_model_store import RemoteModelStore
+
 import bittensor as bt
-from transformers import PreTrainedModel, AutoModelForCausalLM
 import pretrain as pt
+
+from typing import Optional
+
+from transformers import PreTrainedModel, AutoModelForCausalLM
 from safetensors.torch import load_model
 
-from utilities import utils
-from model.utils import get_hash_of_two_strings
+from taoverse.model import utils as model_utils
+from taoverse.model.data import Model, ModelId
+from taoverse.model.storage.chain.chain_model_metadata_store import (
+    ChainModelMetadataStore,
+)
+from taoverse.model.storage.hugging_face.hugging_face_model_store import (
+    HuggingFaceModelStore,
+)
+from taoverse.model.storage.model_metadata_store import ModelMetadataStore
+from taoverse.model.storage.remote_model_store import RemoteModelStore
+from taoverse.model.utils import get_hash_of_two_strings
 
+from utilities import utils
+from competitions.data import CompetitionId
 
 def model_path(base_dir: str, run_id: str) -> str:
     """

@@ -1,4 +1,4 @@
-# The MIT License (MIT)
+gg# The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 const
 
@@ -31,6 +31,7 @@ import asyncio
 import typing
 import wandb
 import constants
+from taoverse.metagraph import utils as metagraph_utils
 from taoverse.model.competition import utils as competition_utils
 from taoverse.model.competition.competition_tracker import CompetitionTracker
 from taoverse.model.competition.data import Competition
@@ -45,11 +46,11 @@ from taoverse.model.storage.chain.chain_model_metadata_store import (
 )
 
 from taoverse.utilities.perf_monitor import PerfMonitor
+from taoverse.utilities import utils
 
 from model.data import TokenizerIdentifier
 
 from neurons import config
-import model.utils as model_utils
 import traceback
 import threading
 import multiprocessing
@@ -58,8 +59,9 @@ from rich.console import Console
 
 import bittensor as bt
 import pretrain as pt
+from torch.utils.data import IterableDataset
 from utilities.miner_iterator import MinerIterator
-from utilities import utils
+
 
 
 from competitions.data import CompetitionId
@@ -69,7 +71,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 class Validator:
     MODEL_TRACKER_FILENAME = "model_tracker.pickle"
-    COMPETITION_TRACKER_FILENAME = "competition_tracker.pickle"    
+    COMPETITION_TRACKER_FILENAME = "competition_tracker.pickle"
     UIDS_FILENAME = "uids.pickle"
     VERSION_FILENAME = "version.txt"
 
@@ -97,7 +99,7 @@ class Validator:
 
         # Dont check registration status if offline.
         if not self.config.offline:
-            self.uid = utils.assert_registered(self.wallet, self.metagraph)
+            self.uid = metagraph_utils.assert_registered(self.wallet, self.metagraph)
 
         # Track how may run_steps this validator has completed.
         self.run_step_count = 0
@@ -127,7 +129,7 @@ class Validator:
         self.competition_tracker = CompetitionTracker(
             num_neurons=len(self.metagraph.uids), alpha=constants.alpha
         )
-        
+
         # Construct the filepaths to save/load state.
         state_dir = self.state_path()
         os.makedirs(state_dir, exist_ok=True)
@@ -184,7 +186,7 @@ class Validator:
                 bt.logging.warning(
                     f"Failed to load competition tracker state. Reason: {e}. Starting from scratch."
                 )
-                
+
         # Initialize the UIDs to eval.
         if not os.path.exists(self.uids_filepath):
             bt.logging.warning("No uids state file found. Starting from scratch.")
@@ -215,7 +217,7 @@ class Validator:
             subnet_uid=self.config.netuid,
             wallet=self.wallet,
         )
-        
+
         # Setup a RemoteModelStore
         self.remote_store = HuggingFaceModelStore()
 
@@ -305,7 +307,7 @@ class Validator:
                 current_uid_count += len(uids)
 
         return pending_uid_count, current_uid_count
-        
+
     def update_models(self):
         """Updates the models in the local store based on the latest metadata from the chain."""
 
@@ -334,8 +336,13 @@ class Validator:
                         metagraph = copy.deepcopy(self.metagraph)
 
                     # Find any miner UIDs which top valis are assigning weight and aren't currently scheduled for an eval.
-                    # This is competition agnostic, as anything with weight is 'winning' a competition for some vali.                    
-                    top_miner_uids = set(utils.list_top_miners(metagraph))
+                    # This is competition agnostic, as anything with weight is 'winning' a competition for some vali.
+                    top_miner_uids = metagraph_utils.get_top_miners(
+                        metagraph,
+                        constants.WEIGHT_SYNC_VALI_MIN_STAKE,
+                        constants.WEIGHT_SYNC_MINER_MIN_PERCENT,
+                    )
+                    
                     with self.pending_uids_to_eval_lock:
                         all_uids_to_eval = set()
                         all_pending_uids_to_eval = set()
@@ -362,7 +369,7 @@ class Validator:
                                 uid_last_retried_evaluation[uid] = dt.datetime.now()
 
                                 # Redownload this model and schedule it for eval.
-                                # Still respect the eval block delay so that previously top uids can't bypass it.                                
+                                # Still respect the eval block delay so that previously top uids can't bypass it.
                                 hotkey = metagraph.hotkeys[uid]
                                 should_retry = asyncio.run(
                                     self.model_updater.sync_model(
@@ -372,7 +379,7 @@ class Validator:
                                         force=True,
                                     )
                                 )
-                                
+
                                 if should_retry:
                                     # Since this is a top model (as determined by other valis),
                                     # we don't worry if self.pending_uids is already "full". At most
@@ -396,7 +403,7 @@ class Validator:
                                         bt.logging.warning(
                                             f"Failed to find metadata for uid {uid} with hotkey {hotkey}"
                                         )
-                                        
+
                             except Exception:
                                 bt.logging.debug(
                                     f"Failure in update loop for UID={uid} during top model check. {traceback.format_exc()}"
@@ -467,7 +474,7 @@ class Validator:
                         bt.logging.debug(
                             f"Found a new model for UID={next_uid}. It will be evaluated on the next loop."
                         )
-                        
+
                 if updated:
                     metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
                         hotkey
@@ -484,7 +491,7 @@ class Validator:
                         bt.logging.warning(
                             f"Failed to find metadata for uid {next_uid} with hotkey {hotkey}"
                         )
-                        
+
             except Exception as e:
                 bt.logging.error(
                     f"Error in update loop: {e} \n {traceback.format_exc()}"
@@ -649,7 +656,7 @@ class Validator:
         # Every validator step should pick a single competition in a round-robin fashion
         competition = competition_schedule[self.global_step % len(competition_schedule)]
         bt.logging.info("Starting evaluation for competition: " + str(competition.id))
-        
+
         # Add uids with newly updated models to the upcoming batch of evaluations.
         with self.pending_uids_to_eval_lock:
             self.uids_to_eval[competition.id].update(
@@ -659,7 +666,7 @@ class Validator:
 
         # Pull relevant uids for step. If they aren't found in the model tracker on eval they will be skipped.
         uids = list(self.uids_to_eval[competition.id])
-        
+
         if not uids:
             bt.logging.debug(f"No uids to eval for competition {competition.id}.")
             # Check if no competitions have uids, if so wait 5 minutes to download.
@@ -679,14 +686,16 @@ class Validator:
 
         bt.logging.trace(f'Current block: {cur_block}')
 
-        bt.logging.trace(f'Dataset in use: {constants.DATASET_2}.')
-        SubsetDataLoader = pt.dataset.SubsetFineWebEdu2Loader
+        # Get the dataloader for this competition
+        SubsetDataLoader = self._get_dataloader_class(competition_id = competition.id):
+        bt.logging.trace(f'Dataset in use: {SubsetDataLoader.name}.')
 
         # Get the tokenizer
         tokenizer = pt.model.load_tokenizer(
             competition.constraints, cache_dir=self.config.model_dir
         )
-        
+
+
         dataloader = SubsetDataLoader(
             batch_size=constants.batch_size,
             sequence_length=competition.constraints.sequence_length,
@@ -702,8 +711,9 @@ class Validator:
         # Prepare evaluation.
         kwargs = competition.constraints.kwargs.copy()
         kwargs["use_cache"] = True
-        
+
         bt.logging.debug(f"Competition {competition.id} | Computing losses on {uids}")
+        bt.logging.debug(f"Pages used are {pages}")
 
         # Compute model losses on batches.
         losses_per_uid = {muid: None for muid in uids}
@@ -716,11 +726,11 @@ class Validator:
 
             # This variable should be overwritten below if the model has metadata.
             losses: typing.List[float] = [math.inf for _ in range(len(batches))]
-            
+
             # Check that the model is in the tracker.
             with self.metagraph_lock:
                 hotkey = self.metagraph.hotkeys[uid_i]
-                
+
             model_i_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
                 hotkey
             )
@@ -732,7 +742,7 @@ class Validator:
                 try:
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
-                    
+
                     # Get the model locally and evaluate its loss.
                     model_i = None
                     with load_model_perf.sample():
@@ -828,10 +838,10 @@ class Validator:
 
         # Log to screen and wandb.
         self.log_step(
-            competition.id,            
+            competition.id,
             uids,
             uid_to_block,
-            self._get_uids_to_competition_ids(),            
+            self._get_uids_to_competition_ids(),
             pages,
             wins,
             win_rate,
@@ -860,7 +870,7 @@ class Validator:
         # Build step log
         step_log = {
             "timestamp": time.time(),
-            "competition_id": competition_id,            
+            "competition_id": competition_id,
             "pages": pages,
             "uids": uids,
             "uid_data": {},
@@ -869,7 +879,7 @@ class Validator:
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
-                "competition_id": uid_to_competition_id[uid],                
+                "competition_id": uid_to_competition_id[uid],
                 "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
@@ -882,7 +892,7 @@ class Validator:
         table.add_column("win_total", style="magenta")
         table.add_column("weights", style="magenta")
         table.add_column("block", style="magenta")
-        table.add_column("competition", style="magenta")        
+        table.add_column("competition", style="magenta")
         for uid in uids:
             try:
                 table.add_row(
@@ -892,7 +902,7 @@ class Validator:
                     str(step_log["uid_data"][str(uid)]["win_total"]),
                     str(round(self.weights[uid].item(), 4)),
                     str(step_log["uid_data"][str(uid)]["block"]),
-                    str(step_log["uid_data"][str(uid)]["competition_id"]),                    
+                    str(step_log["uid_data"][str(uid)]["competition_id"]),
                 )
             except:
                 pass
@@ -933,7 +943,7 @@ class Validator:
                 block = self.metagraph.block.item()
             graphed_data = {
                 "time": time.time(),
-                "step_competition_id": competition_id,                
+                "step_competition_id": competition_id,
                 "block": block,
                 "uid_data": {
                     str(uid): uid_data[str(uid)]["average_loss"] for uid in uids
@@ -968,7 +978,24 @@ class Validator:
                 {**graphed_data, "original_format_json": original_format_json},
                 step=self.global_step,
             )
-            
+
+    def _get_dataloader_class(
+            self, competition_id: int
+    ) -> IterableDataset:
+        """
+        Decide which dataset loader class to use, using the competition ID.
+        """
+        dataset_name = constants.DATASET_BY_COMPETITION_ID[competition_id]
+
+        if dataset_name == constants.M772_DATASET:
+            SubsetDataLoader = pt.dataset.SubsetFalconLoader
+
+        elif dataset_name == constants.B7_DATASET:
+            SubsetDataLoader = pt.dataset.SubsetFineWebEdu2Loader
+
+        return SubsetDataLoader
+
+
     def _get_uids_to_competition_ids(
         self,
     ) -> typing.Dict[int, typing.Optional[CompetitionId]]:
