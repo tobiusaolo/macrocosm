@@ -1,7 +1,7 @@
 """A script that pushes a model from disk to the subnet for evaluation.
 
 Usage:
-    python scripts/upload_model.py --load_model_dir <path to model> --hf_repo_id my-username/my-project --wallet.name coldkey --wallet.hotkey hotkey
+    python scripts/upload_model.py --load_model_dir <path to model> --hf_repo_id my-username/my-project --competition_id competitionID  --wallet.name coldkey --wallet.hotkey hotkey
     
 Prerequisites:
    1. HF_ACCESS_TOKEN is set in the environment or .env file.
@@ -13,13 +13,17 @@ import asyncio
 import os
 import argparse
 import constants
+from taoverse.metagraph import utils as metagraph_utils
+from taoverse.model.storage.chain.chain_model_metadata_store import (
+    ChainModelMetadataStore,
+)
 from taoverse.model.storage.hugging_face.hugging_face_model_store import (
     HuggingFaceModelStore,
 )
 from taoverse.utilities.enum_action import IntEnumAction
 import pretrain as pt
 import bittensor as bt
-from utilities import utils
+
 from competitions.data import CompetitionId
 
 from dotenv import load_dotenv
@@ -43,11 +47,6 @@ def get_config():
         type=str,
         default=None,
         help="If provided, loads a previously trained HF model from the specified directory",
-    )
-    parser.add_argument(
-        "--upload_b16",
-        action="store_false",  # Defaults to True.
-        help="If true, upload the model using bfloat16.",
     )
     parser.add_argument(
         "--netuid",
@@ -89,15 +88,34 @@ async def main(config: bt.config):
     wallet = bt.wallet(config=config)
     subtensor = bt.subtensor(config=config)
     metagraph = subtensor.metagraph(config.netuid)
+    chain_metadata_store = ChainModelMetadataStore(
+        subtensor=subtensor,
+        subnet_uid=config.netuid,
+        wallet=wallet,
+    )
 
     # Make sure we're registered and have a HuggingFace token.
-    utils.assert_registered(wallet, metagraph)
+    metagraph_utils.assert_registered(wallet, metagraph)
     HuggingFaceModelStore.assert_access_token_exists()
 
+    # Get current model parameters
+    model_constraints = constants.MODEL_CONSTRAINTS_BY_COMPETITION_ID.get(
+        config.competition_id, None
+    )
+    if model_constraints is None:
+        raise RuntimeError(
+            f"Could not find current competition for id: {config.competition_id}"
+        )
+    
     # Load the model from disk and push it to the chain and Hugging Face.
-    model = pt.mining.load_local_model(config.load_model_dir, config.upload_b16)
+    model = pt.mining.load_local_model(config.load_model_dir, model_constraints.kwargs)
     await pt.mining.push(
-        model, config.hf_repo_id, wallet, use_hotkey_in_hash=config.use_hotkey_in_hash
+        model,
+        config.hf_repo_id,
+        wallet,        
+        config.competition_id,
+        metadata_store=chain_metadata_store,
+        use_hotkey_in_hash=config.use_hotkey_in_hash
     )
 
 

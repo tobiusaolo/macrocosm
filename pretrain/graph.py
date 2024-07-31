@@ -16,13 +16,51 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import typing
-import constants
+import asyncio
+from typing import Optional
+
 import bittensor as bt
+from taoverse.model.storage.chain.chain_model_metadata_store import (
+    ChainModelMetadataStore,
+)
+from taoverse.model.storage.model_metadata_store import ModelMetadataStore
+
+import constants
+from competitions.data import CompetitionId
 
 
-def best_uid(metagraph: typing.Optional[bt.metagraph] = None) -> int:
-    """Returns the best performing UID in the metagraph."""
+def best_uid(
+    competition_id: CompetitionId,
+    subtensor: Optional[bt.subtensor] = None,
+    metagraph: Optional[bt.metagraph] = None,
+    metadata_store: Optional[ModelMetadataStore] = None,
+) -> Optional[int]:
+    """Returns the best performing UID in the metagraph for the given competition.
+
+    Returns:
+        int: The UID of the best performing miner in the metagraph for the given competition or None if no miner for the given competition is found.
+    """
+    if not subtensor:
+        subtensor = bt.subtensor()
+
     if not metagraph:
-        metagraph = bt.subtensor().metagraph(constants.SUBNET_UID)
-    return max(range(metagraph.n), key=lambda uid: metagraph.I[uid].item())
+        metagraph = subtensor.metagraph(constants.SUBNET_UID)
+
+    if not metadata_store:
+        metadata_store = ChainModelMetadataStore(
+            subtensor=subtensor, subnet_uid=constants.SUBNET_UID
+        )
+
+    incentives = [(metagraph.I[uid].item(), uid) for uid in range(metagraph.n)]
+    # With a winner takes all model, we expect ~ 1 model per competition.
+    # So the top 5 miners should provide sufficient coverage.
+    top_miners = sorted(incentives, reverse=True)[:5]
+
+    for _, miner_uid in top_miners:
+        metadata = asyncio.run(
+            metadata_store.retrieve_model_metadata(metagraph.hotkeys[miner_uid])
+        )
+        if metadata and metadata.id.competition_id == competition_id:
+            return miner_uid
+
+    return None

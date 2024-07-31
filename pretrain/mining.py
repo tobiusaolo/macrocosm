@@ -25,6 +25,7 @@ import constants
 import bittensor as bt
 import pretrain as pt
 
+from dataclasses import replace
 from typing import Optional
 
 from transformers import PreTrainedModel, AutoModelForCausalLM
@@ -42,7 +43,7 @@ from taoverse.model.storage.model_metadata_store import ModelMetadataStore
 from taoverse.model.storage.remote_model_store import RemoteModelStore
 from taoverse.model.utils import get_hash_of_two_strings
 
-from utilities import utils
+
 from competitions.data import CompetitionId
 
 def model_path(base_dir: str, run_id: str) -> str:
@@ -56,6 +57,7 @@ async def push(
     model: PreTrainedModel,
     repo: str,
     wallet: bt.wallet,
+    competition_id: CompetitionId,        
     retry_delay_secs: int = 60,
     metadata_store: Optional[ModelMetadataStore] = None,
     remote_model_store: Optional[RemoteModelStore] = None,
@@ -66,6 +68,7 @@ async def push(
     Args:
         model (PreTrainedModel): The model to push.
         repo (str): The repo to push to. Must be in format "namespace/name".
+        competition_id (CompetitionId): The competition the miner is participating in.
         wallet (bt.wallet): The wallet of the Miner uploading the model.
         retry_delay_secs (int): The number of seconds to wait before retrying to push the model to the chain.
         metadata_store (Optional[ModelMetadataStore]): The metadata store. If None, defaults to writing to the
@@ -76,15 +79,24 @@ async def push(
     bt.logging.info("Pushing model")
 
     if metadata_store is None:
-        metadata_store = ChainModelMetadataStore(bt.subtensor(), wallet)
+        metadata_store = ChainModelMetadataStore(
+            subtensor=bt.subtensor(), subnet_uid=constants.SUBNET_UID, wallet=wallet
+        )
 
     if remote_model_store is None:
         remote_model_store = HuggingFaceModelStore()
 
+    model_constraints = constants.MODEL_CONSTRAINTS_BY_COMPETITION_ID.get(
+        competition_id, None
+    )
+    if not model_constraints:
+        raise ValueError("Invalid competition_id")
+        
     # First upload the model to HuggingFace.
-    namespace, name = utils.validate_hf_repo_id(repo)
-    model_id = ModelId(namespace=namespace, name=name)
-    model_id = await remote_model_store.upload_model(Model(id=model_id, pt_model=model))
+    namespace, name = model_utils.validate_hf_repo_id(repo)
+    model_id = ModelId(namespace=namespace, name=name, competition_id=competition_id)    
+    model_id = await remote_model_store.upload_model(
+        Model(id=model_id, pt_model=model), model_constraints
 
     bt.logging.success("Uploaded model to hugging face.")
 
@@ -93,9 +105,9 @@ async def push(
         bt.logging.info(
             f"Hashing miner hotkey {wallet.hotkey.ss58_address} into the hash before uploading."
         )
-        new_hash = get_hash_of_two_strings(model_id.hash, wallet.hotkey.ss58_address)
-        model_id = model_id.copy(update={"hash": new_hash})
-
+        secure_hash = get_hash_of_two_strings(model_id.hash, wallet.hotkey.ss58_address)
+        model_id = replace(model_id, secure_hash=secure_hash)
+        
     bt.logging.success(f"Now committing to the chain with model_id: {model_id}")
 
     # We can only commit to the chain every 20 minutes, so run this in a loop, until
@@ -114,7 +126,10 @@ async def push(
                 wallet.hotkey.ss58_address
             )
 
-            if not model_metadata or model_metadata.id != model_id:
+            if (
+                not model_metadata
+                or model_metadata.id.to_compressed_str() != model_id.to_compressed_str()
+            ):
                 bt.logging.error(
                     f"Failed to read back model metadata from the chain. Expected: {model_id}, got: {model_metadata}"
                 )
@@ -149,16 +164,19 @@ async def get_repo(
 ) -> str:
     """Returns a URL to the HuggingFace repo of the Miner with the given UID."""
     if metadata_store is None:
-        metadata_store = ChainModelMetadataStore(bt.subtensor())
+        metadata_store = ChainModelMetadataStore(
+            subtensor=bt.subtensor(), subnet_uid=constants.SUBNET_UID
+        )
     if metagraph is None:
         metagraph = bt.metagraph(netuid=constants.SUBNET_UID)
+
     hotkey = metagraph.hotkeys[uid]
     model_metadata = await metadata_store.retrieve_model_metadata(hotkey)
 
     if not model_metadata:
         raise ValueError(f"No model metadata found for miner {uid}")
 
-    return utils.get_hf_url(model_metadata)
+    return model_utils.get_hf_url(model_metadata)
 
 
 def load_gpt2_model(model_file: str) -> PreTrainedModel:
@@ -168,28 +186,14 @@ def load_gpt2_model(model_file: str) -> PreTrainedModel:
     return model
 
 
-def load_local_model(model_dir: str, use_bf16: bool = False) -> PreTrainedModel:
+def load_local_model(model_dir: str, kwargs: Dict[str, Any]) -> PreTrainedModel:
     """Loads a model from a directory."""
-    if use_bf16:
-        return AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name_or_path=model_dir,
-            local_files_only=True,
-            use_safetensors=True,
-            torch_dtype=torch.bfloat16,
-        )
-    else:
-        return AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name_or_path=model_dir,
-            local_files_only=True,
-            use_safetensors=True,
-        )
-
-
-async def load_best_model(download_dir: str):
-    """Loads the model from the best performing miner to download_dir"""
-    best_uid = pt.graph.best_uid()
-    return await load_remote_model(best_uid, download_dir)
-
+    return AutoModelForCausalLM.from_pretrained(
+        pretrained_model_name_or_path=model_dir,
+        local_files_only=True,
+        use_safetensors=True,
+        **kwargs,
+    )
 
 async def load_remote_model(
     uid: int,
@@ -212,7 +216,9 @@ async def load_remote_model(
         metagraph = bt.metagraph(netuid=constants.SUBNET_UID)
 
     if metadata_store is None:
-        metadata_store = ChainModelMetadataStore(subtensor=bt.subtensor())
+        metadata_store = ChainModelMetadataStore(
+            subtensor=bt.subtensor(), subnet_uid=constants.SUBNET_UID
+        )
 
     if remote_model_store is None:
         remote_model_store = HuggingFaceModelStore()
@@ -222,8 +228,39 @@ async def load_remote_model(
     if not model_metadata:
         raise ValueError(f"No model metadata found for miner {uid}")
 
+    model_constraints = constants.MODEL_CONSTRAINTS_BY_COMPETITION_ID.get(
+        model_metadata.id.competition_id, None
+    )
+
+    if not model_constraints:
+        raise ValueError("Invalid competition_id")
+
     bt.logging.success(f"Fetched model metadata: {model_metadata}")
     model: Model = await remote_model_store.download_model(
-        model_metadata.id, download_dir
+        model_metadata.id, download_dir, model_constraints
     )
     return model.pt_model
+
+
+async def load_best_model(
+    download_dir: str,
+    competition_id: CompetitionId,
+    metagraph: Optional[bt.metagraph] = None,
+    metadata_store: Optional[ModelMetadataStore] = None,
+    remote_model_store: Optional[RemoteModelStore] = None,
+) -> PreTrainedModel:
+    """Loads the model from the best performing miner to download_dir"""
+    best_uid = ft.graph.best_uid(competition_id=competition_id)
+    if best_uid is None:
+        raise ValueError(f"No best models found for {competition_id}")
+
+    return await load_remote_model(
+        best_uid,
+        download_dir,
+        metagraph,
+        metadata_store,
+        remote_model_store,
+    )
+
+
+        

@@ -19,19 +19,30 @@
 import asyncio
 import math
 import os
+import random
+import typing
+
+
 import wandb
 import torch
-import random
+
 import argparse
 import constants
-from model.storage.chain.chain_model_metadata_store import ChainModelMetadataStore
-from model.storage.hugging_face.hugging_face_model_store import HuggingFaceModelStore
-from model.storage.model_metadata_store import ModelMetadataStore
-from model.storage.remote_model_store import RemoteModelStore
+
+from taoverse.metagraph import utils as metagraph_utils
+from taoverse.model.storage.chain.chain_model_metadata_store import (
+    ChainModelMetadataStore,
+)
+from taoverse.model.storage.hugging_face.hugging_face_model_store import (
+    HuggingFaceModelStore,
+)
+from taoverse.model.storage.model_metadata_store import ModelMetadataStore
+from taoverse.utilities.enum_action import IntEnumAction
+from competitions.data import CompetitionId
+
 import pretrain as pt
 import bittensor as bt
 from transformers import PreTrainedModel
-from utilities import utils
 import datetime as dt
 
 from dotenv import load_dotenv
@@ -105,11 +116,6 @@ def get_config():
         help="If provided, loads a previously trained HF model from the specified directory",
     )
     parser.add_argument(
-        "--upload_b16",
-        action="store_true",  # Currently defaults to false. Flip post 7b block.
-        help="If true, upload the model using bfloat16.",
-    )
-    parser.add_argument(
         "--load_model",
         type=str,
         default=None,
@@ -152,6 +158,16 @@ def get_config():
         action="store_true",  # Defaults to False.
         help="If true, use the hotkey of the miner when generating the hash.",
     )
+    parser.add_argument(
+        "--competition_id",
+        type=CompetitionId,
+        required=True,
+        action=IntEnumAction,
+        help="competition to mine for (use --list-competitions to get all competitions)",
+    )
+    parser.add_argument(
+        "--list_competitions", action="store_true", help="Print out all competitions"
+    )
 
     # Include wallet and logging arguments from bittensor
     bt.wallet.add_args(parser)
@@ -168,23 +184,20 @@ async def load_starting_model(
     config: bt.config,
     metagraph: bt.metagraph,
     metadata_store: ModelMetadataStore,
-    remote_model_store: RemoteModelStore,
+    kwargs: typing.Dict[str, typing.Any],
 ) -> PreTrainedModel:
     """Loads the model to train based on the provided config."""
 
     # Initialize the model based on the best on the network.
     if config.load_best:
-        # Get the best UID be incentive and load it.
-        best_uid = pt.graph.best_uid(metagraph)
-        model = await pt.mining.load_remote_model(
-            best_uid,
+        model = await pt.mining.load_best_model(
             config.model_dir,
-            metagraph,
-            metadata_store,
-            remote_model_store,
+            config.competition_id,
+            metagraph=metagraph,
+            metadata_store=metadata_store,
         )
         bt.logging.success(
-            f"Training with model from best uid: {best_uid}. Model={str(model)}"
+            f"Training with best model from competition: {config.competition_id}. Model={str(model)}"
         )
         return model
 
@@ -194,9 +207,8 @@ async def load_starting_model(
         model = await pt.mining.load_remote_model(
             config.load_uid,
             config.model_dir,
-            metagraph,
-            metadata_store,
-            remote_model_store,
+            metagraph=metagraph,
+            metadata_store=metadata_store,
         )
         bt.logging.success(
             f"Training with model from uid: {config.load_uid}. Model={str(model)}"
@@ -205,7 +217,7 @@ async def load_starting_model(
 
     # Check if we should load a model from a local directory.
     if config.load_model_dir:
-        model = pt.mining.load_local_model(config.load_model_dir)
+        model = pt.mining.load_local_model(config.load_model_dir, kwargs)
         bt.logging.success(f"Training with model from disk. Model={str(model)}")
         return model
 
@@ -233,9 +245,8 @@ async def main(config: bt.config):
     # If running online, make sure the miner is registered, has a hugging face access token, and has provided a repo id.
     my_uid = None
     if not config.offline:
-        my_uid = utils.assert_registered(wallet, metagraph)
+        my_uid = meta_utils.assert_registered(wallet, metagraph)
         HuggingFaceModelStore.assert_access_token_exists()
-        utils.validate_hf_repo_id(config.hf_repo_id)
 
     # Create a unique run id for this run.
     run_id = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

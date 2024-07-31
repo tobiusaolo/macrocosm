@@ -112,18 +112,30 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         0,
         [
             Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                1.0,
+            )
+            
+        ],
+    ),
+    (
+        kkkk,
+        [
+            Competition(
                 CompetitionId.M772_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
-                0.9,
+                0.1,
             ),
             Competition(
                 CompetitionId.B7_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
-                0.1,
+                0.9,
             )
             
         ],
     )
+    
 ]
 
 for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
