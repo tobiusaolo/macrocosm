@@ -69,7 +69,7 @@ ALLOWED_MODEL_TYPES_2 = {
 # Defined dataset by competition id
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.M772_MODEL : "Falcon/RefinedWeb",
-    CompetitionId.7B_MODEL : "HF/FineWebEdu2"
+    CompetitionId.B7_MODEL : "HF/FineWebEdu2"
 }
 
 # Defined model constraints by competition id to ensure they are constant across blocks.
@@ -81,7 +81,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         tokenizer="distilgpt2",
         eval_block_delay=1200,  # ~4 hours.
     ),
-    CompetitionId.7B_MODEL: ModelConstraints(
+    CompetitionId.B7_MODEL: ModelConstraints(
         max_model_parameter_size=6_900_000_000,
         sequence_length=4096,
         allowed_architectures=ALLOWED_MODEL_TYPES_2,
@@ -106,8 +106,8 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
                 0.9,
             ),
             Competition(
-                CompetitionId.7B_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.7B_MODEL],
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
                 0.1,
             )
             
