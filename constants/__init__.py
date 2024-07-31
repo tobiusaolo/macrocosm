@@ -11,6 +11,14 @@ from transformers import (
     PhiForCausalLM,
     GemmaForCausalLM,
 )
+
+from taoverse.model.competition.data import (
+    Competition,
+    ModelConstraints,
+    NormValidationConstraints,
+)
+from competitions.data import CompetitionId
+
 from model.data import ModelCriteria, TokenizerIdentifier
 
 # ---------------------------------
@@ -18,10 +26,10 @@ from model.data import ModelCriteria, TokenizerIdentifier
 # ---------------------------------
 
 # Release
-__version__ = "3.2.2"
+__version__ = "4.0.0"
 
 # Validator schema version
-__validator_version__ = "2.2.2"
+__validator_version__ = "3.0.0"
 version_split = __validator_version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -37,24 +45,6 @@ SUBNET_UID = 9
 
 # The root directory of this project.
 ROOT_DIR = Path(__file__).parent.parent
-
-# COMPETITION CHANGES
-# Block at which 7b models, 4096 sequence lengths, new tokenizer, bfloat16, and flash attention are used.
-BLOCK_7B = 2_786_061
-
-# Block at which FineWeb edu score 2 dataset is used for evaluation
-BLOCK_FW_EDU_SCORE_2 = 3_307_004
-
-# FIXING MODEL CRITERIA
-
-# Fixing sequence length
-SEQUENCE_LENGTH_1 = 1024
-SEQUENCE_LENGTH_2 = 4096
-
-# Fixing evaluation dataset
-DATASET_1 = "Falcon/RefinedWeb"
-DATASET_2 = "HF/FineWebEdu2"
-
 
 # A mapping of block numbers to the supported model types as of that block.
 ALLOWED_MODEL_TYPES_1 = {
@@ -76,7 +66,63 @@ ALLOWED_MODEL_TYPES_2 = {
     GemmaForCausalLM,
 }
 
+####
+# Defined dataset by competition id
+DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
+    CompetitionId.772M_MODEL : "Falcon/RefinedWeb",
+    CompetitionId.7B_MODEL : "HF/FineWebEdu2"
+}
 
+# Defined model constraints by competition id to ensure they are constant across blocks.
+MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
+    CompetitionId.772M_MODEL: ModelConstraints(
+        max_model_parameter_size=772_000_000,
+        sequence_length=1024,
+        allowed_architectures=ALLOWED_MODEL_TYPES_1,
+        tokenizer="distilgpt2",
+        eval_block_delay=1200,  # ~4 hours.
+    ),
+    CompetitionId.7B_MODEL: ModelConstraints(
+        max_model_parameter_size=6_900_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",            
+        },
+        eval_block_delay=1200,  # ~4 hours.
+    ),
+}
+
+
+# Schedule of competitions by block.
+COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
+    (
+        0,
+        [
+            Competition(
+                CompetitionId.772M_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.772M_MODEL],
+                0.9,
+            ),
+            Competition(
+                CompetitionId.7B_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.7B_MODEL],
+                0.1,
+            )
+            
+        ],
+    )
+]
+
+for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
+    assert math.isclose(
+        sum(competition.reward_percentage for competition in block_and_competitions[1]),
+        1.0,
+    )
+
+####
 # A mapping of block numbers to ModelCriteria. Must be ordered by block.
 MODEL_CRITERIA_BY_BLOCK = [
     (
