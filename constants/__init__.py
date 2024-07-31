@@ -66,16 +66,15 @@ ALLOWED_MODEL_TYPES_2 = {
     GemmaForCausalLM,
 }
 
-####
 # Defined dataset by competition id
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
-    CompetitionId.772M_MODEL : "Falcon/RefinedWeb",
+    CompetitionId.M772_MODEL : "Falcon/RefinedWeb",
     CompetitionId.7B_MODEL : "HF/FineWebEdu2"
 }
 
 # Defined model constraints by competition id to ensure they are constant across blocks.
 MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
-    CompetitionId.772M_MODEL: ModelConstraints(
+    CompetitionId.M772_MODEL: ModelConstraints(
         max_model_parameter_size=772_000_000,
         sequence_length=1024,
         allowed_architectures=ALLOWED_MODEL_TYPES_1,
@@ -102,8 +101,8 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         0,
         [
             Competition(
-                CompetitionId.772M_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.772M_MODEL],
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
                 0.9,
             ),
             Competition(
@@ -122,43 +121,6 @@ for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
         1.0,
     )
 
-####
-# A mapping of block numbers to ModelCriteria. Must be ordered by block.
-MODEL_CRITERIA_BY_BLOCK = [
-    (
-        0,
-        ModelCriteria(
-            sequence_length=SEQUENCE_LENGTH_1,
-            optimized=False,
-            max_model_bytes=5 * 1024 * 1024 * 1024,
-            max_model_parameters=186_000_000,
-            allowed_model_types=ALLOWED_MODEL_TYPES_1,
-            tokenizer_identifier=TokenizerIdentifier.DISTILGPT_2,
-        ),
-    ),
-    (
-        2_405_920,
-        ModelCriteria(
-            sequence_length=SEQUENCE_LENGTH_1,
-            optimized=False,
-            max_model_bytes=5 * 1024 * 1024 * 1024,
-            max_model_parameters=772_000_000,
-            allowed_model_types=ALLOWED_MODEL_TYPES_1,
-            tokenizer_identifier=TokenizerIdentifier.DISTILGPT_2,
-        ),
-    ),
-    (
-        BLOCK_7B,
-        ModelCriteria(
-            sequence_length=SEQUENCE_LENGTH_2,
-            optimized=True,
-            max_model_bytes=15 * 1024 * 1024 * 1024,
-            max_model_parameters=6_900_000_000,
-            allowed_model_types=ALLOWED_MODEL_TYPES_2,
-            tokenizer_identifier=TokenizerIdentifier.GPT_4_TIKTOKEN,
-        ),
-    ),
-]
 
 # The number of run steps to log to single wandb run.
 MAX_RUN_STEPS_PER_WANDB_RUN = 100
