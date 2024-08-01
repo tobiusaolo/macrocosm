@@ -241,6 +241,11 @@ async def main(config: bt.config):
     wallet = bt.wallet(config=config)
     subtensor = bt.subtensor(config=config)
     metagraph = subtensor.metagraph(config.netuid)
+    chain_metadata_store = ChainModelMetadataStore(
+        subtensor=subtensor,
+        subnet_uid=config.netuid,
+        wallet=wallet,
+    )
 
     # If running online, make sure the miner is registered, has a hugging face access token, and has provided a repo id.
     my_uid = None
@@ -262,12 +267,19 @@ async def main(config: bt.config):
         else:
             use_wandb = True
 
-    # Init model.
-    metadata_store = ChainModelMetadataStore(subtensor, wallet, config.netuid)
-    remote_store = HuggingFaceModelStore()
-    model: PreTrainedModel = await load_starting_model(
-        config, metagraph, metadata_store, remote_store
+    model_constraints = constants.MODEL_CONSTRAINTS_BY_COMPETITION_ID.get(
+        config.competition_id, None
     )
+
+    if not model_constraints:
+        raise RuntimeError(f"No competition found for {config.competition_id}")
+    
+    kwargs = model_constraints.kwargs.copy()
+            
+    # Init model.
+    # Init model.
+    tokenizer = ft.model.load_tokenizer(model_constraints, cache_dir=config.model_dir)
+    model = await load_starting_model(config, metagraph, chain_metadata_store, kwargs)
     model = model.train()
     model = model.to(config.device)
 
@@ -296,7 +308,7 @@ async def main(config: bt.config):
                 "uid": my_uid,
                 "hotkey": wallet.hotkey.ss58_address,
                 "run_name": run_id,
-                "version": constants.__validator_version__,
+                "version": constants.__version__,                
                 "type": "miner",
             },
             allow_val_change=True,
@@ -316,7 +328,6 @@ async def main(config: bt.config):
     n_acc_steps = 0
     best_avg_loss = math.inf
     accumulation_steps = config.accumulation_steps
-    tokenizer = pt.model.get_tokenizer()
 
     try:
         while epoch_step < config.num_epochs or config.num_epochs == -1:
@@ -331,10 +342,12 @@ async def main(config: bt.config):
                 random.randint(1, pt.dataset.SubsetFalconLoader.max_pages)
                 for _ in range(config.pages_per_epoch)
             ]
-            loader = pt.dataset.SubsetFalconLoader(
+
+            # Change this loader if you wish to use a different dataset
+            loader = pt.dataset.SubsetFineWebEdu2Loader(
                 batch_size=config.bs,
-                sequence_length=config.sl,
-                pages=random_pages,
+                sequence_length=config.sl
+                num_pages=config.pages_per_epoch,
                 tokenizer=tokenizer,
             )
 
@@ -396,18 +409,20 @@ async def main(config: bt.config):
                     f"Trained model had a best_avg_loss of {best_avg_loss} which is below the threshold of {config.avg_loss_upload_threshold}. Uploading to hugging face. "
                 )
 
-                # First, reload the best model from the training run, using b16 if passed.
-                model_to_upload = pt.mining.load_local_model(
-                    model_dir, config.upload_b16
+                # First, reload the best model from the training run.
+                model_to_upload = ft.mining.load_local_model(
+                    model_dir, model_constraints.kwargs
                 )
-                await pt.mining.push(
+                
+                await ft.mining.push(
                     model_to_upload,
                     config.hf_repo_id,
-                    wallet,
-                    metadata_store=metadata_store,
-                    remote_model_store=remote_store,
-                    use_hotkey_in_hash=config.use_hotkey_in_hash,
+                    wallet,                    
+                    config.competition_id,
+                    metadata_store=chain_metadata_store,
+                    use_hotkey_in_hash=config.use_hotkey_in_hash,                    
                 )
+                
             else:
                 bt.logging.success(
                     f"This training run achieved a best_avg_loss={best_avg_loss}, which did not meet the upload threshold. Not uploading to hugging face."
@@ -425,7 +440,10 @@ async def main(config: bt.config):
 
 if __name__ == "__main__":
     # Parse and print configuration
-    config = get_config()
-    print(config)
+    config = neuron_config.miner_config()
 
-    asyncio.run(main(config))
+    if config.list_competitions:
+        print(constants.COMPETITION_SCHEDULE_BY_BLOCK)
+    else:
+        print(config)
+        asyncio.run(main(config))
