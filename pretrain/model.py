@@ -23,6 +23,8 @@ from transformers import (
     AutoTokenizer,
     GPT2TokenizerFast,
 )
+from transformers import AutoTokenizer, PreTrainedTokenizer
+
 import bittensor as bt
 
 config = GPTNeoXConfig()

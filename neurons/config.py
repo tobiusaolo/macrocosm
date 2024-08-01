@@ -39,12 +39,6 @@ def validator_config():
         help="Number of uids to bring to next eval.",
     )
     parser.add_argument(
-        "--sample_max",
-        type=int,
-        default=constants.sample_max,
-        help="Maximum number of new uids to eval each step.",
-    )
-    parser.add_argument(
         "--updated_models_limit",
         type=int,
         default=constants.updated_models_limit,

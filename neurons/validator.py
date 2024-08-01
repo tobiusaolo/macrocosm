@@ -420,7 +420,10 @@ class Validator:
                 )
 
                 # Only allow at most sample max models. Typically this will be carryover from sample_min + new models.
-                while pending_uid_count + current_uid_count >= self.config.updated_models_limit):
+                while (
+                        pending_uid_count + current_uid_count
+                        >= self.config.updated_models_limit
+                ):
                     # Wait 5 minutes for the eval loop to process them.
                     bt.logging.info(
                         f"Update loop: Already {pending_uid_count + current_uid_count} synced models pending eval. Checking again in 5 minutes."
@@ -565,7 +568,7 @@ class Validator:
                 self.subtensor.set_weights(
                     netuid=self.config.netuid,
                     wallet=self.wallet,
-                    uids=uids
+                    uids=uids,
                     weights=self.weights,
                     wait_for_inclusion=False,
                     version_key=constants.weights_version_key,
@@ -650,7 +653,7 @@ class Validator:
         # Get the competition schedule for the current block.
         # This is a list of competitions
         competition_schedule: List[Competition] = competition_utils.get_competition_schedule_for_block(
-            block=cur_block
+            block=cur_block,  schedule_by_block=constants.COMPETITION_SCHEDULE_BY_BLOCK
         )
 
         # Every validator step should pick a single competition in a round-robin fashion
@@ -687,7 +690,7 @@ class Validator:
         bt.logging.trace(f'Current block: {cur_block}')
 
         # Get the dataloader for this competition
-        SubsetDataLoader = self._get_dataloader_class(competition_id = competition.id):
+        SubsetDataLoader = self._get_dataloader_class(competition_id = competition.id)
         bt.logging.trace(f'Dataset in use: {SubsetDataLoader.name}.')
 
         # Get the tokenizer

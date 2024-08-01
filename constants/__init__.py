@@ -1,5 +1,9 @@
+import math
 import datetime as dt
 from pathlib import Path
+
+import torch
+
 from transformers import (
     GPT2LMHeadModel,
     MistralForCausalLM,
@@ -20,6 +24,8 @@ from taoverse.model.competition.data import (
 from competitions.data import CompetitionId
 
 from model.data import ModelCriteria, TokenizerIdentifier
+
+from typing import Dict, List, Tuple
 
 # ---------------------------------
 # Project Constants.
@@ -120,7 +126,7 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         ],
     ),
     (
-        kkkk,
+        3_000_000_000,
         [
             Competition(
                 CompetitionId.M772_MODEL,

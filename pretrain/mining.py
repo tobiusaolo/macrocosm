@@ -26,7 +26,7 @@ import bittensor as bt
 import pretrain as pt
 
 from dataclasses import replace
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from transformers import PreTrainedModel, AutoModelForCausalLM
 from safetensors.torch import load_model
@@ -96,7 +96,7 @@ async def push(
     namespace, name = model_utils.validate_hf_repo_id(repo)
     model_id = ModelId(namespace=namespace, name=name, competition_id=competition_id)    
     model_id = await remote_model_store.upload_model(
-        Model(id=model_id, pt_model=model), model_constraints
+        Model(id=model_id, pt_model=model), model_constraints)
 
     bt.logging.success("Uploaded model to hugging face.")
 
