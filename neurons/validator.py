@@ -32,11 +32,12 @@ import typing
 import wandb
 import constants
 from taoverse.metagraph import utils as metagraph_utils
+from taoverse.metagraph.metagraph_syncer import MetagraphSyncer
 from taoverse.model.competition import utils as competition_utils
 from taoverse.model.competition.competition_tracker import CompetitionTracker
 from taoverse.model.competition.data import Competition
 from taoverse.model.model_tracker import ModelTracker
-from taoverse.model.model_updater import ModelUpdater
+from taoverse.model.model_updater import MinerMisconfiguredError, ModelUpdater
 from taoverse.model.storage.disk.disk_model_store import DiskModelStore
 from taoverse.model.storage.hugging_face.hugging_face_model_store import (
     HuggingFaceModelStore,
@@ -44,12 +45,12 @@ from taoverse.model.storage.hugging_face.hugging_face_model_store import (
 from taoverse.model.storage.chain.chain_model_metadata_store import (
     ChainModelMetadataStore,
 )
-
 from taoverse.utilities.perf_monitor import PerfMonitor
 from taoverse.utilities import utils
 
 from model.data import TokenizerIdentifier
 
+from huggingface_hub.utils import RepositoryNotFoundError
 from neurons import config
 import traceback
 import threading
@@ -94,7 +95,24 @@ class Validator:
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
         self.dendrite = bt.dendrite(wallet=self.wallet)
-        self.metagraph = self.subtensor.metagraph(self.config.netuid, lite=False)
+        #self.metagraph = self.subtensor.metagraph(self.config.netuid, lite=False)
+
+        # Setup metagraph syncer for the subnet based on config. This is non-lite for getting weights by vali.
+        self.subnet_metagraph_syncer = MetagraphSyncer(
+            self.subtensor,
+            config={
+                self.config.netuid: dt.timedelta(minutes=20).total_seconds(),
+            },
+            lite=False,
+        )
+        # Perform an initial sync of all tracked metagraphs.
+        self.subnet_metagraph_syncer.do_initial_sync()
+        self.subnet_metagraph_syncer.start()
+        # Get initial metagraphs.
+        self.metagraph: bt.metagraph = self.subnet_metagraph_syncer.get_metagraph(
+            self.config.netuid
+        )
+
         torch.backends.cudnn.benchmark = True
 
         # Dont check registration status if offline.
@@ -342,7 +360,7 @@ class Validator:
                         constants.WEIGHT_SYNC_VALI_MIN_STAKE,
                         constants.WEIGHT_SYNC_MINER_MIN_PERCENT,
                     )
-                    
+
                     with self.pending_uids_to_eval_lock:
                         all_uids_to_eval = set()
                         all_pending_uids_to_eval = set()
@@ -354,7 +372,7 @@ class Validator:
 
                         # Reduce down to top models that are not in any competition yet.
                         uids_to_add = (
-                            top_miner_uids - self.uids_to_eval - self.pending_uids_to_eval
+                            top_miner_uids - all_uids_to_eval - all_pending_uids_to_eval
                         )
 
                     for uid in uids_to_add:
@@ -471,12 +489,6 @@ class Validator:
                     )
                 )
 
-                if updated:
-                    with self.pending_uids_to_eval_lock:
-                        self.pending_uids_to_eval.add(next_uid)
-                        bt.logging.debug(
-                            f"Found a new model for UID={next_uid}. It will be evaluated on the next loop."
-                        )
 
                 if updated:
                     metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
@@ -495,6 +507,10 @@ class Validator:
                             f"Failed to find metadata for uid {next_uid} with hotkey {hotkey}"
                         )
 
+            except RepositoryNotFoundError as e:
+                bt.logging.trace(e)
+            except MinerMisconfiguredError as e:
+                bt.logging.trace(e)
             except Exception as e:
                 bt.logging.error(
                     f"Error in update loop: {e} \n {traceback.format_exc()}"
@@ -761,7 +777,7 @@ class Validator:
                                 model_i.pt_model,
                                 batches,
                                 self.config.device,
-                                tokenizer_new.eos_token_id,
+                                tokenizer.eos_token_id,
                             ),
                             ttl=360,
                             mode="spawn",

@@ -93,6 +93,7 @@ DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
 MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
     CompetitionId.M772_MODEL: ModelConstraints(
         max_model_parameter_size=772_000_000,
+        min_model_parameter_size=500_000_000,
         sequence_length=1024,
         allowed_architectures=ALLOWED_MODEL_TYPES_1,
         tokenizer="distilgpt2",
@@ -100,6 +101,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
     ),
     CompetitionId.B7_MODEL: ModelConstraints(
         max_model_parameter_size=6_900_000_000,
+        min_model_parameter_size=5_900_000_000,        
         sequence_length=4096,
         allowed_architectures=ALLOWED_MODEL_TYPES_2,
         tokenizer="Xenova/gpt-4",
