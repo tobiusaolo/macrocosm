@@ -57,17 +57,11 @@ def get_config():
     parser.add_argument(
         "--competition_id",
         type=CompetitionId,
-        required=True,
         action=IntEnumAction,
         help="competition to mine for (use --list-competitions to get all competitions)",
     )
     parser.add_argument(
         "--list_competitions", action="store_true", help="Print out all competitions"
-    )
-    parser.add_argument(
-        "--use_hotkey_in_hash",
-        action="store_true",  # Defaults to False.
-        help="If true, use the hotkey of the miner when generating the hash.",
     )
 
     # Include wallet and logging arguments from bittensor
@@ -84,7 +78,7 @@ def get_config():
 async def main(config: bt.config):
     # Create bittensor objects.
     bt.logging(config=config)
-
+    
     wallet = bt.wallet(config=config)
     subtensor = bt.subtensor(config=config)
     metagraph = subtensor.metagraph(config.netuid)
@@ -102,11 +96,12 @@ async def main(config: bt.config):
     model_constraints = constants.MODEL_CONSTRAINTS_BY_COMPETITION_ID.get(
         config.competition_id, None
     )
+
     if model_constraints is None:
         raise RuntimeError(
             f"Could not find current competition for id: {config.competition_id}"
         )
-    
+
     # Load the model from disk and push it to the chain and Hugging Face.
     model = pt.mining.load_local_model(config.load_model_dir, model_constraints.kwargs)
     await pt.mining.push(
@@ -115,7 +110,6 @@ async def main(config: bt.config):
         wallet,        
         config.competition_id,
         metadata_store=chain_metadata_store,
-        use_hotkey_in_hash=config.use_hotkey_in_hash
     )
 
 

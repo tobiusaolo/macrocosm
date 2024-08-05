@@ -61,7 +61,6 @@ async def push(
     retry_delay_secs: int = 60,
     metadata_store: Optional[ModelMetadataStore] = None,
     remote_model_store: Optional[RemoteModelStore] = None,
-    use_hotkey_in_hash: bool = False,
 ):
     """Pushes the model to Hugging Face and publishes it on the chain for evaluation by validators.
 
@@ -74,7 +73,6 @@ async def push(
         metadata_store (Optional[ModelMetadataStore]): The metadata store. If None, defaults to writing to the
             chain.
         remote_model_store (Optional[RemoteModelStore]): The remote model store. If None, defaults to writing to HuggingFace
-        use_hotkey_in_hash (bool): If the hash used in the metadata should include the miner hotkey.
     """
     bt.logging.info("Pushing model")
 
@@ -100,19 +98,15 @@ async def push(
 
     bt.logging.success("Uploaded model to hugging face.")
 
-    # If using hotkey in the hash then adjust the hash.
-    if use_hotkey_in_hash:
-        bt.logging.info(
-            f"Hashing miner hotkey {wallet.hotkey.ss58_address} into the hash before uploading."
-        )
-        secure_hash = get_hash_of_two_strings(model_id.hash, wallet.hotkey.ss58_address)
-        model_id = replace(model_id, secure_hash=secure_hash)
-        
+    secure_hash = get_hash_of_two_strings(model_id.hash, wallet.hotkey.ss58_address)
+    model_id = replace(model_id, secure_hash=secure_hash)
+    
     bt.logging.success(f"Now committing to the chain with model_id: {model_id}")
 
     # We can only commit to the chain every 20 minutes, so run this in a loop, until
     # successful.
     while True:
+
         try:
             await metadata_store.store_model_metadata(
                 wallet.hotkey.ss58_address, model_id

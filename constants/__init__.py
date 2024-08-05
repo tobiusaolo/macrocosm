@@ -23,8 +23,6 @@ from taoverse.model.competition.data import (
 )
 from competitions.data import CompetitionId
 
-from model.data import ModelCriteria, TokenizerIdentifier
-
 from typing import Dict, List, Tuple
 
 # ---------------------------------
@@ -80,20 +78,20 @@ ALLOWED_MODEL_TYPES_2 = {
     GemmaForCausalLM,
 }
 
-M772_DATASET = "Falcon/RefinedWeb"
-B7_DATASET = "HF/FineWebEdu2"
-
+M772_DATASET ="Falcon/RefinedWeb"
+B7_DATASET="HF/FineWebEdu2"
 # Defined dataset by competition id
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
-    CompetitionId.M772_MODEL : M772_DATASET,
-    CompetitionId.B7_MODEL : B7_DATASET, 
+    CompetitionId.M772_MODEL : "Falcon/RefinedWeb",
+    CompetitionId.B3_MODEL : "Falcon/RefinedWeb",
+    CompetitionId.B7_MODEL : "HF/FineWebEdu2",
 }
 
 # Defined model constraints by competition id to ensure they are constant across blocks.
 MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
     CompetitionId.M772_MODEL: ModelConstraints(
         max_model_parameter_size=772_000_000,
-        min_model_parameter_size=500_000_000,
+        min_model_parameter_size=572_000_000,
         sequence_length=1024,
         allowed_architectures=ALLOWED_MODEL_TYPES_1,
         tokenizer="distilgpt2",
@@ -101,16 +99,28 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
     ),
     CompetitionId.B7_MODEL: ModelConstraints(
         max_model_parameter_size=6_900_000_000,
-        min_model_parameter_size=5_900_000_000,        
+        min_model_parameter_size=6_700_000_000,
         sequence_length=4096,
         allowed_architectures=ALLOWED_MODEL_TYPES_2,
         tokenizer="Xenova/gpt-4",
         kwargs={
             "torch_dtype": torch.bfloat16,
-            "attn_implementation": "flash_attention_2",            
+            "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=1200,  # ~4 hours.
     ),
+    CompetitionId.B3_MODEL: ModelConstraints(
+        max_model_parameter_size=3_400_000_000,
+        min_model_parameter_size=3_200_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=1200,  # ~4 hours.
+    )
 }
 
 
@@ -124,7 +134,7 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
                 1.0,
             )
-            
+
         ],
     ),
     (
@@ -133,17 +143,22 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
             Competition(
                 CompetitionId.M772_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
-                0.1,
+                0.15,
+            ),
+            Competition(
+                CompetitionId.B3_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
+                0.35,
             ),
             Competition(
                 CompetitionId.B7_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
-                0.9,
+                0.5,
             )
-            
+
         ],
     )
-    
+
 ]
 
 for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
