@@ -706,7 +706,7 @@ class Validator:
         bt.logging.trace(f'Current block: {cur_block}')
 
         # Get the dataloader for this competition
-        SubsetDataLoader = self._get_dataloader_class(competition_id = competition.id)
+        SubsetDataLoader = constants.DATASET_BY_COMPETITION_ID[competition.id]
         bt.logging.trace(f'Dataset in use: {SubsetDataLoader.name}.')
 
         # Get the tokenizer
@@ -934,7 +934,9 @@ class Validator:
         table.add_column("weight", style="magenta")
         for index, weight in list(zip(ui.tolist(), ws.tolist())):
             if weight > 0.001:
-                table.add_row(str(index), str(round(weight, 4)))
+                table.add_row(str(index),
+                              str(round(weight, 4)),
+                              )
         console = Console()
         console.print(table)
 
@@ -997,23 +999,6 @@ class Validator:
                 {**graphed_data, "original_format_json": original_format_json},
                 step=self.global_step,
             )
-
-    def _get_dataloader_class(
-            self, competition_id: int
-    ) -> IterableDataset:
-        """
-        Decide which dataset loader class to use, using the competition ID.
-        """
-        dataset_name = constants.DATASET_BY_COMPETITION_ID[competition_id]
-
-        if dataset_name == constants.M772_DATASET:
-            SubsetDataLoader = pt.dataset.SubsetFalconLoader
-
-        elif dataset_name == constants.B7_DATASET:
-            SubsetDataLoader = pt.dataset.SubsetFineWebEdu2Loader
-
-        return SubsetDataLoader
-
 
     def _get_uids_to_competition_ids(
         self,

@@ -3,6 +3,7 @@ import datetime as dt
 from pathlib import Path
 
 import torch
+import pretrain as pt
 
 from transformers import (
     GPT2LMHeadModel,
@@ -13,7 +14,11 @@ from transformers import (
     GPTNeoXForCausalLM,
     GPTJForCausalLM,
     PhiForCausalLM,
+    Phi3ForCausalLM,
     GemmaForCausalLM,
+    Gemma2ForCausalLM,
+    Qwen2ForCausalLM,
+    StableLmForCausalLM,
 )
 
 from taoverse.model.competition.data import (
@@ -67,6 +72,9 @@ ALLOWED_MODEL_TYPES_1 = {
     FalconForCausalLM,
     GPTNeoXForCausalLM,
     GPTJForCausalLM,
+    StableLmForCausalLM,
+    Phi3ForCausalLM,
+    Qwen2ForCausalLM,
 }
 ALLOWED_MODEL_TYPES_2 = {
     MistralForCausalLM,
@@ -76,15 +84,17 @@ ALLOWED_MODEL_TYPES_2 = {
     GPTNeoXForCausalLM,
     PhiForCausalLM,
     GemmaForCausalLM,
+    Gemma2ForCausalLM,
+    StableLmForCausalLM,
+    Phi3ForCausalLM,
+    Qwen2ForCausalLM,
 }
 
-M772_DATASET ="Falcon/RefinedWeb"
-B7_DATASET="HF/FineWebEdu2"
 # Defined dataset by competition id
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
-    CompetitionId.M772_MODEL : "Falcon/RefinedWeb",
-    CompetitionId.B3_MODEL : "Falcon/RefinedWeb",
-    CompetitionId.B7_MODEL : "HF/FineWebEdu2",
+    CompetitionId.M772_MODEL : pt.dataset.SubsetFalconLoader,
+    CompetitionId.B3_MODEL : pt.dataset.SubsetFalconLoader,
+    CompetitionId.B7_MODEL : pt.dataset.SubsetFineWebEdu2Loader,
 }
 
 # Defined model constraints by competition id to ensure they are constant across blocks.
@@ -95,7 +105,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         sequence_length=1024,
         allowed_architectures=ALLOWED_MODEL_TYPES_1,
         tokenizer="distilgpt2",
-        eval_block_delay=1200,  # ~4 hours.
+        eval_block_delay=0,
     ),
     CompetitionId.B7_MODEL: ModelConstraints(
         max_model_parameter_size=6_900_000_000,
@@ -107,7 +117,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
             "torch_dtype": torch.bfloat16,
             "attn_implementation": "flash_attention_2",
         },
-        eval_block_delay=1200,  # ~4 hours.
+        eval_block_delay=0,
     ),
     CompetitionId.B3_MODEL: ModelConstraints(
         max_model_parameter_size=3_400_000_000,
@@ -119,7 +129,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
             "torch_dtype": torch.bfloat16,
             "attn_implementation": "flash_attention_2",
         },
-        eval_block_delay=1200,  # ~4 hours.
+        eval_block_delay=0,
     )
 }
 
@@ -138,7 +148,23 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         ],
     ),
     (
-        3_000_000_000,
+        3_565_190,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
+                0.15,
+            ),
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                0.5,
+            )
+
+        ],
+    ),
+    (
+        3_601_190,
         [
             Competition(
                 CompetitionId.M772_MODEL,

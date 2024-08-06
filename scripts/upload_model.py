@@ -104,6 +104,7 @@ async def main(config: bt.config):
 
     # Load the model from disk and push it to the chain and Hugging Face.
     model = pt.mining.load_local_model(config.load_model_dir, model_constraints.kwargs)
+
     await pt.mining.push(
         model,
         config.hf_repo_id,

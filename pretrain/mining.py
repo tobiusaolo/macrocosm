@@ -57,7 +57,7 @@ async def push(
     model: PreTrainedModel,
     repo: str,
     wallet: bt.wallet,
-    competition_id: CompetitionId,        
+    competition_id: CompetitionId,
     retry_delay_secs: int = 60,
     metadata_store: Optional[ModelMetadataStore] = None,
     remote_model_store: Optional[RemoteModelStore] = None,
@@ -89,10 +89,12 @@ async def push(
     )
     if not model_constraints:
         raise ValueError("Invalid competition_id")
-        
+
     # First upload the model to HuggingFace.
     namespace, name = model_utils.validate_hf_repo_id(repo)
-    model_id = ModelId(namespace=namespace, name=name, competition_id=competition_id)    
+    model_id = ModelId(namespace=namespace, name=name, competition_id=competition_id)
+
+    bt.logging.debug("Started uploading model to hugging face...")
     model_id = await remote_model_store.upload_model(
         Model(id=model_id, pt_model=model), model_constraints)
 
@@ -100,13 +102,12 @@ async def push(
 
     secure_hash = get_hash_of_two_strings(model_id.hash, wallet.hotkey.ss58_address)
     model_id = replace(model_id, secure_hash=secure_hash)
-    
+
     bt.logging.success(f"Now committing to the chain with model_id: {model_id}")
 
     # We can only commit to the chain every 20 minutes, so run this in a loop, until
     # successful.
     while True:
-
         try:
             await metadata_store.store_model_metadata(
                 wallet.hotkey.ss58_address, model_id
@@ -255,6 +256,3 @@ async def load_best_model(
         metadata_store,
         remote_model_store,
     )
-
-
-        
