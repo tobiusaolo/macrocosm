@@ -311,7 +311,8 @@ class SubsetFineWebEdu2Loader(IterableDataset):
 
 class SubsetFalconLoader(IterableDataset):
     max_pages: int = 968000015
-
+    name: str = "tiiuae/falcon-refinedweb"
+    
     def __init__(
         self,
         batch_size,
@@ -325,7 +326,7 @@ class SubsetFalconLoader(IterableDataset):
         self.tokenizer = tokenizer
         self.base_url = "https://datasets-server.huggingface.co/rows"
         self.params = {
-            "dataset": "tiiuae/falcon-refinedweb",
+            "dataset": self.name,
             "config": "default",
             "split": "train",
         }
