@@ -1,13 +1,13 @@
 # Validator 
 
-Validators download the models from hugging face for each miner based on the Bittensor chain metadata and continuously evaluate them, setting weights based on the performance of each model against the Falcon dataset. They also log results to [wandb](https://wandb.ai/opentensor-dev/pretraining-subnet).
+Validators download the models from hugging face for each miner based on the Bittensor chain metadata and continuously evaluate them, setting weights based on the performance of each model against a dataset for each competition. They also log results to [wandb](https://wandb.ai/macrocosmos/pretraining-validators).
 
 You can view the entire validation system by reading the code in `neurons/validator.py`. Pseudocode for the validation system is as follows:
 ```python
     weights = zeros(256)
     while True:
         # Fetch random sample of batches to evaluate models on
-        batches = get_random_sample_of_batches_from_falcon()
+        batches = get_random_sample_of_batches_from_dataset()
         
         # Fetch and or update models.
         models = get_and_update_models_from_miners()

@@ -8,9 +8,7 @@ The communication between a miner and a validator happens asynchronously chain a
 
 # System Requirements
 
-Miners will need enough disk space to store their model as they work on. Max size of model is defined in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py#L57). It is recommended to have at least 50 GB of disk space.
-
-Miners will need enough processing power to train their model. The device the model is trained on is recommended to be a large GPU with atleast 20 GB of VRAM.
+Miners will need enough disk space to store their model as they work on. Max size of model is defined in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py). It is recommended to have at least 50 GB of disk space.
 
 # Getting started
 
@@ -124,20 +122,18 @@ Due to rate limiting by the Bittensor chain you may only upload a model every 20
 
 You can manually upload with the following command:
 ```shell
-python scripts/upload_model.py --load_model_dir <path to model> --hf_repo_id my-username/my-project --wallet.name coldkey --wallet.hotkey hotkey
+python scripts/upload_model.py --load_model_dir <path to model> --competition_id 0 --hf_repo_id my-username/my-project --wallet.name coldkey --wallet.hotkey hotkey
 ```
 
-Note: By default this will upload using bfloat16 (unlike the miner). You can pass ``--no-upload-b16`` to instead upload with fp32.
+Note: If you are not sure about the competition ID, you can add the `--list_competitions` flag to get a list of all competitions. You can also check out competition IDs in [competitions/data.py](https://github.com/macrocosm-os/pretraining/blob/main/competitions/data.py).
 
 ## Running a custom Miner
 
-The list of allowed model types by block can be found in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py#L57)
+The list of allowed model types by block can be found in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py)
 
 In that file are also the constraints per block for
-1. Total number of parameters.
-2. Total size of the repo.
-3. sequence_length parameter requierments.
-4. Support for flash attention and bfloat16 requirements.
+1. The details of every competition.
+2. All the model constraints (sequence length, allowed model types, dataset, etc)
 
 The `pretain/mining.py` file has several methods that you may find useful. Example below.
 
@@ -153,13 +149,13 @@ model: PreTrainedModel = await pt.mining.load_remote_model(uid=123, download_dir
 pt.mining.save(model, "model-foo/")
 
 # Load the model from disk.
-pt.mining.load_local_model("model-foo/", use_bf16=True)
+pt.mining.load_local_model("model-foo/", **kwargs)
 
 # Publish the model for validator evaluation.
 wallet = bt.wallet()
-await pt.mining.push(model, repo="jdoe/my-repo", wallet=wallet)
+await pt.mining.push(model, repo="jdoe/my-repo", wallet=wallet, competition_id=1)
 
-# Get the URL to the best model
-best_uid = pt.graph.best_uid()
+# Get the URL to the best model for a given competition
+best_uid = pt.graph.best_uid(competition_id=1)
 print(await pt.mining.get_repo(best_uid))
 ```

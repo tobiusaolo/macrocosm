@@ -16,12 +16,15 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from taoverse.model.competition.data import ModelConstraints
 from transformers import (
     GPTNeoXConfig,
     GPTNeoXForCausalLM,
     AutoTokenizer,
     GPT2TokenizerFast,
 )
+from transformers import AutoTokenizer, PreTrainedTokenizer
+
 import bittensor as bt
 
 config = GPTNeoXConfig()
@@ -40,18 +43,10 @@ def get_model():
     return GPTNeoXForCausalLM(config)
 
 
-def get_old_tokenizer(cache_dir: str = None):
-    """Returns the tokenizer used prior to 7B parameter models"""
-    tokenizer = AutoTokenizer.from_pretrained("distilgpt2", cache_dir=cache_dir)
-    tokenizer.pad_token = tokenizer.eos_token
-    return tokenizer
-
-
-def get_tokenizer(cache_dir: str = None):
-    """Returns the tokenizer used by the latest models."""
-    bt.logging.info(
-        "Getting gpt-4 tokenizer. Following logs about not matching GPT2TokenizerFast are expected."
+def load_tokenizer(
+    model_constraints: ModelConstraints, cache_dir: str = None
+) -> PreTrainedTokenizer:
+    """Returns the fixed tokenizer for the given model constraints."""
+    return AutoTokenizer.from_pretrained(
+        model_constraints.tokenizer, cache_dir=cache_dir
     )
-    tokenizer = GPT2TokenizerFast.from_pretrained("Xenova/gpt-4", cache_dir=cache_dir)
-    tokenizer.pad_token = tokenizer.eos_token
-    return tokenizer

@@ -1,5 +1,10 @@
+import math
 import datetime as dt
 from pathlib import Path
+
+import torch
+import pretrain as pt
+
 from transformers import (
     GPT2LMHeadModel,
     MistralForCausalLM,
@@ -9,19 +14,31 @@ from transformers import (
     GPTNeoXForCausalLM,
     GPTJForCausalLM,
     PhiForCausalLM,
+    Phi3ForCausalLM,
     GemmaForCausalLM,
+    Gemma2ForCausalLM,
+    Qwen2ForCausalLM,
+    StableLmForCausalLM,
 )
-from model.data import ModelCriteria, TokenizerIdentifier
+
+from taoverse.model.competition.data import (
+    Competition,
+    ModelConstraints,
+    NormValidationConstraints,
+)
+from competitions.data import CompetitionId
+
+from typing import Dict, List, Tuple
 
 # ---------------------------------
 # Project Constants.
 # ---------------------------------
 
 # Release
-__version__ = "3.2.2"
+__version__ = "4.0.0"
 
 # Validator schema version
-__validator_version__ = "2.2.2"
+__validator_version__ = "3.0.0"
 version_split = __validator_version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -38,23 +55,13 @@ SUBNET_UID = 9
 # The root directory of this project.
 ROOT_DIR = Path(__file__).parent.parent
 
-# COMPETITION CHANGES
-# Block at which 7b models, 4096 sequence lengths, new tokenizer, bfloat16, and flash attention are used.
-BLOCK_7B = 2_786_061
+# Minimum stake to consider a validator when checking for miners with weights.
+# This corresponded to top-10 validator on july 31st, 2024
+WEIGHT_SYNC_VALI_MIN_STAKE = 200_000
 
-# Block at which FineWeb edu score 2 dataset is used for evaluation
-BLOCK_FW_EDU_SCORE_2 = 3_307_004
-
-# FIXING MODEL CRITERIA
-
-# Fixing sequence length
-SEQUENCE_LENGTH_1 = 1024
-SEQUENCE_LENGTH_2 = 4096
-
-# Fixing evaluation dataset
-DATASET_1 = "Falcon/RefinedWeb"
-DATASET_2 = "HF/FineWebEdu2"
-
+# Minimum percent of weight on a vali for a miner to be considered a top miner.
+# Since there can be multiple competitions at different reward percentages we can't just check biggest.
+WEIGHT_SYNC_MINER_MIN_PERCENT = 0.10
 
 # A mapping of block numbers to the supported model types as of that block.
 ALLOWED_MODEL_TYPES_1 = {
@@ -65,6 +72,9 @@ ALLOWED_MODEL_TYPES_1 = {
     FalconForCausalLM,
     GPTNeoXForCausalLM,
     GPTJForCausalLM,
+    StableLmForCausalLM,
+    Phi3ForCausalLM,
+    Qwen2ForCausalLM,
 }
 ALLOWED_MODEL_TYPES_2 = {
     MistralForCausalLM,
@@ -74,45 +84,93 @@ ALLOWED_MODEL_TYPES_2 = {
     GPTNeoXForCausalLM,
     PhiForCausalLM,
     GemmaForCausalLM,
+    Gemma2ForCausalLM,
+    StableLmForCausalLM,
+    Phi3ForCausalLM,
+    Qwen2ForCausalLM,
+}
+
+# Defined dataset by competition id
+DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
+    CompetitionId.M772_MODEL : pt.dataset.SubsetFalconLoader,
+    CompetitionId.B3_MODEL : pt.dataset.SubsetFalconLoader,
+    CompetitionId.B7_MODEL : pt.dataset.SubsetFineWebEdu2Loader,
+}
+
+# Defined model constraints by competition id to ensure they are constant across blocks.
+MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
+    CompetitionId.M772_MODEL: ModelConstraints(
+        max_model_parameter_size=772_000_000,
+        min_model_parameter_size=572_000_000,
+        sequence_length=1024,
+        allowed_architectures=ALLOWED_MODEL_TYPES_1,
+        tokenizer="distilgpt2",
+        eval_block_delay=0,
+    ),
+    CompetitionId.B7_MODEL: ModelConstraints(
+        max_model_parameter_size=6_900_000_000,
+        min_model_parameter_size=6_700_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+    ),
+    CompetitionId.B3_MODEL: ModelConstraints(
+        max_model_parameter_size=3_400_000_000,
+        min_model_parameter_size=3_200_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+    )
 }
 
 
-# A mapping of block numbers to ModelCriteria. Must be ordered by block.
-MODEL_CRITERIA_BY_BLOCK = [
+# Schedule of competitions by block.
+COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
     (
         0,
-        ModelCriteria(
-            sequence_length=SEQUENCE_LENGTH_1,
-            optimized=False,
-            max_model_bytes=5 * 1024 * 1024 * 1024,
-            max_model_parameters=186_000_000,
-            allowed_model_types=ALLOWED_MODEL_TYPES_1,
-            tokenizer_identifier=TokenizerIdentifier.DISTILGPT_2,
-        ),
+        [
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                1.0,
+            )
+
+        ],
     ),
     (
-        2_405_920,
-        ModelCriteria(
-            sequence_length=SEQUENCE_LENGTH_1,
-            optimized=False,
-            max_model_bytes=5 * 1024 * 1024 * 1024,
-            max_model_parameters=772_000_000,
-            allowed_model_types=ALLOWED_MODEL_TYPES_1,
-            tokenizer_identifier=TokenizerIdentifier.DISTILGPT_2,
-        ),
-    ),
-    (
-        BLOCK_7B,
-        ModelCriteria(
-            sequence_length=SEQUENCE_LENGTH_2,
-            optimized=True,
-            max_model_bytes=15 * 1024 * 1024 * 1024,
-            max_model_parameters=6_900_000_000,
-            allowed_model_types=ALLOWED_MODEL_TYPES_2,
-            tokenizer_identifier=TokenizerIdentifier.GPT_4_TIKTOKEN,
-        ),
+        3_565_190,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
+                0.35,
+            ),
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                0.65,
+            )
+
+        ],
     ),
 ]
+
+for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
+    assert math.isclose(
+        sum(competition.reward_percentage for competition in block_and_competitions[1]),
+        1.0,
+    )
+
 
 # The number of run steps to log to single wandb run.
 MAX_RUN_STEPS_PER_WANDB_RUN = 100
@@ -135,9 +193,9 @@ n_eval_pages = 18
 # validator eval batch size.
 batch_size = 1
 # validator eval batch min to keep for next loop.
-sample_min = 6
-# validator eval batch max. Difference from min is room to eval newly uploaded models.
-sample_max = 14
+sample_min = 5
+# Max number of uids that can be either pending eval or currently being evaluated.
+updated_models_limit = 15
 # validator incentive threshold to prioritize updates. All incentives add up to 1.
 update_priority_incentive_threshold = 0.01
 # time required between updates to the chain.
