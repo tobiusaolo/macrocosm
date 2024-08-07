@@ -180,8 +180,15 @@ def compute_losses(
 
                 shift_logits = logits[..., :-1, :].contiguous()
                 shift_labels = inputs[..., 1:].contiguous()
+
+                # Create a mask to indicate location of PAD tokens.
+                # Note, PAD tokens are always set to EOS tokens.
+                #pad_mask = shift_labels == pad_token_id
+                #zero_pad = torch.zeros_like(shift_labels[...,:1])
+                #pad_mask = torch.cat((zero_pad, pad_mask[...,:-1]))
+                #shift_labels[pad_mask] = -100
                 # Flatten the tokens
-                loss_fct = torch.nn.CrossEntropyLoss()
+                loss_fct = torch.nn.CrossEntropyLoss()#ignore_index=-100)
                 shift_logits = shift_logits.view(-1, model.config.vocab_size)
                 shift_labels = shift_labels.view(-1)
                 loss = loss_fct(shift_logits, shift_labels).item()

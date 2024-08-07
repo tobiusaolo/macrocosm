@@ -63,6 +63,9 @@ WEIGHT_SYNC_VALI_MIN_STAKE = 200_000
 # Since there can be multiple competitions at different reward percentages we can't just check biggest.
 WEIGHT_SYNC_MINER_MIN_PERCENT = 0.10
 
+# Whether to pack samples during validation or not
+PACK_SAMPLES = False
+
 # A mapping of block numbers to the supported model types as of that block.
 ALLOWED_MODEL_TYPES_1 = {
     GPT2LMHeadModel,

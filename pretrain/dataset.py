@@ -99,11 +99,8 @@ class SubsetFineWebEdu2Loader(IterableDataset):
 
                     # get the tokenized and encoded sample
                     input_ids = self.tokenizer(content, truncation=True)["input_ids"]
-                    bt.logging.debug(f'Buffer size starts at {len(self.buffer)}')                    
-                    bt.logging.debug(f'Input ID length is {len(input_ids)}')
                     self.buffer += input_ids
                     self.buffer += [self.tokenizer.eos_token_id] * self._get_pad_size(input_ids=input_ids)
-                    bt.logging.debug(f'Buffer size is now {len(self.buffer)}')
 
             except requests.exceptions.RequestException as e:
                 attempts += 1
@@ -145,7 +142,7 @@ class SubsetFineWebEdu2Loader(IterableDataset):
 
         sample_size = len(input_ids)
 
-        remainer = (sample_size % self.sequence_length)
+        remainder = (sample_size % self.sequence_length)
         pad_size = (self.sequence_length - remainder)
 
         # Apply modulo again to guarantee a pad size of 0 if remainder is 0
@@ -398,7 +395,7 @@ class SubsetFalconLoader(IterableDataset):
 
         sample_size = len(input_ids)
 
-        remainer = (sample_size % self.sequence_length)
+        remainder = (sample_size % self.sequence_length)
         pad_size = (self.sequence_length - remainder)
 
         # Apply modulo again to guarantee a pad size of 0 if remainder is 0

@@ -720,6 +720,7 @@ class Validator:
             sequence_length=competition.constraints.sequence_length,
             num_pages=self.config.pages_per_eval, # The pages will be sampled inside the object
             tokenizer=tokenizer,
+            pack_samples=constants.PACK_SAMPLES
             )
 
         batches = list(dataloader)
