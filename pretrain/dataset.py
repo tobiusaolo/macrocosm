@@ -37,17 +37,19 @@ class SubsetFineWebEdu2Loader(IterableDataset):
     retry_delay: int = 5  # Seconds to wait between retries
     
     def __init__(
-        self,
-        batch_size=None,
-        sequence_length=None,
-        num_pages=None,
-        tokenizer: AutoTokenizer=None,
+            self,
+            batch_size=None,
+            sequence_length=None,
+            num_pages=None,
+            tokenizer: AutoTokenizer=None,
+            pack_samples: bool=False,
     ):
         self.batch_size = batch_size
         self.sequence_length = sequence_length
         self.num_pages = num_pages
         self.num_rows_per_page = 100
         self.tokenizer = tokenizer
+        self.pack_samples = pack_samples
 
         self.buffer = []
 
@@ -94,8 +96,14 @@ class SubsetFineWebEdu2Loader(IterableDataset):
                 
                 for row in response.json()["rows"]:
                     content = row["row"]["text"]
-                    self.buffer += self.tokenizer(content, truncation=True)["input_ids"]
-                    self.buffer += [self.tokenizer.eos_token_id]
+
+                    # get the tokenized and encoded sample
+                    input_ids = self.tokenizer(content, truncation=True)["input_ids"]
+                    bt.logging.debug(f'Buffer size starts at {len(self.buffer)}')                    
+                    bt.logging.debug(f'Input ID length is {len(input_ids)}')
+                    self.buffer += input_ids
+                    self.buffer += [self.tokenizer.eos_token_id] * self._get_pad_size(input_ids=input_ids)
+                    bt.logging.debug(f'Buffer size is now {len(self.buffer)}')
 
             except requests.exceptions.RequestException as e:
                 attempts += 1
@@ -125,6 +133,26 @@ class SubsetFineWebEdu2Loader(IterableDataset):
         for page in self.pages:
             self._fetch_data_for_page(page)
 
+    def _get_pad_size(self, input_ids):
+        """
+        Get the number of tokens to be padded to the sample to match
+        the max allowed sequence length.
+        If sample packing is activated, then return 1
+        """
+
+        if self.pack_samples:
+            return 1
+
+        sample_size = len(input_ids)
+
+        remainer = (sample_size % self.sequence_length)
+        pad_size = (self.sequence_length - remainder)
+
+        # Apply modulo again to guarantee a pad size of 0 if remainder is 0
+        pad_size = pad_size % self.sequence_length
+
+        return pad_size
+        
     def _fetch_data_for_page(self, page):
 
         retry_limit = 10
@@ -149,8 +177,9 @@ class SubsetFineWebEdu2Loader(IterableDataset):
 
                 for row in response.json()["rows"]:
                     content = row["row"]["text"]
-                    self.buffer += self.tokenizer(content, truncation=True)["input_ids"]
-                    self.buffer += [self.tokenizer.eos_token_id]
+                    input_ids = self.tokenizer(content, truncation=True)["input_ids"]
+                    self.buffer += input_ids
+                    self.buffer += [self.tokenizer.eos_token_id] * self._get_pad_size(input_ids=input_ids)
                     
                 break  # If the request was successful, break out of the retry loop
             
@@ -314,16 +343,18 @@ class SubsetFalconLoader(IterableDataset):
     name: str = "tiiuae/falcon-refinedweb"
     
     def __init__(
-        self,
-        batch_size,
-        sequence_length,
-        num_pages=None,
-        tokenizer: AutoTokenizer=None,
+            self,
+            batch_size,
+            sequence_length,
+            num_pages=None,
+            tokenizer: AutoTokenizer=None,
+            pack_samples: bool=False,            
     ):
         self.batch_size = batch_size
         self.sequence_length = sequence_length
         self.num_rows_per_page = 100
         self.tokenizer = tokenizer
+        self.pack_samples = pack_samples        
         self.base_url = "https://datasets-server.huggingface.co/rows"
         self.params = {
             "dataset": self.name,
@@ -354,6 +385,26 @@ class SubsetFalconLoader(IterableDataset):
         
         for page in self.pages:
             self._fetch_data_for_page(page)
+
+    def _get_pad_size(self, input_ids):
+        """
+        Get the number of tokens to be padded to the sample to match
+        the max allowed sequence length.
+        If sample packing is activated, then return 1
+        """
+
+        if self.pack_samples:
+            return 1
+
+        sample_size = len(input_ids)
+
+        remainer = (sample_size % self.sequence_length)
+        pad_size = (self.sequence_length - remainder)
+
+        # Apply modulo again to guarantee a pad size of 0 if remainder is 0
+        pad_size = pad_size % self.sequence_length
+
+        return pad_size
             
     def _fetch_data_for_page(self, page):
         self.params["offset"] = page
@@ -365,8 +416,10 @@ class SubsetFalconLoader(IterableDataset):
                 response.raise_for_status()  # This will raise an HTTPError if the HTTP request returned an unsuccessful status code
                 for row in response.json()["rows"]:
                     content = row["row"]["content"]
-                    self.buffer += self.tokenizer(content, truncation=True)["input_ids"]
-                    self.buffer += [self.tokenizer.eos_token_id]
+                    input_ids = self.tokenizer(content, truncation=True)["input_ids"]
+                    self.buffer += input_ids
+                    self.buffer += [self.tokenizer.eos_token_id] * self._get_pad_size(input_ids=input_ids)
+                    
                 break  # If the request was successful, break out of the retry loop
             except requests.exceptions.RequestException as e:
                 attempt += 1
