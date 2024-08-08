@@ -736,7 +736,8 @@ class Validator:
             )
 
         batches = list(dataloader)
-        bt.logging.debug(f'Number of batches is {len(batches)} ------------------------------------------------------------')
+        bt.logging.debug(f'Number of validation batches is {len(batches)}')
+        
         # This is useful for logging to wandb
         pages = dataloader.get_page_names()
 

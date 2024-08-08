@@ -97,7 +97,7 @@ ALLOWED_MODEL_TYPES_2 = {
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.M772_MODEL : pt.dataset.SubsetFalconLoader,
     CompetitionId.B3_MODEL : pt.dataset.SubsetFalconLoader,
-    CompetitionId.B7_MODEL : pt.dataset.SubsetFineWebEdu2Loader,
+    CompetitionId.B7_MODEL : pt.dataset.SubsetFalconLoader,
 }
 
 # Defined model constraints by competition id to ensure they are constant across blocks.
@@ -193,7 +193,7 @@ temperature = 0.01
 timestamp_epsilon = 0.005
 
 # block to activate sample unpacking
-sample_unpack_block = 100000000000000
+sample_unpack_block = 10
 
 # validators number of pages to eval over miners on each step.
 pages_per_eval_unpack = 4 # With sample unpacking
