@@ -714,17 +714,29 @@ class Validator:
             competition.constraints, cache_dir=self.config.model_dir
         )
 
+        if cur_block > constants.sample_unpack_block:
+            pack_samples = False
+            pages_per_eval = constants.pages_per_eval_unpack
+        else:
+            pack_samples = True
+            pages_per_eval = constants.pages_per_eval_pack
+
+        # If the option is set in the config, override
+        pages_per_eval = self.config.pages_per_eval if self.config.pages_per_eval is not None else pages_per_eval
+
+        bt.logging.debug(f'Sample packing is set to: {pack_samples}.')
+        bt.logging.debug(f'Number of pages per evaluation step is: {pages_per_eval}')
 
         dataloader = SubsetDataLoader(
             batch_size=constants.batch_size,
             sequence_length=competition.constraints.sequence_length,
-            num_pages=self.config.pages_per_eval, # The pages will be sampled inside the object
+            num_pages= pages_per_eval,
             tokenizer=tokenizer,
-            pack_samples=constants.PACK_SAMPLES
+            pack_samples=pack_samples
             )
 
         batches = list(dataloader)
-
+        bt.logging.debug(f'Number of batches is {len(batches)} ------------------------------------------------------------')
         # This is useful for logging to wandb
         pages = dataloader.get_page_names()
 
@@ -779,6 +791,7 @@ class Validator:
                                 batches,
                                 self.config.device,
                                 tokenizer.eos_token_id,
+                                pack_samples
                             ),
                             ttl=360,
                             mode="spawn",

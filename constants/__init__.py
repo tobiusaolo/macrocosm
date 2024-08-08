@@ -191,8 +191,14 @@ alpha = 0.5
 temperature = 0.01
 # validator score boosting for earlier models.
 timestamp_epsilon = 0.005
+
+# block to activate sample unpacking
+sample_unpack_block = 100000000000000
+
 # validators number of pages to eval over miners on each step.
-n_eval_pages = 18
+pages_per_eval_unpack = 4 # With sample unpacking
+pages_per_eval_pack = 18
+
 # validator eval batch size.
 batch_size = 1
 # validator eval batch min to keep for next loop.

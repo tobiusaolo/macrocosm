@@ -29,8 +29,8 @@ def validator_config():
     parser.add_argument(
         "--pages_per_eval",
         type=int,
-        default=constants.n_eval_pages,
-        help="Number of pages used to eval each step.",
+        default=None,
+        help="Number of pages used to eval each step. If not specified, it will be automatically set.",
     )
     parser.add_argument(
         "--sample_min",
