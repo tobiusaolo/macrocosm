@@ -27,7 +27,122 @@ from datasets import load_dataset
 from pprint import pprint
 
 
-class SubsetFineWebEdu2Loader(IterableDataset):
+class SubsetLoader(IterableDataset):
+    """
+    Base class for data-specific subset loader classes.
+
+    # TODO: Make this class abstract
+    """
+    def __init__(
+            self,
+            batch_size=None,
+            sequence_length=None,
+            num_pages=None,
+            tokenizer: AutoTokenizer=None,
+            pack_samples: bool=False,
+    ):
+        self.batch_size = batch_size
+        self.sequence_length = sequence_length
+        self.num_pages = num_pages
+        self.tokenizer = tokenizer
+        self.pack_samples = pack_samples
+
+        self.num_rows_per_page = 100
+
+        # Buffer to hold pages loaded from the api
+        self.buffer = []
+
+        # Buffer to hold pages already loaded into a batch
+        self.used_buffer = []
+
+        # Buffer to hold padded pages
+        self.padded_buffer = []
+
+    def fetch_data_for_pages(self, pages):
+        """
+        Set the pages to be used to fill the buffer. Then fetch the page data
+        to the buffer.
+        """
+
+        self.pages = pages
+
+        # Empty the buffer if it is not.
+        self.buffer = []
+
+        for page in self.pages:
+            self._fetch_data_for_page(page)
+
+
+    def _get_pad_size(self, input_ids):
+        """
+        Get the number of tokens to be padded to the sample to match
+        the max allowed sequence length.
+        If sample packing is activated, then return 1
+        """
+
+        if self.pack_samples:
+            return 1
+
+        sample_size = len(input_ids)
+
+        remainder = (sample_size % self.sequence_length)
+        pad_size = (self.sequence_length - remainder)
+
+        # Apply modulo again to guarantee a pad size of 0 if remainder is 0
+        pad_size = pad_size % self.sequence_length
+
+        return pad_size
+
+    def _refill_padded_buffer(self):
+        """
+        This methods pulls one page from `self.buffer`, pads it and pushs
+        it to the `self.padded_buffer`.
+        """
+
+        while (
+                self.buffer
+                and len(self.padded_buffer) < self.sequence_length
+        ):
+
+            input_ids = []
+
+            # search for EOS token index and cut the buffer at it.
+            EOS_index = self.buffer.index(self.tokenizer.eos_token_id)
+            input_ids = self.buffer[:EOS_index+1]
+            self.buffer =self.buffer[EOS_index+1:]
+
+            self.used_buffer += input_ids
+
+            # Add to padded buffer without the EOS token.
+            self.padded_buffer += input_ids[:-1]
+
+            # Pad
+            self.padded_buffer += [self.tokenizer.eos_token_id] * self._get_pad_size(input_ids=input_ids[:-1])
+
+    def __iter__(self):
+        self.buffer = self.used_buffer + self.buffer
+        self.padded_buffer = []
+
+        # Pad and prepare one page for batching
+        self._refill_padded_buffer()
+
+        return self
+
+    def __next__(self):
+        batch = []
+
+        while len(self.padded_buffer) >= self.sequence_length:
+            batch.append(torch.tensor(self.padded_buffer[: self.sequence_length]))
+            self.padded_buffer = self.padded_buffer[self.sequence_length :]
+            self._refill_padded_buffer()
+
+            if len(batch) == self.batch_size:
+                return torch.stack(batch)
+
+        raise StopIteration
+
+
+class SubsetFineWebEdu2Loader(SubsetLoader):
 
     name: str = "HuggingFaceFW/fineweb-edu-score-2"
     rows_base_url: str = "https://datasets-server.huggingface.co/rows"
@@ -44,21 +159,11 @@ class SubsetFineWebEdu2Loader(IterableDataset):
             tokenizer: AutoTokenizer=None,
             pack_samples: bool=False,
     ):
-        self.batch_size = batch_size
-        self.sequence_length = sequence_length
-        self.num_pages = num_pages
-        self.num_rows_per_page = 100
-        self.tokenizer = tokenizer
-        self.pack_samples = pack_samples
-
-        # Buffer to hold pages loaded from the api
-        self.buffer = []
-
-        # Buffer to hold pages already loaded into a batch
-        self.used_buffer = []
-
-        # Buffer to hold padded pages
-        self.padded_buffer = []
+        super().__init__(batch_size,
+                         sequence_length,
+                         num_pages,
+                         tokenizer,
+                         pack_samples)
 
         # Get the dataset configs and their row sizes
         self.configs_data = self.fetch_dataset_configs()
@@ -126,21 +231,6 @@ class SubsetFineWebEdu2Loader(IterableDataset):
                         "Maximum retry limit reached. Unable to fetch data."
                     )
                     raise
-
-    def fetch_data_for_pages(self, pages):
-        """
-        Set the pages to be used to fill the buffer. Then fetch the page data
-        to the buffer.
-        """
-
-        self.pages = pages
-
-        # Empty the buffer if it is not.
-        self.buffer = []
-
-        for page in self.pages:
-            self._fetch_data_for_page(page)
-
 
     def fetch_data_to_rows(self, num_pages):
 
@@ -311,90 +401,11 @@ class SubsetFineWebEdu2Loader(IterableDataset):
                     )
                     raise
 
-    def _get_pad_size(self, input_ids):
-        """
-        Get the number of tokens to be padded to the sample to match
-        the max allowed sequence length.
-        If sample packing is activated, then return 1
-        """
 
-        if self.pack_samples:
-            return 1
-
-        sample_size = len(input_ids)
-
-        remainder = (sample_size % self.sequence_length)
-        pad_size = (self.sequence_length - remainder)
-
-        # Apply modulo again to guarantee a pad size of 0 if remainder is 0
-        pad_size = pad_size % self.sequence_length
-
-        return pad_size
-
-    def _refill_padded_buffer(self):
-        """
-        This methods pulls one page from `self.buffer`, pads it and pushs
-        it to the `self.padded_buffer`.
-        """
-
-        while (
-                self.buffer
-                and len(self.padded_buffer) < self.sequence_length
-        ):
-
-            input_ids = []
-
-            # search for EOS token index and cut the buffer at it.
-            EOS_index = self.buffer.index(self.tokenizer.eos_token_id)
-            input_ids = self.buffer[:EOS_index+1]
-            self.buffer =self.buffer[EOS_index+1:]
-
-            self.used_buffer += input_ids
-
-            # Add to padded buffer without the EOS token.
-            self.padded_buffer += input_ids[:-1]
-
-            # Pad
-            self.padded_buffer += [self.tokenizer.eos_token_id] * self._get_pad_size(input_ids=input_ids[:-1])
-
-    def __iter__(self):
-        self.buffer = self.used_buffer + self.buffer
-        self.padded_buffer = []
-
-        # Pad and prepare one page for batching
-        self._refill_padded_buffer()
-
-        return self
-
-        """
-        self.refill_page_buffer()
-
-
-        while len(self.buffer) >= self.sequence_length * self.batch_size:
-            batch = []
-            for _ in range(self.batch_size):
-                batch.append(torch.tensor(self.buffer[: self.sequence_length]))
-                self.buffer = self.buffer[self.sequence_length :]
-            yield torch.stack(batch)
-        """
-
-    def __next__(self):
-        batch = []
-
-        while len(self.padded_buffer) >= self.sequence_length:
-            batch.append(torch.tensor(self.padded_buffer[: self.sequence_length]))
-            self.padded_buffer = self.padded_buffer[self.sequence_length :]
-            self._refill_padded_buffer()
-
-            if len(batch) == self.batch_size:
-                return torch.stack(batch)
-
-        raise StopIteration
-
-
-class SubsetFalconLoader(IterableDataset):
+class SubsetFalconLoader(SubsetLoader):
     max_pages: int = 968000015
     name: str = "tiiuae/falcon-refinedweb"
+    base_url: str = "https://datasets-server.huggingface.co/rows"
 
     def __init__(
             self,
@@ -404,61 +415,26 @@ class SubsetFalconLoader(IterableDataset):
             tokenizer: AutoTokenizer=None,
             pack_samples: bool=False,
     ):
-        self.batch_size = batch_size
-        self.sequence_length = sequence_length
-        self.num_rows_per_page = 100
-        self.tokenizer = tokenizer
-        self.pack_samples = pack_samples
-        self.base_url = "https://datasets-server.huggingface.co/rows"
+        super().__init__(batch_size,
+                         sequence_length,
+                         num_pages,
+                         tokenizer,
+                         pack_samples)
+
         self.params = {
             "dataset": self.name,
             "config": "default",
             "split": "train",
         }
-        self.num_pages = num_pages
-        self.buffer = []
+
         self.retry_limit = 10  # Number of retries
         self.retry_delay = 5  # Seconds to wait between retries
-
 
         # Fetch pages only if the number of pages is specified
         if self.num_pages:
             pages = self._sample_pages()
             self.fetch_data_for_pages(pages)
 
-    def fetch_data_for_pages(self, pages):
-        """
-        Set the pages to be used to fill the buffer. Then fetch the page data
-        to the buffer.
-        """
-
-        self.pages = pages
-
-        # Empty the buffer if it is not.
-        self.buffer = []
-
-        for page in self.pages:
-            self._fetch_data_for_page(page)
-
-    def _get_pad_size(self, input_ids):
-        """
-        Get the number of tokens to be padded to the sample to match
-        the max allowed sequence length.
-        If sample packing is activated, then return 1
-        """
-
-        if self.pack_samples:
-            return 1
-
-        sample_size = len(input_ids)
-
-        remainder = (sample_size % self.sequence_length)
-        pad_size = (self.sequence_length - remainder)
-
-        # Apply modulo again to guarantee a pad size of 0 if remainder is 0
-        pad_size = pad_size % self.sequence_length
-
-        return pad_size
 
     def _fetch_data_for_page(self, page):
         self.params["offset"] = page
@@ -472,7 +448,7 @@ class SubsetFalconLoader(IterableDataset):
                     content = row["row"]["content"]
                     input_ids = self.tokenizer(content, truncation=True)["input_ids"]
                     self.buffer += input_ids
-                    self.buffer += [self.tokenizer.eos_token_id] * self._get_pad_size(input_ids=input_ids)
+                    self.buffer += [self.tokenizer.eos_token_id]
 
                 break  # If the request was successful, break out of the retry loop
             except requests.exceptions.RequestException as e:
@@ -511,18 +487,3 @@ class SubsetFalconLoader(IterableDataset):
             page_names = self.pages
 
         return page_names
-
-    def __iter__(self):
-        while len(self.buffer) >= self.sequence_length * self.batch_size:
-            batch = []
-            for _ in range(self.batch_size):
-                batch.append(torch.tensor(self.buffer[: self.sequence_length]))
-                self.buffer = self.buffer[self.sequence_length :]
-            yield torch.stack(batch)
-
-    def __next__(self):
-        batch = []
-        for _ in range(self.batch_size):
-            batch.append(torch.tensor(self.buffer[: self.sequence_length]))
-            self.buffer = self.buffer[self.sequence_length :]
-        return torch.stack(batch)
