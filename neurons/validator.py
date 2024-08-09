@@ -739,7 +739,7 @@ class Validator:
 
         batches = list(dataloader)
         bt.logging.debug(f'Number of validation batches is {len(batches)}')
-        
+
         # This is useful for logging to wandb
         pages = dataloader.get_page_names()
 
@@ -787,6 +787,7 @@ class Validator:
 
                     with compute_loss_perf.sample():
                         # Run each computation in a subprocess so that the GPU is reset between each model.
+                        start_loss = time.time()
                         losses = utils.run_in_subprocess(
                             functools.partial(
                                 pt.validation.compute_losses,
@@ -796,9 +797,10 @@ class Validator:
                                 tokenizer.eos_token_id,
                                 pack_samples
                             ),
-                            ttl=360,
+                            ttl=400,
                             mode="spawn",
                         )
+                        bt.logging.debug(f'Finished computing loss in {time.time() - start_loss} seconds')
                     del model_i
                 except Exception as e:
                     bt.logging.error(
@@ -880,6 +882,7 @@ class Validator:
                 uid_to_block,
                 uids_to_competition_ids_epsilon_experiment,
                 pages,
+                model_weights_epsilon_experiment,
                 wins_epsilon_experiment,
                 win_rate_epsilon_experiment,
                 losses_per_uid,
@@ -940,6 +943,7 @@ class Validator:
             uid_to_block,
             self._get_uids_to_competition_ids(),
             pages,
+            model_weights,
             wins,
             win_rate,
             losses_per_uid,
@@ -957,6 +961,7 @@ class Validator:
         uid_to_block: typing.Dict[int, int],
         uid_to_competition_id: typing.Dict[int, typing.Optional[int]],
         pages: typing.List[str],
+        model_weights: typing.List[float],
         wins: typing.Dict[int, int],
         win_rate: typing.Dict[int, float],
         losses_per_uid: typing.Dict[int, typing.List[float]],
@@ -972,6 +977,10 @@ class Validator:
             "uids": uids,
             "uid_data": {},
         }
+
+        # The sub-competition weights
+        sub_competition_weights = torch.softmax(model_weights / constants.temperature, dim=0)
+
         for uid in uids:
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
@@ -988,9 +997,10 @@ class Validator:
         table.add_column("win_rate", style="magenta")
         table.add_column("win_total", style="magenta")
         table.add_column("weights", style="magenta")
+        table.add_column("competition weights", style="magenta")
         table.add_column("block", style="magenta")
         table.add_column("competition", style="magenta")
-        for uid in uids:
+        for idx, uid in enumerate(uids):
             try:
                 table.add_row(
                     str(uid),
@@ -998,6 +1008,7 @@ class Validator:
                     str(round(step_log["uid_data"][str(uid)]["win_rate"], 4)),
                     str(step_log["uid_data"][str(uid)]["win_total"]),
                     str(round(self.weights[uid].item(), 4)),
+                    str(round(sub_competition_weights[idx].item(), 4)),
                     str(step_log["uid_data"][str(uid)]["block"]),
                     str(step_log["uid_data"][str(uid)]["competition_id"]),
                 )
@@ -1055,6 +1066,7 @@ class Validator:
                     str(uid): uid_data[str(uid)]["win_total"] for uid in uids
                 },
                 "weight_data": {str(uid): self.weights[uid].item() for uid in uids},
+                "norm_weight_data": {str(uid): sub_competition_weights[i].item() for i, uid in enumerate(uids)},
                 "competition_id": {
                     str(uid): uid_to_competition_id[uid]
                     for uid in uids

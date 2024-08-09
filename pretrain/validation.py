@@ -168,8 +168,8 @@ def compute_losses(
     # First check that model generates reasonable looking outputs.
     # Grab 100 tokens from the first two batches as 'prompts'. (1 x Seq Length tensors.)
     prompt_length = 100
-    token_inputs_1 = (batches[0][:, :prompt_length]).to(device)
-    token_inputs_2 = (batches[1][:, :prompt_length]).to(device)
+    token_inputs_1 = torch.tensor(batches[0][:, :prompt_length]).to(device)
+    token_inputs_2 = torch.tensor(batches[1][:, :prompt_length]).to(device)
 
     if not check_for_reasonable_output(
         model, token_inputs_1, token_inputs_2, pad_token_id
@@ -183,7 +183,7 @@ def compute_losses(
     with torch.no_grad():
         for batch in batches:
             try:
-                inputs = batch.to(device)
+                inputs = torch.tensor(batch).to(device)
                 logits = model(inputs).logits
 
                 shift_logits = logits[..., :-1, :].contiguous()

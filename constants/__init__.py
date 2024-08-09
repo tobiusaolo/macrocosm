@@ -49,6 +49,7 @@ __spec_version__ = (
 # The validator WANDB project.
 WANDB_PROJECT = "pretraining-validators"
 
+
 # The uid for this subnet.
 SUBNET_UID = 9
 
@@ -147,7 +148,7 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         ],
     ),
     (
-        3,#_565_190,
+        3_565_190,
         [
             Competition(
                 CompetitionId.M772_MODEL,
@@ -162,7 +163,7 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         ],
     ),
     (
-        3_601,#_190,
+        3_601_190,
         [
             Competition(
                 CompetitionId.M772_MODEL,
@@ -209,13 +210,13 @@ temperature = 0.01
 timestamp_epsilon = 0.005
 
 # block to activate sample unpacking
-sample_unpack_block = 3#3_601_190
+sample_unpack_block = 3_601_190
 
 # validators number of pages to eval over miners on each step.
-pages_per_eval_unpack = 18 # With sample unpacking
+pages_per_eval_unpack = 5 # With sample unpacking
 pages_per_eval_pack = 18
 
-timestamp_epsilon_experiment_start_block = 3_601#_190
+timestamp_epsilon_experiment_start_block = 3_601_190
 timestamp_epsilon_experiment = 0.001
 timestamp_epsilon_experiment_weight_percent = 0.123
 

@@ -15,11 +15,11 @@
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
-import torch
 import typing
 import random
 import time
 import requests
+import numpy as np
 import bittensor as bt
 from torch.utils.data import IterableDataset
 from transformers import AutoTokenizer
@@ -132,12 +132,12 @@ class SubsetLoader(IterableDataset):
         batch = []
 
         while len(self.padded_buffer) >= self.sequence_length:
-            batch.append(torch.tensor(self.padded_buffer[: self.sequence_length]))
+            batch.append(self.padded_buffer[: self.sequence_length])
             self.padded_buffer = self.padded_buffer[self.sequence_length :]
             self._refill_padded_buffer()
 
             if len(batch) == self.batch_size:
-                return torch.stack(batch)
+                return np.stack(batch)
 
         raise StopIteration
 
