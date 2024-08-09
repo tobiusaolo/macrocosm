@@ -826,7 +826,7 @@ class Validator:
         )
         step_weights = torch.softmax(model_weights / constants.temperature, dim=0)
 
-        # If we are running the epsilon experiment for competition 1 then also try the experiment epsilon.
+        # If we are running the epsilon experiment for competition 7B then also try the experiment epsilon.
         if (
             competition.id == CompetitionId.B7_MODEL
             and cur_block >= constants.timestamp_epsilon_experiment_start_block
