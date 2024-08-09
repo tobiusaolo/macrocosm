@@ -35,7 +35,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.0.1"
+__version__ = "4.1.0"
 
 # Validator schema version
 __validator_version__ = "3.0.0"
@@ -62,9 +62,6 @@ WEIGHT_SYNC_VALI_MIN_STAKE = 200_000
 # Minimum percent of weight on a vali for a miner to be considered a top miner.
 # Since there can be multiple competitions at different reward percentages we can't just check biggest.
 WEIGHT_SYNC_MINER_MIN_PERCENT = 0.10
-
-# Whether to pack samples during validation or not
-PACK_SAMPLES = False
 
 # A mapping of block numbers to the supported model types as of that block.
 ALLOWED_MODEL_TYPES_1 = {
@@ -97,7 +94,7 @@ ALLOWED_MODEL_TYPES_2 = {
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.M772_MODEL : pt.dataset.SubsetFalconLoader,
     CompetitionId.B3_MODEL : pt.dataset.SubsetFalconLoader,
-    CompetitionId.B7_MODEL : pt.dataset.SubsetFalconLoader,
+    CompetitionId.B7_MODEL : pt.dataset.SubsetFineWebEdu2Loader,
 }
 
 # Defined model constraints by competition id to ensure they are constant across blocks.
@@ -166,6 +163,27 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
 
         ],
     ),
+    (
+        3_601_190,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
+                0.14,
+            ),
+            Competition(
+                CompetitionId.B3_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
+                0.29,
+            ),
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                0.57,
+            )
+
+        ],
+    ),
 ]
 
 for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
@@ -193,7 +211,7 @@ temperature = 0.01
 timestamp_epsilon = 0.005
 
 # block to activate sample unpacking
-sample_unpack_block = 10
+sample_unpack_block = 3_601_190
 
 # validators number of pages to eval over miners on each step.
 pages_per_eval_unpack = 4 # With sample unpacking
