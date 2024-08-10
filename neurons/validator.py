@@ -716,7 +716,7 @@ class Validator:
             competition.constraints, cache_dir=self.config.model_dir
         )
 
-        if cur_block > constants.sample_unpack_block:
+        if cur_block >= constants.sample_unpack_block:
             pack_samples = False
             pages_per_eval = constants.pages_per_eval_unpack
         else:
@@ -787,7 +787,6 @@ class Validator:
 
                     with compute_loss_perf.sample():
                         # Run each computation in a subprocess so that the GPU is reset between each model.
-                        start_loss = time.time()
                         losses = utils.run_in_subprocess(
                             functools.partial(
                                 pt.validation.compute_losses,
@@ -800,7 +799,6 @@ class Validator:
                             ttl=400,
                             mode="spawn",
                         )
-                        bt.logging.debug(f'Finished computing loss in {time.time() - start_loss} seconds')
                     del model_i
                 except Exception as e:
                     bt.logging.error(
@@ -951,6 +949,7 @@ class Validator:
             compute_loss_perf,
         )
 
+
         # Increment the number of completed run steps by 1
         self.run_step_count += 1
 
@@ -981,7 +980,7 @@ class Validator:
         # The sub-competition weights
         sub_competition_weights = torch.softmax(model_weights / constants.temperature, dim=0)
 
-        for uid in uids:
+        for idx, uid in enumerate(uids):
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
@@ -990,6 +989,7 @@ class Validator:
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
                 "weight": self.weights[uid].item(),
+                "norm_weight": sub_competition_weights[idx].item(),
             }
         table = Table(title="Step")
         table.add_column("uid", justify="right", style="cyan", no_wrap=True)
@@ -997,7 +997,7 @@ class Validator:
         table.add_column("win_rate", style="magenta")
         table.add_column("win_total", style="magenta")
         table.add_column("weights", style="magenta")
-        table.add_column("competition weights", style="magenta")
+        table.add_column("competition_weights", style="magenta")
         table.add_column("block", style="magenta")
         table.add_column("competition", style="magenta")
         for idx, uid in enumerate(uids):

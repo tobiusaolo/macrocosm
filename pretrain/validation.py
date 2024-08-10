@@ -23,6 +23,7 @@ import torch
 import typing
 import constants
 import traceback
+import numpy as np
 import bittensor as bt
 
 
@@ -145,17 +146,17 @@ def check_for_reasonable_output(
 
 def compute_losses(
         model,
-        batches: typing.List[torch.Tensor],
+        batches: typing.List[np.ndarray],
         device: str,
         pad_token_id: int,
-        pack_samples: bool,
+        sample_packing_used: bool,
 ) -> typing.List[float]:
     """
     Computes the losses for a given model on provided batches.
 
     Parameters:
         model (torch.nn.Module): The model for which losses are to be computed.
-        batches (dict): A list of batches.
+        batches (List): A list of batches.
         device (str): The device to use for computation (e.g., 'cpu', 'gpu').
         pad_token_id int: Pad token id for the tokenizer used to tokenize the batches.
 
@@ -189,7 +190,7 @@ def compute_losses(
                 shift_logits = logits[..., :-1, :].contiguous()
                 shift_labels = inputs[..., 1:].contiguous()
 
-                if not pack_samples:
+                if not sample_packing_used:
 
                     # If sample unpacking is used,
                     # create a mask to indicate location of PAD tokens.
@@ -199,10 +200,12 @@ def compute_losses(
                     pad_mask = shift_labels == pad_token_id
                     zeros = torch.zeros_like(shift_labels[...,:1])
                     pad_mask = torch.cat((zeros, pad_mask[...,:-1]), dim=-1).bool()
+                    # Set all the padded labels to -100, since the
+                    # CrossEntropyLoss ignores -100 labels by default.
                     shift_labels[pad_mask] = -100
 
                 # Flatten the tokens
-                loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100) # -100 is actually the default value
+                loss_fct = torch.nn.CrossEntropyLoss()
                 shift_logits = shift_logits.view(-1, model.config.vocab_size)
                 shift_labels = shift_labels.view(-1)
                 loss = loss_fct(shift_logits, shift_labels).item()

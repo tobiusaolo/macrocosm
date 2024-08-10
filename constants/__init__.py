@@ -49,7 +49,6 @@ __spec_version__ = (
 # The validator WANDB project.
 WANDB_PROJECT = "pretraining-validators"
 
-
 # The uid for this subnet.
 SUBNET_UID = 9
 
@@ -59,6 +58,9 @@ ROOT_DIR = Path(__file__).parent.parent
 # Minimum stake to consider a validator when checking for miners with weights.
 # This corresponded to top-10 validator on july 31st, 2024
 WEIGHT_SYNC_VALI_MIN_STAKE = 200_000
+
+# Starting block for 3B, 7B* (epsilon experiment) and sample unpacking
+BLOCK_3B_7BSTAR_UNPACK = 3_601_190
 
 # Minimum percent of weight on a vali for a miner to be considered a top miner.
 # Since there can be multiple competitions at different reward percentages we can't just check biggest.
@@ -163,7 +165,7 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         ],
     ),
     (
-        3_601_190,
+        BLOCK_3B_7BSTAR_UNPACK,
         [
             Competition(
                 CompetitionId.M772_MODEL,
@@ -210,13 +212,13 @@ temperature = 0.01
 timestamp_epsilon = 0.005
 
 # block to activate sample unpacking
-sample_unpack_block = 3_601_190
+sample_unpack_block = BLOCK_3B_7BSTAR_UNPACK
 
 # validators number of pages to eval over miners on each step.
 pages_per_eval_unpack = 5 # With sample unpacking
 pages_per_eval_pack = 18
 
-timestamp_epsilon_experiment_start_block = 3_601_190
+timestamp_epsilon_experiment_start_block = BLOCK_3B_7BSTAR_UNPACK
 timestamp_epsilon_experiment = 0.001
 timestamp_epsilon_experiment_weight_percent = 0.123
 
