@@ -130,6 +130,7 @@ class Validator:
         self.epoch_step = 0
         self.global_step = 0
         self.last_epoch = self.metagraph.block.item()
+        self.last_wandb_step = 0
 
         self.uids_to_eval: typing.Dict[CompetitionId, typing.Set] = defaultdict(set)
 
@@ -1088,8 +1089,10 @@ class Validator:
             bt.logging.trace("Logging to Wandb")
             self.wandb_run.log(
                 {**graphed_data, "original_format_json": original_format_json},
-                step=self.global_step,
+                step=self.last_wandb_step,
             )
+
+            self.last_wandb_step+=1
 
     def _get_uids_to_competition_ids(
         self,
