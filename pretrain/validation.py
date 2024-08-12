@@ -23,10 +23,11 @@ import torch
 import typing
 import constants
 import traceback
+import numpy as np
 import bittensor as bt
 
 
-def iswin(loss_i, loss_j, block_i, block_j) -> bool:
+def iswin(loss_i, loss_j, block_i, block_j, epsilon) -> bool:
     """
     Determines the winner between two models based on the epsilon adjusted loss.
 
@@ -35,12 +36,14 @@ def iswin(loss_i, loss_j, block_i, block_j) -> bool:
         loss_j (float): Loss of uid j on batch.
         block_i (int): Block of uid i.
         block_j (int): Block of uid j.
+        epsilon (float): How much advantage to give to the earlier block.
+
     Returns:
         bool: True if loss i is better, False otherwise.
     """
     # Adjust loss based on timestamp and pretrain epsilon
-    loss_i = (1 - constants.timestamp_epsilon) * loss_i if block_i < block_j else loss_i
-    loss_j = (1 - constants.timestamp_epsilon) * loss_j if block_j < block_i else loss_j
+    loss_i = (1 - epsilon) * loss_i if block_i < block_j else loss_i
+    loss_j = (1 - epsilon) * loss_j if block_j < block_i else loss_j
     return loss_i < loss_j
 
 
@@ -49,6 +52,7 @@ def compute_wins(
     losses_per_uid: typing.Dict[int, typing.List[float]],
     batches: typing.List[torch.FloatTensor],
     uid_to_block: typing.Dict[int, int],
+    epsilon: float
 ) -> typing.Tuple[typing.Dict[int, int], typing.Dict[int, float]]:
     """
     Computes the wins and win rate for each model based on loss comparison.
@@ -58,6 +62,7 @@ def compute_wins(
         losses_per_uid (dict): A dictionary of losses for each uid by batch.
         batches (List): A list of data batches.
         uid_to_block (dict): A dictionary of blocks for each uid.
+        epsilon (float): How much advantage to give to the earlier block.
 
     Returns:
         tuple: A tuple containing two dictionaries, one for wins and one for win rates.
@@ -74,7 +79,7 @@ def compute_wins(
             for batch_idx, _ in enumerate(batches):
                 loss_i = losses_per_uid[uid_i][batch_idx]
                 loss_j = losses_per_uid[uid_j][batch_idx]
-                wins[uid_i] += 1 if iswin(loss_i, loss_j, block_i, block_j) else 0
+                wins[uid_i] += 1 if iswin(loss_i, loss_j, block_i, block_j, epsilon) else 0
                 total_matches += 1
         # Calculate win rate for uid i
         win_rate[uid_i] = wins[uid_i] / total_matches if total_matches > 0 else 0
@@ -140,14 +145,18 @@ def check_for_reasonable_output(
 
 
 def compute_losses(
-    model, batches: typing.List[torch.Tensor], device: str, pad_token_id: int
+        model,
+        batches: typing.List[np.ndarray],
+        device: str,
+        pad_token_id: int,
+        sample_packing_used: bool,
 ) -> typing.List[float]:
     """
     Computes the losses for a given model on provided batches.
 
     Parameters:
         model (torch.nn.Module): The model for which losses are to be computed.
-        batches (dict): A list of batches.
+        batches (List): A list of batches.
         device (str): The device to use for computation (e.g., 'cpu', 'gpu').
         pad_token_id int: Pad token id for the tokenizer used to tokenize the batches.
 
@@ -160,8 +169,8 @@ def compute_losses(
     # First check that model generates reasonable looking outputs.
     # Grab 100 tokens from the first two batches as 'prompts'. (1 x Seq Length tensors.)
     prompt_length = 100
-    token_inputs_1 = (batches[0][:, :prompt_length]).to(device)
-    token_inputs_2 = (batches[1][:, :prompt_length]).to(device)
+    token_inputs_1 = torch.tensor(batches[0][:, :prompt_length]).to(device)
+    token_inputs_2 = torch.tensor(batches[1][:, :prompt_length]).to(device)
 
     if not check_for_reasonable_output(
         model, token_inputs_1, token_inputs_2, pad_token_id
@@ -175,11 +184,26 @@ def compute_losses(
     with torch.no_grad():
         for batch in batches:
             try:
-                inputs = batch.to(device)
+                inputs = torch.tensor(batch).to(device)
                 logits = model(inputs).logits
 
                 shift_logits = logits[..., :-1, :].contiguous()
                 shift_labels = inputs[..., 1:].contiguous()
+
+                if not sample_packing_used:
+
+                    # If sample unpacking is used,
+                    # create a mask to indicate location of PAD tokens.
+                    # Note, PAD tokens are always set to EOS tokens,
+                    # For this reason, we want to ignore all but the
+                    # first EOS token (the real one)
+                    pad_mask = shift_labels == pad_token_id
+                    zeros = torch.zeros_like(shift_labels[...,:1])
+                    pad_mask = torch.cat((zeros, pad_mask[...,:-1]), dim=-1).bool()
+                    # Set all the padded labels to -100, since the
+                    # CrossEntropyLoss ignores -100 labels by default.
+                    shift_labels[pad_mask] = -100
+
                 # Flatten the tokens
                 loss_fct = torch.nn.CrossEntropyLoss()
                 shift_logits = shift_logits.view(-1, model.config.vocab_size)

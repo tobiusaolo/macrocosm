@@ -35,7 +35,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.0.1"
+__version__ = "4.1.0"
 
 # Validator schema version
 __validator_version__ = "3.0.0"
@@ -58,6 +58,9 @@ ROOT_DIR = Path(__file__).parent.parent
 # Minimum stake to consider a validator when checking for miners with weights.
 # This corresponded to top-10 validator on july 31st, 2024
 WEIGHT_SYNC_VALI_MIN_STAKE = 200_000
+
+# Starting block for 3B, 7B* (epsilon experiment) and sample unpacking
+BLOCK_3B_7BSTAR_UNPACK = 3_601_190
 
 # Minimum percent of weight on a vali for a miner to be considered a top miner.
 # Since there can be multiple competitions at different reward percentages we can't just check biggest.
@@ -92,9 +95,9 @@ ALLOWED_MODEL_TYPES_2 = {
 
 # Defined dataset by competition id
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
-    CompetitionId.M772_MODEL : pt.dataset.SubsetFalconLoader,
-    CompetitionId.B3_MODEL : pt.dataset.SubsetFalconLoader,
-    CompetitionId.B7_MODEL : pt.dataset.SubsetFineWebEdu2Loader,
+    CompetitionId.M772_MODEL: pt.dataset.SubsetFalconLoader,
+    CompetitionId.B3_MODEL: pt.dataset.SubsetFalconLoader,
+    CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
 }
 
 # Defined model constraints by competition id to ensure they are constant across blocks.
@@ -130,7 +133,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=0,
-    )
+    ),
 }
 
 
@@ -144,7 +147,6 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
                 1.0,
             )
-
         ],
     ),
     (
@@ -159,6 +161,26 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
                 CompetitionId.B7_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
                 0.65,
+            ),
+        ],
+    ),
+    (
+        BLOCK_3B_7BSTAR_UNPACK,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
+                0.14,
+            ),
+            Competition(
+                CompetitionId.B3_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
+                0.29,
+            ),
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                0.57,
             )
 
         ],
@@ -188,8 +210,18 @@ alpha = 0.5
 temperature = 0.01
 # validator score boosting for earlier models.
 timestamp_epsilon = 0.005
+
+# block to activate sample unpacking
+sample_unpack_block = BLOCK_3B_7BSTAR_UNPACK
+
 # validators number of pages to eval over miners on each step.
-n_eval_pages = 18
+pages_per_eval_unpack = 5 # With sample unpacking
+pages_per_eval_pack = 18
+
+timestamp_epsilon_experiment_start_block = BLOCK_3B_7BSTAR_UNPACK
+timestamp_epsilon_experiment = 0.001
+timestamp_epsilon_experiment_weight_percent = 0.123
+
 # validator eval batch size.
 batch_size = 1
 # validator eval batch min to keep for next loop.
