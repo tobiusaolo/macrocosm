@@ -914,8 +914,8 @@ class Validator:
         model_prioritization = {
             uid: (
                 # Add 1 to ensure it is always greater than a win rate.
-                1 + self.weights[uid].item()
-                if self.weights[uid].item() >= 0.001
+                1 + competition_weights[uid].item()
+                if competition_weights[uid].item() >= 0.001
                 else wr
             )
             for uid, wr in win_rate.items()
