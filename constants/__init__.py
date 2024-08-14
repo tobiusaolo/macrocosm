@@ -227,8 +227,6 @@ batch_size = 1
 sample_min = 5
 # Max number of uids that can be either pending eval or currently being evaluated.
 updated_models_limit = 15
-# validator incentive threshold to prioritize updates. All incentives add up to 1.
-update_priority_incentive_threshold = 0.01
 # time required between updates to the chain.
 chain_update_cadence = dt.timedelta(minutes=20)
 # time required between retrying evaluation of a stale model. (First retry will be immediate).
