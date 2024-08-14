@@ -64,7 +64,7 @@ BLOCK_3B_7BSTAR_UNPACK = 3_601_190
 
 # Minimum percent of weight on a vali for a miner to be considered a top miner.
 # Since there can be multiple competitions at different reward percentages we can't just check biggest.
-WEIGHT_SYNC_MINER_MIN_PERCENT = 0.10
+WEIGHT_SYNC_MINER_MIN_PERCENT = 0.05
 
 # A mapping of block numbers to the supported model types as of that block.
 ALLOWED_MODEL_TYPES_1 = {
@@ -181,8 +181,7 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
                 CompetitionId.B7_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
                 0.57,
-            )
-
+            ),
         ],
     ),
 ]
@@ -215,7 +214,7 @@ timestamp_epsilon = 0.005
 sample_unpack_block = BLOCK_3B_7BSTAR_UNPACK
 
 # validators number of pages to eval over miners on each step.
-pages_per_eval_unpack = 5 # With sample unpacking
+pages_per_eval_unpack = 5  # With sample unpacking
 pages_per_eval_pack = 18
 
 timestamp_epsilon_experiment_start_block = BLOCK_3B_7BSTAR_UNPACK
@@ -228,8 +227,6 @@ batch_size = 1
 sample_min = 5
 # Max number of uids that can be either pending eval or currently being evaluated.
 updated_models_limit = 15
-# validator incentive threshold to prioritize updates. All incentives add up to 1.
-update_priority_incentive_threshold = 0.01
 # time required between updates to the chain.
 chain_update_cadence = dt.timedelta(minutes=20)
 # time required between retrying evaluation of a stale model. (First retry will be immediate).
