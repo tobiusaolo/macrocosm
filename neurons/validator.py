@@ -911,11 +911,13 @@ class Validator:
         # Prioritize models for keeping up to the sample_min for the next eval loop.
         # If the model has any significant weight, prioritize by weight with greater weights being kept first.
         # Then for the unweighted models, prioritize by win_rate.
+        # Use the competition weights from the tracker which also handles moving averages.
+        tracker_competition_weights = self.competition_tracker.get_competition_weights(competition.id)
         model_prioritization = {
             uid: (
                 # Add 1 to ensure it is always greater than a win rate.
-                1 + self.weights[uid].item()
-                if self.weights[uid].item() >= 0.001
+                1 + tracker_competition_weights[uid].item()
+                if tracker_competition_weights[uid].item() >= 0.001
                 else wr
             )
             for uid, wr in win_rate.items()
