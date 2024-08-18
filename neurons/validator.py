@@ -33,6 +33,7 @@ import wandb
 import constants
 from taoverse.metagraph import utils as metagraph_utils
 from taoverse.metagraph.metagraph_syncer import MetagraphSyncer
+from taoverse.model import utils as model_utils
 from taoverse.model.competition import utils as competition_utils
 from taoverse.model.competition.competition_tracker import CompetitionTracker
 from taoverse.model.competition.data import Competition
@@ -781,7 +782,7 @@ class Validator:
             ):
                 try:
                     bt.logging.info(
-                        f"Evaluating uid: {uid_i} / hotkey: {hotkey} with metadata: {model_i_metadata}."
+                        f"Evaluating uid: {uid_i} / hotkey: {hotkey} with metadata: {model_i_metadata} and hf_url: {model_utils.get_hf_url(model_i_metadata)}."
                     )
 
                     # Update the block this uid last updated their model.
