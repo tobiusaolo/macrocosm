@@ -703,9 +703,12 @@ class Validator:
                 time.sleep(300)
             return
 
+        # TODO: Consider condensing the following + competition id into a uid to metadata map.
         # Keep track of which block this uid last updated their model.
         # Default to an infinite block if we can't retrieve the metadata for the miner.
         uid_to_block = defaultdict(lambda: math.inf)
+        # Keep track of the hugging face url for this uid.
+        uid_to_hf_url = defaultdict(lambda: "unknown")
 
         bt.logging.trace(f"Current block: {cur_block}")
 
@@ -787,6 +790,8 @@ class Validator:
 
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
+                    # Update the hf url for this model.
+                    uid_to_hf_url[uid_i] = model_utils.get_hf_url(model_i_metadata)
 
                     # Get the model locally and evaluate its loss.
                     model_i = None
@@ -888,6 +893,7 @@ class Validator:
                 CompetitionId.B7_MODEL_LOWER_EPSILON,
                 uids,
                 uid_to_block,
+                uid_to_hf_url,
                 uids_to_competition_ids_epsilon_experiment,
                 pages,
                 model_weights_epsilon_experiment,
@@ -953,6 +959,7 @@ class Validator:
             competition.id,
             uids,
             uid_to_block,
+            uid_to_hf_url,
             self._get_uids_to_competition_ids(),
             pages,
             model_weights,
@@ -971,6 +978,7 @@ class Validator:
         competition_id: CompetitionId,
         uids: typing.List[int],
         uid_to_block: typing.Dict[int, int],
+        uid_to_hf_url: typing.Dict[int, str],
         uid_to_competition_id: typing.Dict[int, typing.Optional[int]],
         pages: typing.List[str],
         model_weights: typing.List[float],
@@ -999,6 +1007,7 @@ class Validator:
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
+                "hf_url": uid_to_hf_url[uid],
                 "competition_id": uid_to_competition_id[uid],
                 "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
                 "win_rate": win_rate[uid],
@@ -1015,6 +1024,7 @@ class Validator:
         table.add_column("competition_weights", style="magenta")
         table.add_column("block", style="magenta")
         table.add_column("competition", style="magenta")
+        table.add_column("hugging_face_url", style="magenta")
         for idx, uid in enumerate(uids):
             try:
                 table.add_row(
@@ -1026,6 +1036,7 @@ class Validator:
                     str(round(sub_competition_weights[idx].item(), 4)),
                     str(step_log["uid_data"][str(uid)]["block"]),
                     str(step_log["uid_data"][str(uid)]["competition_id"]),
+                    str(step_log["uid_data"][str(uid)]["hf_url"]),
                 )
             except:
                 pass
