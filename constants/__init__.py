@@ -14,11 +14,9 @@ from transformers import (
     GPTNeoXForCausalLM,
     GPTJForCausalLM,
     PhiForCausalLM,
-    Phi3ForCausalLM,
     GemmaForCausalLM,
     Gemma2ForCausalLM,
     Qwen2ForCausalLM,
-    StableLmForCausalLM,
 )
 
 from taoverse.model.competition.data import (
@@ -35,7 +33,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.1.0"
+__version__ = "4.1.1"
 
 # Validator schema version
 __validator_version__ = "3.0.0"
@@ -75,8 +73,6 @@ ALLOWED_MODEL_TYPES_1 = {
     FalconForCausalLM,
     GPTNeoXForCausalLM,
     GPTJForCausalLM,
-    StableLmForCausalLM,
-    Phi3ForCausalLM,
     Qwen2ForCausalLM,
 }
 ALLOWED_MODEL_TYPES_2 = {
@@ -88,8 +84,6 @@ ALLOWED_MODEL_TYPES_2 = {
     PhiForCausalLM,
     GemmaForCausalLM,
     Gemma2ForCausalLM,
-    StableLmForCausalLM,
-    Phi3ForCausalLM,
     Qwen2ForCausalLM,
 }
 
