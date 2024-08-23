@@ -279,7 +279,7 @@ class Validator:
         name = "validator-" + str(self.uid) + "-" + run_id
         self.wandb_run = wandb.init(
             name=name,
-            project=constants.WANDB_PROJECT,
+            project=self.config.wandb_project,
             entity="macrocosmos",
             config={
                 "uid": self.uid,
