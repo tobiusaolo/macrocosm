@@ -1022,7 +1022,7 @@ class Validator:
         table.add_column("win_rate", style="magenta", overflow="fold")
         table.add_column("win_total", style="magenta", overflow="fold")
         table.add_column("total_weight", style="magenta", overflow="fold")
-        table.add_column("compe_weight", style="magenta", overflow="fold")
+        table.add_column("comp_weight", style="magenta", overflow="fold")
         table.add_column("block", style="magenta", overflow="fold")
         table.add_column("comp", style="magenta", overflow="fold")
         for idx, uid in enumerate(uids):
