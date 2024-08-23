@@ -1,4 +1,4 @@
-bittensor==6.9.3
+bittensor==6.9.4
 huggingface_hub
 matplotlib
 pydantic==1.10
@@ -7,8 +7,8 @@ rich
 safetensors
 torch
 numpy
-transformers==4.42.0
+transformers==4.44.1
 wandb
 datasets
 flash-attn
-taoverse==1.0.1
+taoverse==1.0.2

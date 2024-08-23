@@ -33,6 +33,7 @@ import wandb
 import constants
 from taoverse.metagraph import utils as metagraph_utils
 from taoverse.metagraph.metagraph_syncer import MetagraphSyncer
+from taoverse.model import utils as model_utils
 from taoverse.model.competition import utils as competition_utils
 from taoverse.model.competition.competition_tracker import CompetitionTracker
 from taoverse.model.competition.data import Competition
@@ -278,7 +279,7 @@ class Validator:
         name = "validator-" + str(self.uid) + "-" + run_id
         self.wandb_run = wandb.init(
             name=name,
-            project=constants.WANDB_PROJECT,
+            project=self.config.wandb_project,
             entity="macrocosmos",
             config={
                 "uid": self.uid,
@@ -702,9 +703,12 @@ class Validator:
                 time.sleep(300)
             return
 
+        # TODO: Consider condensing the following + competition id into a uid to metadata map.
         # Keep track of which block this uid last updated their model.
         # Default to an infinite block if we can't retrieve the metadata for the miner.
         uid_to_block = defaultdict(lambda: math.inf)
+        # Keep track of the hugging face repo for this uid.
+        uid_to_hf = defaultdict(lambda: "unknown")
 
         bt.logging.trace(f"Current block: {cur_block}")
 
@@ -725,21 +729,25 @@ class Validator:
             pages_per_eval = constants.pages_per_eval_pack
 
         # If the option is set in the config, override
-        pages_per_eval = self.config.pages_per_eval if self.config.pages_per_eval is not None else pages_per_eval
+        pages_per_eval = (
+            self.config.pages_per_eval
+            if self.config.pages_per_eval is not None
+            else pages_per_eval
+        )
 
-        bt.logging.debug(f'Sample packing is set to: {pack_samples}.')
-        bt.logging.debug(f'Number of pages per evaluation step is: {pages_per_eval}')
+        bt.logging.debug(f"Sample packing is set to: {pack_samples}.")
+        bt.logging.debug(f"Number of pages per evaluation step is: {pages_per_eval}")
 
         dataloader = SubsetDataLoader(
             batch_size=constants.batch_size,
             sequence_length=competition.constraints.sequence_length,
-            num_pages= pages_per_eval,
+            num_pages=pages_per_eval,
             tokenizer=tokenizer,
-            pack_samples=pack_samples
-            )
+            pack_samples=pack_samples,
+        )
 
         batches = list(dataloader)
-        bt.logging.debug(f'Number of validation batches is {len(batches)}')
+        bt.logging.debug(f"Number of validation batches is {len(batches)}")
 
         # This is useful for logging to wandb
         pages = dataloader.get_page_names()
@@ -758,10 +766,10 @@ class Validator:
         compute_loss_perf = PerfMonitor("Eval: Compute loss")
 
         for uid_i in uids:
-            bt.logging.trace(f"Computing model losses for uid:{uid_i}.")
-
             # This variable should be overwritten below if the model has metadata.
             losses: typing.List[float] = [math.inf for _ in range(len(batches))]
+
+            bt.logging.trace(f"Getting metadata for uid: {uid_i}.")
 
             # Check that the model is in the tracker.
             with self.metagraph_lock:
@@ -776,8 +784,14 @@ class Validator:
                 and model_i_metadata.id.competition_id == competition.id
             ):
                 try:
+                    bt.logging.info(
+                        f"Evaluating uid: {uid_i} / hotkey: {hotkey} with metadata: {model_i_metadata} and hf_url: {model_utils.get_hf_url(model_i_metadata)}."
+                    )
+
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
+                    # Update the hf repo for this model.
+                    uid_to_hf[uid_i] = model_utils.get_hf_repo_name(model_i_metadata)
 
                     # Get the model locally and evaluate its loss.
                     model_i = None
@@ -795,7 +809,7 @@ class Validator:
                                 batches,
                                 self.config.device,
                                 tokenizer.eos_token_id,
-                                pack_samples
+                                pack_samples,
                             ),
                             ttl=400,
                             mode="spawn",
@@ -879,6 +893,7 @@ class Validator:
                 CompetitionId.B7_MODEL_LOWER_EPSILON,
                 uids,
                 uid_to_block,
+                uid_to_hf,
                 uids_to_competition_ids_epsilon_experiment,
                 pages,
                 model_weights_epsilon_experiment,
@@ -912,7 +927,9 @@ class Validator:
         # If the model has any significant weight, prioritize by weight with greater weights being kept first.
         # Then for the unweighted models, prioritize by win_rate.
         # Use the competition weights from the tracker which also handles moving averages.
-        tracker_competition_weights = self.competition_tracker.get_competition_weights(competition.id)
+        tracker_competition_weights = self.competition_tracker.get_competition_weights(
+            competition.id
+        )
         model_prioritization = {
             uid: (
                 # Add 1 to ensure it is always greater than a win rate.
@@ -942,6 +959,7 @@ class Validator:
             competition.id,
             uids,
             uid_to_block,
+            uid_to_hf,
             self._get_uids_to_competition_ids(),
             pages,
             model_weights,
@@ -952,7 +970,6 @@ class Validator:
             compute_loss_perf,
         )
 
-
         # Increment the number of completed run steps by 1
         self.run_step_count += 1
 
@@ -961,6 +978,7 @@ class Validator:
         competition_id: CompetitionId,
         uids: typing.List[int],
         uid_to_block: typing.Dict[int, int],
+        uid_to_hf: typing.Dict[int, str],
         uid_to_competition_id: typing.Dict[int, typing.Optional[int]],
         pages: typing.List[str],
         model_weights: typing.List[float],
@@ -981,12 +999,15 @@ class Validator:
         }
 
         # The sub-competition weights
-        sub_competition_weights = torch.softmax(model_weights / constants.temperature, dim=0)
+        sub_competition_weights = torch.softmax(
+            model_weights / constants.temperature, dim=0
+        )
 
         for idx, uid in enumerate(uids):
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
+                "hf": uid_to_hf[uid],
                 "competition_id": uid_to_competition_id[uid],
                 "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
                 "win_rate": win_rate[uid],
@@ -994,19 +1015,21 @@ class Validator:
                 "weight": self.weights[uid].item(),
                 "norm_weight": sub_competition_weights[idx].item(),
             }
-        table = Table(title="Step")
+        table = Table(title="Step", expand=True)
         table.add_column("uid", justify="right", style="cyan", no_wrap=True)
-        table.add_column("average_loss", style="magenta")
-        table.add_column("win_rate", style="magenta")
-        table.add_column("win_total", style="magenta")
-        table.add_column("weights", style="magenta")
-        table.add_column("competition_weights", style="magenta")
-        table.add_column("block", style="magenta")
-        table.add_column("competition", style="magenta")
+        table.add_column("hf", style="magenta", overflow="fold")
+        table.add_column("average_loss", style="magenta", overflow="fold")
+        table.add_column("win_rate", style="magenta", overflow="fold")
+        table.add_column("win_total", style="magenta", overflow="fold")
+        table.add_column("total_weight", style="magenta", overflow="fold")
+        table.add_column("comp_weight", style="magenta", overflow="fold")
+        table.add_column("block", style="magenta", overflow="fold")
+        table.add_column("comp", style="magenta", overflow="fold")
         for idx, uid in enumerate(uids):
             try:
                 table.add_row(
                     str(uid),
+                    str(step_log["uid_data"][str(uid)]["hf"]),
                     str(round(step_log["uid_data"][str(uid)]["average_loss"], 4)),
                     str(round(step_log["uid_data"][str(uid)]["win_rate"], 4)),
                     str(step_log["uid_data"][str(uid)]["win_total"]),
@@ -1069,7 +1092,10 @@ class Validator:
                     str(uid): uid_data[str(uid)]["win_total"] for uid in uids
                 },
                 "weight_data": {str(uid): self.weights[uid].item() for uid in uids},
-                "norm_weight_data": {str(uid): sub_competition_weights[i].item() for i, uid in enumerate(uids)},
+                "competition_weight_data": {
+                    str(uid): sub_competition_weights[i].item()
+                    for i, uid in enumerate(uids)
+                },
                 "competition_id": {
                     str(uid): uid_to_competition_id[uid]
                     for uid in uids
@@ -1094,7 +1120,7 @@ class Validator:
                 step=self.last_wandb_step,
             )
 
-            self.last_wandb_step+=1
+            self.last_wandb_step += 1
 
     def _get_uids_to_competition_ids(
         self,
