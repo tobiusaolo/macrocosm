@@ -707,8 +707,8 @@ class Validator:
         # Keep track of which block this uid last updated their model.
         # Default to an infinite block if we can't retrieve the metadata for the miner.
         uid_to_block = defaultdict(lambda: math.inf)
-        # Keep track of the hugging face url for this uid.
-        uid_to_hf_url = defaultdict(lambda: "unknown")
+        # Keep track of the hugging face repo for this uid.
+        uid_to_hf = defaultdict(lambda: "unknown")
 
         bt.logging.trace(f"Current block: {cur_block}")
 
@@ -790,8 +790,8 @@ class Validator:
 
                     # Update the block this uid last updated their model.
                     uid_to_block[uid_i] = model_i_metadata.block
-                    # Update the hf url for this model.
-                    uid_to_hf_url[uid_i] = model_utils.get_hf_url(model_i_metadata)
+                    # Update the hf repo for this model.
+                    uid_to_hf[uid_i] = model_utils.get_hf_repo_name(model_i_metadata)
 
                     # Get the model locally and evaluate its loss.
                     model_i = None
@@ -893,7 +893,7 @@ class Validator:
                 CompetitionId.B7_MODEL_LOWER_EPSILON,
                 uids,
                 uid_to_block,
-                uid_to_hf_url,
+                uid_to_hf,
                 uids_to_competition_ids_epsilon_experiment,
                 pages,
                 model_weights_epsilon_experiment,
@@ -959,7 +959,7 @@ class Validator:
             competition.id,
             uids,
             uid_to_block,
-            uid_to_hf_url,
+            uid_to_hf,
             self._get_uids_to_competition_ids(),
             pages,
             model_weights,
@@ -978,7 +978,7 @@ class Validator:
         competition_id: CompetitionId,
         uids: typing.List[int],
         uid_to_block: typing.Dict[int, int],
-        uid_to_hf_url: typing.Dict[int, str],
+        uid_to_hf: typing.Dict[int, str],
         uid_to_competition_id: typing.Dict[int, typing.Optional[int]],
         pages: typing.List[str],
         model_weights: typing.List[float],
@@ -1007,7 +1007,7 @@ class Validator:
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_block[uid],
-                "hf_url": uid_to_hf_url[uid],
+                "hf": uid_to_hf[uid],
                 "competition_id": uid_to_competition_id[uid],
                 "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
                 "win_rate": win_rate[uid],
@@ -1015,20 +1015,21 @@ class Validator:
                 "weight": self.weights[uid].item(),
                 "norm_weight": sub_competition_weights[idx].item(),
             }
-        table = Table(title="Step")
+        table = Table(title="Step", expand=True)
         table.add_column("uid", justify="right", style="cyan", no_wrap=True)
-        table.add_column("average_loss", style="magenta")
-        table.add_column("win_rate", style="magenta")
-        table.add_column("win_total", style="magenta")
-        table.add_column("weights", style="magenta")
-        table.add_column("competition_weights", style="magenta")
-        table.add_column("block", style="magenta")
-        table.add_column("competition", style="magenta")
-        table.add_column("hugging_face_url", style="magenta")
+        table.add_column("hf", style="magenta", overflow="fold")
+        table.add_column("average_loss", style="magenta", overflow="fold")
+        table.add_column("win_rate", style="magenta", overflow="fold")
+        table.add_column("win_total", style="magenta", overflow="fold")
+        table.add_column("total_weight", style="magenta", overflow="fold")
+        table.add_column("compe_weight", style="magenta", overflow="fold")
+        table.add_column("block", style="magenta", overflow="fold")
+        table.add_column("comp", style="magenta", overflow="fold")
         for idx, uid in enumerate(uids):
             try:
                 table.add_row(
                     str(uid),
+                    str(step_log["uid_data"][str(uid)]["hf"]),
                     str(round(step_log["uid_data"][str(uid)]["average_loss"], 4)),
                     str(round(step_log["uid_data"][str(uid)]["win_rate"], 4)),
                     str(step_log["uid_data"][str(uid)]["win_total"]),
@@ -1036,7 +1037,6 @@ class Validator:
                     str(round(sub_competition_weights[idx].item(), 4)),
                     str(step_log["uid_data"][str(uid)]["block"]),
                     str(step_log["uid_data"][str(uid)]["competition_id"]),
-                    str(step_log["uid_data"][str(uid)]["hf_url"]),
                 )
             except:
                 pass
@@ -1092,7 +1092,7 @@ class Validator:
                     str(uid): uid_data[str(uid)]["win_total"] for uid in uids
                 },
                 "weight_data": {str(uid): self.weights[uid].item() for uid in uids},
-                "norm_weight_data": {
+                "competition_weight_data": {
                     str(uid): sub_competition_weights[i].item()
                     for i, uid in enumerate(uids)
                 },
