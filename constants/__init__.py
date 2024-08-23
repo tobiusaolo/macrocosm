@@ -24,6 +24,7 @@ from taoverse.model.competition.data import (
     ModelConstraints,
     NormValidationConstraints,
 )
+from taoverse.model.competition.epsilon import FixedEpsilon
 from competitions.data import CompetitionId
 
 from typing import Dict, List, Tuple
@@ -33,7 +34,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.1.1"
+__version__ = "4.1.2"
 
 # Validator schema version
 __validator_version__ = "3.0.0"
@@ -103,6 +104,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         allowed_architectures=ALLOWED_MODEL_TYPES_1,
         tokenizer="distilgpt2",
         eval_block_delay=0,
+        epsilon_func=FixedEpsilon(0.005),
     ),
     CompetitionId.B7_MODEL: ModelConstraints(
         max_model_parameter_size=6_900_000_000,
@@ -115,6 +117,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=0,
+        epsilon_func=FixedEpsilon(0.005),
     ),
     CompetitionId.B3_MODEL: ModelConstraints(
         max_model_parameter_size=3_400_000_000,
@@ -127,6 +130,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=0,
+        epsilon_func=FixedEpsilon(0.005),
     ),
 }
 
