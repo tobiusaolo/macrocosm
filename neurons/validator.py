@@ -16,21 +16,27 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from collections import defaultdict
+import asyncio
 import copy
 import datetime as dt
 import functools
-import os
 import json
 import math
+import multiprocessing
+import os
 import pickle
+import threading
 import time
-import torch
-import random
-import asyncio
+import traceback
 import typing
+from collections import defaultdict
+
+import bittensor as bt
+import torch
 import wandb
-import constants
+from huggingface_hub.utils import RepositoryNotFoundError
+from rich.console import Console
+from rich.table import Table
 from taoverse.metagraph import utils as metagraph_utils
 from taoverse.metagraph.metagraph_syncer import MetagraphSyncer
 from taoverse.model import utils as model_utils
@@ -38,34 +44,24 @@ from taoverse.model.competition import utils as competition_utils
 from taoverse.model.competition.competition_tracker import CompetitionTracker
 from taoverse.model.competition.data import Competition
 from taoverse.model.model_tracker import ModelTracker
+from taoverse.model.data import EvalResult
 from taoverse.model.model_updater import MinerMisconfiguredError, ModelUpdater
+from taoverse.model.storage.chain.chain_model_metadata_store import (
+    ChainModelMetadataStore,
+)
 from taoverse.model.storage.disk.disk_model_store import DiskModelStore
 from taoverse.model.storage.hugging_face.hugging_face_model_store import (
     HuggingFaceModelStore,
 )
-from taoverse.model.storage.chain.chain_model_metadata_store import (
-    ChainModelMetadataStore,
-)
-from taoverse.utilities.perf_monitor import PerfMonitor
 from taoverse.utilities import utils
+from taoverse.utilities.perf_monitor import PerfMonitor
 
-from model.data import TokenizerIdentifier
-
-from huggingface_hub.utils import RepositoryNotFoundError
-from neurons import config
-import traceback
-import threading
-import multiprocessing
-from rich.table import Table
-from rich.console import Console
-
-import bittensor as bt
+import constants
+from model.retry import should_retry_model
 import pretrain as pt
-from torch.utils.data import IterableDataset
-from utilities.miner_iterator import MinerIterator
-
-
 from competitions.data import CompetitionId
+from neurons import config
+from utilities.miner_iterator import MinerIterator
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -398,7 +394,7 @@ class Validator:
                         curr_block,
                         constants.COMPETITION_SCHEDULE_BY_BLOCK,
                     )
-                    force_sync = self._should_retry_model(
+                    force_sync = should_retry_model(
                         competition.epsilon_func, curr_block, eval_history
                     )
 
@@ -439,41 +435,6 @@ class Validator:
                 )
 
         bt.logging.info("Exiting update models loop.")
-
-    def _should_retry_model(self, epsilon_func, curr_block, eval_history) -> bool:
-        # If the model has never been evaluated, we should retry it.
-        if not eval_history:
-            return True
-
-        # Find the most recent successful eval.
-        last_successful_eval = None
-        for eval_result in reversed(eval_history):
-            if eval_result.avg_loss != math.inf:
-                last_successful_eval = eval_result
-                break
-
-        if last_successful_eval:
-            # If this model had worse loss than the top model during the last eval, no need to retry.
-            if last_successful_eval.score > last_successful_eval.winning_model_score:
-                return False
-
-            # Otherwise, this model is potentially better than the top model but at the time it was evaluated
-            # it couldn't overcome the epsilon disadvantage. Check if epsilon has changed to the point where
-            # we should retry this model now.
-            curr_epsilon = epsilon_func(
-                curr_block, last_successful_eval.winning_model_block
-            )
-            loss_ratio = (
-                last_successful_eval.winning_model_loss
-                * (1 - curr_epsilon)
-                / last_successful_eval.score
-                if last_successful_eval.score > 0
-                else 0
-            )
-            return loss_ratio >= constants.reevaluation_threshold
-
-        # This model has been evaluated but has errored every time. Allow a single retry in this case.
-        return len(eval_history) < 2
 
     def _wait_for_open_eval_slot(self) -> None:
         """Waits until there is at least one slot open to download and evaluate a model."""
@@ -756,6 +717,10 @@ class Validator:
         uid_to_block = defaultdict(lambda: math.inf)
         # Keep track of the hugging face repo for this uid.
         uid_to_hf = defaultdict(lambda: "unknown")
+        # Keep track of the hotkey for this uid.
+        # We do this rather than re-reading the metagraph to ensure consistent state even if the
+        # metagraph updates while we're performing evaluations.
+        uid_to_hotkey = dict()
 
         bt.logging.trace(f"Current block: {cur_block}")
 
@@ -821,6 +786,7 @@ class Validator:
             # Check that the model is in the tracker.
             with self.metagraph_lock:
                 hotkey = self.metagraph.hotkeys[uid_i]
+                uid_to_hotkey[uid_i] = hotkey
 
             model_i_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
                 hotkey
@@ -880,6 +846,11 @@ class Validator:
         # Compute wins and win rates per uid.
         wins, win_rate = pt.validation.compute_wins(
             uids, losses_per_uid, batches, uid_to_block, constants.timestamp_epsilon
+        )
+
+        top_uid = max(win_rate, key=win_rate.get)
+        self._record_eval_results(
+            top_uid, uid_to_block[top_uid], cur_block, losses_per_uid, uid_to_hotkey
         )
 
         # Compute softmaxed weights based on win rate.
@@ -1019,6 +990,38 @@ class Validator:
 
         # Increment the number of completed run steps by 1
         self.run_step_count += 1
+
+    def _record_eval_results(
+        self,
+        top_uid: int,
+        top_uid_block: int,
+        curr_block: int,
+        uid_to_loss: typing.Dict[int, float],
+        uid_to_hotkey: typing.Dict[int, str],
+    ) -> None:
+        """Records the results of the evaluation step to the model tracker.
+
+        Args:
+            top_uid (int): The uid of the model with the higest win rate.
+            top_uid_block (int): The block the top model was uploaded to the chain.
+            curr_block (int): The current block.
+            uid_to_loss (typing.Dict[int, float]): A dictionary mapping uids to their average losses.
+            uid_to_hotkey (typing.Dict[int, str]): A dictionary mapping uids to their hotkeys.
+        """
+        for uid, loss in uid_to_loss.items():
+            if uid not in uid_to_hotkey:
+                bt.logging.error(f"UID {uid} not found in uid_to_hotkey.")
+                continue
+
+            self.model_tracker.on_model_evaluated(
+                uid_to_hotkey[uid],
+                EvalResult(
+                    block=curr_block,
+                    score=loss,
+                    winning_model_block=top_uid_block,
+                    winning_model_score=uid_to_loss[top_uid],
+                ),
+            )
 
     def log_step(
         self,
