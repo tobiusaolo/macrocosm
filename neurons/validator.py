@@ -378,9 +378,7 @@ class Validator:
                     hotkey = self.metagraph.hotkeys[next_uid]
                     curr_block = self.metagraph.block.item()
 
-                # Get the competition.
-                # Get the models' eval history.
-                # Pass force if this model should be retried.
+                # Check if we should retry this model and force a sync if necessary.
                 force_sync = False
                 model_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
                     hotkey

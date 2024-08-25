@@ -1,6 +1,5 @@
 import math
 import unittest
-from typing import List
 
 from taoverse.model.competition.epsilon import FixedEpsilon
 from taoverse.model.data import EvalResult
