@@ -16,56 +16,50 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from collections import defaultdict
+import asyncio
 import copy
 import datetime as dt
 import functools
-import os
 import json
 import math
+import multiprocessing
+import os
 import pickle
+import threading
 import time
-import torch
-import random
-import asyncio
+import traceback
 import typing
+from collections import defaultdict
+
+import bittensor as bt
+import torch
 import wandb
-import constants
+from huggingface_hub.utils import RepositoryNotFoundError
+from rich.console import Console
+from rich.table import Table
 from taoverse.metagraph import utils as metagraph_utils
 from taoverse.metagraph.metagraph_syncer import MetagraphSyncer
+from taoverse.metagraph.miner_iterator import MinerIterator
 from taoverse.model import utils as model_utils
 from taoverse.model.competition import utils as competition_utils
 from taoverse.model.competition.competition_tracker import CompetitionTracker
 from taoverse.model.competition.data import Competition
 from taoverse.model.model_tracker import ModelTracker
 from taoverse.model.model_updater import MinerMisconfiguredError, ModelUpdater
+from taoverse.model.storage.chain.chain_model_metadata_store import (
+    ChainModelMetadataStore,
+)
 from taoverse.model.storage.disk.disk_model_store import DiskModelStore
 from taoverse.model.storage.hugging_face.hugging_face_model_store import (
     HuggingFaceModelStore,
 )
-from taoverse.model.storage.chain.chain_model_metadata_store import (
-    ChainModelMetadataStore,
-)
-from taoverse.utilities.perf_monitor import PerfMonitor
 from taoverse.utilities import utils
+from taoverse.utilities.perf_monitor import PerfMonitor
 
-from model.data import TokenizerIdentifier
-
-from huggingface_hub.utils import RepositoryNotFoundError
-from neurons import config
-import traceback
-import threading
-import multiprocessing
-from rich.table import Table
-from rich.console import Console
-
-import bittensor as bt
+import constants
 import pretrain as pt
-from torch.utils.data import IterableDataset
-from utilities.miner_iterator import MinerIterator
-
-
 from competitions.data import CompetitionId
+from neurons import config
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
