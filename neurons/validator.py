@@ -397,14 +397,27 @@ class Validator:
                     )
 
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
-                updated = asyncio.run(
-                    self.model_updater.sync_model(
-                        hotkey=hotkey,
-                        curr_block=curr_block,
-                        schedule_by_block=constants.COMPETITION_SCHEDULE_BY_BLOCK,
-                        force=force_sync,
+                try:
+                    updated = asyncio.run(
+                        self.model_updater.sync_model(
+                            hotkey=hotkey,
+                            curr_block=curr_block,
+                            schedule_by_block=constants.COMPETITION_SCHEDULE_BY_BLOCK,
+                            force=force_sync,
+                        )
                     )
-                )
+                except MinerMisconfiguredError as e:
+                    self.model_tracker.on_model_evaluated(
+                        hotkey,
+                        EvalResult(
+                            block=curr_block,
+                            score=math.inf,
+                            # We don't care about the winning model for this check since we just need to log the model eval failure.
+                            winning_model_block=0,
+                            winning_model_score=0,
+                        ),
+                    )
+                    raise e
 
                 if updated:
                     metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
@@ -485,14 +498,27 @@ class Validator:
                 try:
                     # It's been long enough - redownload this model and schedule it for eval.
                     # This still respects the eval block delay so that previously top uids can't bypass it.
-                    should_retry = asyncio.run(
-                        self.model_updater.sync_model(
-                            hotkey=hotkey,
-                            curr_block=curr_block,
-                            schedule_by_block=constants.COMPETITION_SCHEDULE_BY_BLOCK,
-                            force=True,
+                    try:
+                        should_retry = asyncio.run(
+                            self.model_updater.sync_model(
+                                hotkey=hotkey,
+                                curr_block=curr_block,
+                                schedule_by_block=constants.COMPETITION_SCHEDULE_BY_BLOCK,
+                                force=True,
+                            )
                         )
-                    )
+                    except MinerMisconfiguredError as e:
+                        self.model_tracker.on_model_evaluated(
+                            hotkey,
+                            EvalResult(
+                                block=curr_block,
+                                score=math.inf,
+                                # We don't care about the winning model for this check since we just need to log the model eval failure.
+                                winning_model_block=0,
+                                winning_model_score=0,
+                            ),
+                        )
+                        raise e
 
                     if not should_retry:
                         continue
