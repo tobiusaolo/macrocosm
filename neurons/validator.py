@@ -454,7 +454,7 @@ class Validator:
 
         if last_successful_eval:
             # If this model had worse loss than the top model during the last eval, no need to retry.
-            if last_successful_eval.avg_loss > last_successful_eval.winning_model_loss:
+            if last_successful_eval.score > last_successful_eval.winning_model_score:
                 return False
 
             # Otherwise, this model is potentially better than the top model but at the time it was evaluated
@@ -466,8 +466,8 @@ class Validator:
             loss_ratio = (
                 last_successful_eval.winning_model_loss
                 * (1 - curr_epsilon)
-                / last_successful_eval.avg_loss
-                if last_successful_eval.avg_loss > 0
+                / last_successful_eval.score
+                if last_successful_eval.score > 0
                 else 0
             )
             return loss_ratio >= constants.reevaluation_threshold
