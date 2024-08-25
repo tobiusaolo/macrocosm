@@ -336,124 +336,25 @@ class Validator:
         uid_last_checked_sequential = dict()
         # Track how recently we checked the list of top models.
         last_checked_top_models_time = None
-        # Track how recently we retried a model with incentive we've already dropped.
-        uid_last_retried_evaluation = dict()
 
         # The below loop iterates across all miner uids and checks to see
         # if they should be updated.
         while not self.stop_event.is_set():
             try:
-                # At most once per `chain_update_cadence`, check which models are being assigned weight by
+                # At most once per `scan_top_model_cadence`, check which models are being assigned weight by
                 # the top validators and ensure they'll be evaluated soon.
                 if (
                     not last_checked_top_models_time
                     or dt.datetime.now() - last_checked_top_models_time
-                    > constants.chain_update_cadence
+                    > constants.scan_top_model_cadence
                 ):
                     last_checked_top_models_time = dt.datetime.now()
-                    # Take a deep copy of the metagraph for use in the top uid retry check.
-                    # The regular loop below will use self.metagraph which may be updated as we go.
-                    with self.metagraph_lock:
-                        metagraph = copy.deepcopy(self.metagraph)
-
-                    # Find any miner UIDs which top valis are assigning weight and aren't currently scheduled for an eval.
-                    # This is competition agnostic, as anything with weight is 'winning' a competition for some vali.
-                    top_miner_uids = metagraph_utils.get_top_miners(
-                        metagraph,
-                        constants.WEIGHT_SYNC_VALI_MIN_STAKE,
-                        constants.WEIGHT_SYNC_MINER_MIN_PERCENT,
-                    )
-
-                    with self.pending_uids_to_eval_lock:
-                        all_uids_to_eval = set()
-                        all_pending_uids_to_eval = set()
-                        # Loop through the uids across all competitions.
-                        for uids in self.uids_to_eval.values():
-                            all_uids_to_eval.update(uids)
-                        for uids in self.pending_uids_to_eval.values():
-                            all_pending_uids_to_eval.update(uids)
-
-                        # Reduce down to top models that are not in any competition yet.
-                        uids_to_add = (
-                            top_miner_uids - all_uids_to_eval - all_pending_uids_to_eval
-                        )
-
-                    for uid in uids_to_add:
-                        # Limit how often we'll retry these top models.
-                        time_diff = (
-                            dt.datetime.now() - uid_last_retried_evaluation[uid]
-                            if uid in uid_last_retried_evaluation
-                            else constants.model_retry_cadence  # Default to being stale enough to check again.
-                        )
-                        if time_diff >= constants.model_retry_cadence:
-                            try:
-                                uid_last_retried_evaluation[uid] = dt.datetime.now()
-
-                                # Redownload this model and schedule it for eval.
-                                # Still respect the eval block delay so that previously top uids can't bypass it.
-                                hotkey = metagraph.hotkeys[uid]
-                                should_retry = asyncio.run(
-                                    self.model_updater.sync_model(
-                                        hotkey=hotkey,
-                                        curr_block=metagraph.block.item(),
-                                        schedule_by_block=constants.COMPETITION_SCHEDULE_BY_BLOCK,
-                                        force=True,
-                                    )
-                                )
-
-                                if should_retry:
-                                    # Since this is a top model (as determined by other valis),
-                                    # we don't worry if self.pending_uids is already "full". At most
-                                    # there can be 10 top models that we'd add here and that would be
-                                    # a wildy exceptional case. It would require every vali to have a
-                                    # different top model.
-                                    # Validators should only have ~1 winner per competition and we only check bigger valis
-                                    # so there should not be many simultaneous top models not already being evaluated.
-                                    top_model_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
-                                        hotkey
-                                    )
-                                    if top_model_metadata is not None:
-                                        bt.logging.trace(
-                                            f"Shortcutting to top model or retrying evaluation for previously discarded top model with incentive for UID={uid}"
-                                        )
-                                        with self.pending_uids_to_eval_lock:
-                                            self.pending_uids_to_eval[
-                                                top_model_metadata.id.competition_id
-                                            ].add(uid)
-                                    else:
-                                        bt.logging.warning(
-                                            f"Failed to find metadata for uid {uid} with hotkey {hotkey}"
-                                        )
-
-                            except Exception:
-                                bt.logging.debug(
-                                    f"Failure in update loop for UID={uid} during top model check. {traceback.format_exc()}"
-                                )
+                    self._queue_top_models_for_eval()
 
                 # Top model check complete. Now continue with the sequential iterator to check for the next miner
                 # to update.
 
-                # Only allow up to limit for updated models. Typically this is carryover from sample_min + new models.
-                # Note that this is shared across all competitions. So if we happen to get more pending for one
-                # competition we still need to wait until that competition goes down to sample_min.
-                pending_uid_count, current_uid_count = (
-                    self.get_pending_and_current_uid_counts()
-                )
-
-                # Only allow at most sample max models. Typically this will be carryover from sample_min + new models.
-                while (
-                    pending_uid_count + current_uid_count
-                    >= self.config.updated_models_limit
-                ):
-                    # Wait 5 minutes for the eval loop to process them.
-                    bt.logging.info(
-                        f"Update loop: Already {pending_uid_count + current_uid_count} synced models pending eval. Checking again in 5 minutes."
-                    )
-                    time.sleep(300)
-                    # Check to see if the pending uids have been cleared yet.
-                    pending_uid_count, current_uid_count = (
-                        self.get_pending_and_current_uid_counts()
-                    )
+                self._wait_for_open_eval_slot()
 
                 # We have space to add more models for eval. Process the next UID.
                 next_uid = next(self.miner_iterator)
@@ -481,13 +382,33 @@ class Validator:
                     hotkey = self.metagraph.hotkeys[next_uid]
                     curr_block = self.metagraph.block.item()
 
+                # Get the competition.
+                # Get the models' eval history.
+                # Pass force if this model should be retried.
+                force_sync = False
+                model_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
+                    hotkey
+                )
+                if model_metadata:
+                    eval_history = self.model_tracker.get_eval_results_for_miner_hotkey(
+                        hotkey
+                    )
+                    competition = competition_utils.get_competition_for_block(
+                        model_metadata.block,
+                        curr_block,
+                        constants.COMPETITION_SCHEDULE_BY_BLOCK,
+                    )
+                    force_sync = self._should_retry_model(
+                        competition.epsilon_func, curr_block, eval_history
+                    )
+
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
                 updated = asyncio.run(
                     self.model_updater.sync_model(
                         hotkey=hotkey,
                         curr_block=curr_block,
                         schedule_by_block=constants.COMPETITION_SCHEDULE_BY_BLOCK,
-                        force=False,
+                        force=force_sync,
                     )
                 )
 
@@ -518,6 +439,132 @@ class Validator:
                 )
 
         bt.logging.info("Exiting update models loop.")
+
+    def _should_retry_model(self, epsilon_func, curr_block, eval_history) -> bool:
+        # If the model has never been evaluated, we should retry it.
+        if not eval_history:
+            return True
+
+        # Find the most recent successful eval.
+        last_successful_eval = None
+        for eval_result in reversed(eval_history):
+            if eval_result.avg_loss != math.inf:
+                last_successful_eval = eval_result
+                break
+
+        if last_successful_eval:
+            # If this model had worse loss than the top model during the last eval, no need to retry.
+            if last_successful_eval.avg_loss > last_successful_eval.winning_model_loss:
+                return False
+
+            # Otherwise, this model is potentially better than the top model but at the time it was evaluated
+            # it couldn't overcome the epsilon disadvantage. Check if epsilon has changed to the point where
+            # we should retry this model now.
+            curr_epsilon = epsilon_func(
+                curr_block, last_successful_eval.winning_model_block
+            )
+            loss_ratio = (
+                last_successful_eval.winning_model_loss
+                * (1 - curr_epsilon)
+                / last_successful_eval.avg_loss
+                if last_successful_eval.avg_loss > 0
+                else 0
+            )
+            return loss_ratio >= constants.reevaluation_threshold
+
+        # This model has been evaluated but has errored every time. Allow a single retry in this case.
+        return len(eval_history) < 2
+
+    def _wait_for_open_eval_slot(self) -> None:
+        """Waits until there is at least one slot open to download and evaluate a model."""
+        pending_uid_count, current_uid_count = self.get_pending_and_current_uid_counts()
+
+        while pending_uid_count + current_uid_count >= self.config.updated_models_limit:
+            # Wait 5 minutes for the eval loop to process them.
+            bt.logging.info(
+                f"Update loop: Already {pending_uid_count + current_uid_count} synced models pending eval. Checking again in 5 minutes."
+            )
+            time.sleep(300)
+            # Check to see if the pending uids have been cleared yet.
+            pending_uid_count, current_uid_count = (
+                self.get_pending_and_current_uid_counts()
+            )
+
+    def _queue_top_models_for_eval(self) -> None:
+        # Take a deep copy of the metagraph for use in the top uid retry check.
+        # The regular loop below will use self.metagraph which may be updated as we go.
+        with self.metagraph_lock:
+            metagraph = copy.deepcopy(self.metagraph)
+
+        # Find any miner UIDs which top valis are assigning weight and aren't currently scheduled for an eval.
+        # This is competition agnostic, as anything with weight is 'winning' a competition for some vali.
+        top_miner_uids = metagraph_utils.get_top_miners(
+            metagraph,
+            constants.WEIGHT_SYNC_VALI_MIN_STAKE,
+            constants.WEIGHT_SYNC_MINER_MIN_PERCENT,
+        )
+
+        with self.pending_uids_to_eval_lock:
+            all_uids_to_eval = set()
+            all_pending_uids_to_eval = set()
+            # Loop through the uids across all competitions.
+            for uids in self.uids_to_eval.values():
+                all_uids_to_eval.update(uids)
+            for uids in self.pending_uids_to_eval.values():
+                all_pending_uids_to_eval.update(uids)
+
+            # Reduce down to top models that are not in any competition yet.
+            uids_to_add = top_miner_uids - all_uids_to_eval - all_pending_uids_to_eval
+
+        for uid in uids_to_add:
+            # Check when we last evaluated this model.
+            hotkey = metagraph.hotkeys[uid]
+            eval_history = self.model_tracker.get_eval_results_for_miner_hotkey(hotkey)
+            last_eval_block = eval_history[-1].block if eval_history else 0
+            curr_block = metagraph.block.item()
+            if curr_block - last_eval_block >= constants.model_retry_cadence:
+                try:
+                    # It's been long enough - redownload this model and schedule it for eval.
+                    # This still respects the eval block delay so that previously top uids can't bypass it.
+                    should_retry = asyncio.run(
+                        self.model_updater.sync_model(
+                            hotkey=hotkey,
+                            curr_block=curr_block,
+                            schedule_by_block=constants.COMPETITION_SCHEDULE_BY_BLOCK,
+                            force=True,
+                        )
+                    )
+
+                    if not should_retry:
+                        continue
+
+                    # Since this is a top model (as determined by other valis),
+                    # we don't worry if self.pending_uids is already "full". At most
+                    # there can be 10 * comps top models that we'd add here and that would be
+                    # a wildy exceptional case. It would require every vali to have a
+                    # different top model.
+                    # Validators should only have ~1 winner per competition and we only check bigger valis
+                    # so there should not be many simultaneous top models not already being evaluated.
+                    top_model_metadata = (
+                        self.model_tracker.get_model_metadata_for_miner_hotkey(hotkey)
+                    )
+                    if top_model_metadata is not None:
+                        bt.logging.trace(
+                            f"Shortcutting to top model or retrying evaluation for previously discarded top model with incentive for UID={uid}"
+                        )
+                        with self.pending_uids_to_eval_lock:
+                            self.pending_uids_to_eval[
+                                top_model_metadata.id.competition_id
+                            ].add(uid)
+                    else:
+                        bt.logging.warning(
+                            f"Failed to find metadata for uid {uid} with hotkey {hotkey}"
+                        )
+
+                except Exception:
+                    bt.logging.debug(
+                        f"Failure in update loop for UID={uid} during top model check. {traceback.format_exc()}"
+                    )
 
     def clean_models(self):
         """Cleans up models that are no longer referenced."""

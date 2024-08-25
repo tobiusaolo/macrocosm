@@ -34,10 +34,10 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.1.2"
+__version__ = "4.1.3"
 
 # Validator schema version
-__validator_version__ = "3.0.0"
+__validator_version__ = "4.1.3"
 version_split = __validator_version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -228,5 +228,10 @@ sample_min = 5
 updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID) + 10
 # time required between updates to the chain.
 chain_update_cadence = dt.timedelta(minutes=20)
-# time required between retrying evaluation of a stale model. (First retry will be immediate).
-model_retry_cadence = dt.timedelta(hours=4)
+# Number of blocks required between retrying evaluation of a model
+model_retry_cadence = 300  # Roughly 1 hour
+# How frequently to check the models given weights by other large validators.
+scan_top_model_cadence = dt.timedelta(minutes=30)
+# How close a model's loss must be to the best model's loss to be considered for a later reevaluation.
+# Must be within 0.01% (accounting for epsilon advantage).
+reevaluation_threshold = 0.999
