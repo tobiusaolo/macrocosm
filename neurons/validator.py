@@ -113,6 +113,12 @@ class Validator:
             self.config.netuid
         )
 
+        # Register a listener for metagraph updates.
+        self.subnet_metagraph_syncer.register_listener(
+            self._on_subnet_metagraph_updated,
+            netuids=[self.config.netuid],
+        )
+
         torch.backends.cudnn.benchmark = True
 
         # Dont check registration status if offline.
@@ -611,27 +617,19 @@ class Validator:
         except asyncio.TimeoutError:
             bt.logging.error(f"Failed to set weights after {ttl} seconds")
 
-    async def try_sync_metagraph(self, ttl: int):
-        """Syncs the metagraph with ttl in a background process, without raising exceptions if it times out."""
-
-        def sync_metagraph(endpoint):
-            metagraph = bt.subtensor(endpoint).metagraph(self.config.netuid, lite=False)
-            metagraph.save()
-
-        process = multiprocessing.Process(
-            target=sync_metagraph, args=(self.subtensor.chain_endpoint,)
-        )
-        process.start()
-        process.join(timeout=ttl)
-        if process.is_alive():
-            process.terminate()
-            process.join()
-            bt.logging.error(f"Failed to sync metagraph after {ttl} seconds")
+    def _on_subnet_metagraph_updated(
+        self, metagraph: bt.metagraph, netuid: int
+    ) -> None:
+        """Processes an update to the metagraph for the subnet."""
+        if netuid != self.config.netuid:
+            bt.logging.error(
+                f"Unexpected subnet uid in subnet metagraph syncer: {netuid}"
+            )
             return
 
-        bt.logging.info("Synced metagraph")
         with self.metagraph_lock:
-            self.metagraph.load()
+            bt.logging.info("Synced metagraph")
+            self.metagraph = copy.deepcopy(metagraph)
             self.miner_iterator.set_miner_uids(self.metagraph.uids.tolist())
             self.model_tracker.on_hotkeys_updated(set(self.metagraph.hotkeys))
 
@@ -1150,7 +1148,6 @@ class Validator:
                     self.metagraph.block.item() - self.last_epoch
                 ) < self.config.blocks_per_epoch:
                     await self.try_run_step(ttl=60 * 20)
-                    await self.try_sync_metagraph(ttl=60)
                     self.save_state()
                     bt.logging.debug(
                         f"{self.metagraph.block.item() - self.last_epoch } / {self.config.blocks_per_epoch} blocks until next epoch."
