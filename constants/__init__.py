@@ -223,6 +223,33 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
 
         ],
     ),
+    (
+        1_000_000,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
+                0.14,
+            ),
+            Competition(
+                CompetitionId.B3_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
+                0.29,
+            ),
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                0.07,
+            ),
+            Competition(
+                CompetitionId.B14_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
+                0.5,
+            )
+            
+
+        ],
+    ),
     
 ]
 
