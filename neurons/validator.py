@@ -19,6 +19,7 @@
 import asyncio
 import copy
 import datetime as dt
+import dataclasses
 import functools
 import json
 import math
@@ -32,6 +33,7 @@ import typing
 from collections import defaultdict
 
 import bittensor as bt
+from numpy import block
 import torch
 import wandb
 from huggingface_hub.utils import RepositoryNotFoundError
@@ -64,6 +66,23 @@ from neurons import config
 from utilities.miner_iterator import MinerIterator
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
+
+
+@dataclasses.dataclass
+class PerUIDEvalState:
+    """State tracked per UID in the eval loop"""
+
+    # The block the model was submitted.
+    block: int = math.inf
+
+    # The hotkey for the UID at the time of eval.
+    hotkey: str = "Unknown"
+
+    # The hugging face repo name.
+    repo_name: str = "Unknown"
+
+    # The losses per batch.
+    losses: typing.List[float] = dataclasses.field(default=None)
 
 
 class Validator:
@@ -735,16 +754,7 @@ class Validator:
                 time.sleep(300)
             return
 
-        # TODO: Consider condensing the following + competition id into a uid to metadata map.
-        # Keep track of which block this uid last updated their model.
-        # Default to an infinite block if we can't retrieve the metadata for the miner.
-        uid_to_block = defaultdict(lambda: math.inf)
-        # Keep track of the hugging face repo for this uid.
-        uid_to_hf = defaultdict(lambda: "unknown")
-        # Keep track of the hotkey for this uid.
-        # We do this rather than re-reading the metagraph to ensure consistent state even if the
-        # metagraph updates while we're performing evaluations.
-        uid_to_hotkey = dict()
+        uid_to_state = defaultdict(PerUIDEvalState)
 
         bt.logging.trace(f"Current block: {cur_block}")
 
@@ -795,9 +805,6 @@ class Validator:
         bt.logging.debug(f"Competition {competition.id} | Computing losses on {uids}")
         bt.logging.debug(f"Pages used are {pages}")
 
-        # Compute model losses on batches.
-        losses_per_uid = {muid: None for muid in uids}
-
         load_model_perf = PerfMonitor("Eval: Load model")
         compute_loss_perf = PerfMonitor("Eval: Compute loss")
 
@@ -810,7 +817,7 @@ class Validator:
             # Check that the model is in the tracker.
             with self.metagraph_lock:
                 hotkey = self.metagraph.hotkeys[uid_i]
-                uid_to_hotkey[uid_i] = hotkey
+                uid_to_state[uid_i].hotkey = hotkey
 
             model_i_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
                 hotkey
@@ -826,9 +833,11 @@ class Validator:
                     )
 
                     # Update the block this uid last updated their model.
-                    uid_to_block[uid_i] = model_i_metadata.block
+                    uid_to_state[uid_i].block = model_i_metadata.block
                     # Update the hf repo for this model.
-                    uid_to_hf[uid_i] = model_utils.get_hf_repo_name(model_i_metadata)
+                    uid_to_state[uid_i].repo_name = model_utils.get_hf_repo_name(
+                        model_i_metadata
+                    )
 
                     # Get the model locally and evaluate its loss.
                     model_i = None
@@ -861,21 +870,21 @@ class Validator:
                     f"Unable to load the model for {uid_i} or it belongs to another competition. Setting loss to inifinity for this competition."
                 )
 
-            losses_per_uid[uid_i] = losses
+            uid_to_state[uid_i].losses = losses
             average_model_loss = sum(losses) / len(losses)
             bt.logging.trace(
                 f"Computed model losses for uid:{uid_i} with average loss: {average_model_loss}"
             )
 
         # Compute wins and win rates per uid.
+        losses_per_uid = {uid: state.losses for uid, state in uid_to_state.items()}
+        uid_to_block = {uid: state.block for uid, state in uid_to_state.items()}
         wins, win_rate = pt.validation.compute_wins(
             uids, losses_per_uid, batches, uid_to_block, constants.timestamp_epsilon
         )
 
         top_uid = max(win_rate, key=win_rate.get)
-        self._record_eval_results(
-            top_uid, uid_to_block[top_uid], cur_block, losses_per_uid, uid_to_hotkey
-        )
+        self._record_eval_results(top_uid, cur_block, uid_to_state)
 
         # Compute softmaxed weights based on win rate.
         model_weights = torch.tensor(
@@ -934,14 +943,12 @@ class Validator:
             self.log_step(
                 CompetitionId.B7_MODEL_LOWER_EPSILON,
                 uids,
-                uid_to_block,
-                uid_to_hf,
+                uid_to_state,
                 uids_to_competition_ids_epsilon_experiment,
                 pages,
                 model_weights_epsilon_experiment,
                 wins_epsilon_experiment,
                 win_rate_epsilon_experiment,
-                losses_per_uid,
                 load_model_perf,
                 compute_loss_perf,
             )
@@ -1000,14 +1007,12 @@ class Validator:
         self.log_step(
             competition.id,
             uids,
-            uid_to_block,
-            uid_to_hf,
+            uid_to_state,
             self._get_uids_to_competition_ids(),
             pages,
             model_weights,
             wins,
             win_rate,
-            losses_per_uid,
             load_model_perf,
             compute_loss_perf,
         )
@@ -1018,47 +1023,49 @@ class Validator:
     def _record_eval_results(
         self,
         top_uid: int,
-        top_uid_block: int,
         curr_block: int,
-        uid_to_loss: typing.Dict[int, float],
-        uid_to_hotkey: typing.Dict[int, str],
+        uid_to_state: typing.Dict[int, PerUIDEvalState],
     ) -> None:
         """Records the results of the evaluation step to the model tracker.
 
         Args:
             top_uid (int): The uid of the model with the higest win rate.
-            top_uid_block (int): The block the top model was uploaded to the chain.
             curr_block (int): The current block.
-            uid_to_loss (typing.Dict[int, float]): A dictionary mapping uids to their average losses.
-            uid_to_hotkey (typing.Dict[int, str]): A dictionary mapping uids to their hotkeys.
+            uid_to_state (typing.Dict[int, PerUIDEvalState]): A dictionary mapping uids to their eval state.
         """
-        for uid, loss in uid_to_loss.items():
-            if uid not in uid_to_hotkey:
-                bt.logging.error(f"UID {uid} not found in uid_to_hotkey.")
-                continue
-
+        top_model_loss = self._compute_avg_loss(uid_to_state[top_uid].losses)
+        for _, state in uid_to_state.items():
             self.model_tracker.on_model_evaluated(
-                uid_to_hotkey[uid],
+                state.hotkey,
                 EvalResult(
                     block=curr_block,
-                    score=loss,
-                    winning_model_block=top_uid_block,
-                    winning_model_score=uid_to_loss[top_uid],
+                    score=self._compute_avg_loss(state.losses),
+                    winning_model_block=uid_to_state[top_uid].block,
+                    winning_model_score=top_model_loss,
                 ),
             )
+
+    def _compute_avg_loss(self, losses: typing.List[float]) -> float:
+        """Safely computes the average loss from a list of losses.
+
+        Args:
+            losses (typing.List[float]): A list of losses.
+
+        Returns:
+            float: The average loss.
+        """
+        return sum(losses) / len(losses) if losses else math.inf
 
     def log_step(
         self,
         competition_id: CompetitionId,
         uids: typing.List[int],
-        uid_to_block: typing.Dict[int, int],
-        uid_to_hf: typing.Dict[int, str],
+        uid_to_state: typing.Dict[int, PerUIDEvalState],
         uid_to_competition_id: typing.Dict[int, typing.Optional[int]],
         pages: typing.List[str],
         model_weights: typing.List[float],
         wins: typing.Dict[int, int],
         win_rate: typing.Dict[int, float],
-        losses_per_uid: typing.Dict[int, typing.List[float]],
         load_model_perf: PerfMonitor,
         compute_loss_perf: PerfMonitor,
     ):
@@ -1080,10 +1087,10 @@ class Validator:
         for idx, uid in enumerate(uids):
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
-                "block": uid_to_block[uid],
-                "hf": uid_to_hf[uid],
+                "block": uid_to_state[uid].block,
+                "hf": uid_to_state[uid].repo_name,
                 "competition_id": uid_to_competition_id[uid],
-                "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
+                "average_loss": self._compute_avg_loss(uid_to_state[uid].losses),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
                 "weight": self.weights[uid].item(),
