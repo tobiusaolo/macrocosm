@@ -134,7 +134,6 @@ class Validator:
 
         # === Running args ===
         self.weights = torch.zeros_like(torch.tensor(self.metagraph.S))
-        self.epoch_step = 0
         self.global_step = 0
         self.last_epoch = self.metagraph.block.item()
         self.last_wandb_step = 0
@@ -1143,22 +1142,24 @@ class Validator:
         """Runs the validator loop, which continuously evaluates models and sets weights."""
         while True:
             try:
+                # First run a step.
+                await self.try_run_step(ttl=60 * 60)
+                self.global_step += 1
 
-                while (
-                    self.metagraph.block.item() - self.last_epoch
-                ) < self.config.blocks_per_epoch:
-                    await self.try_run_step(ttl=60 * 20)
-                    self.save_state()
-                    bt.logging.debug(
-                        f"{self.metagraph.block.item() - self.last_epoch } / {self.config.blocks_per_epoch} blocks until next epoch."
-                    )
-                    self.global_step += 1
+                # Note we currently sync metagraph every ~100 blocks and so the granularity here is only to that point.
+                with self.metagraph_lock:
+                    block = self.metagraph.block.item()
 
+                # Then check if we should set weights and do so if needed.
                 if not self.config.dont_set_weights and not self.config.offline:
-                    await self.try_set_weights(ttl=60)
-                self.last_epoch = self.metagraph.block.item()
-                self.epoch_step += 1
+                    blocks_until_epoch = block - self.last_epoch
 
+                    if blocks_until_epoch >= self.config.blocks_per_epoch:
+                        await self.try_set_weights(ttl=60)
+                    else:
+                        bt.logging.debug(
+                            f"{blocks_until_epoch} / {self.config.blocks_per_epoch} blocks until next epoch."
+                        )
             except KeyboardInterrupt:
                 bt.logging.info(
                     "KeyboardInterrupt caught, gracefully closing the wandb run..."
