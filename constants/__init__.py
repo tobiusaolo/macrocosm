@@ -59,7 +59,7 @@ ROOT_DIR = Path(__file__).parent.parent
 WEIGHT_SYNC_VALI_MIN_STAKE = 200_000
 
 # Starting block for 3B, 7B* (epsilon experiment) and sample unpacking
-BLOCK_3B_7BSTAR_UNPACK = 3_601_190
+BLOCK_3B_7BSTAR_UNPACK = 3_601#_190
 
 # Minimum percent of weight on a vali for a miner to be considered a top miner.
 # Since there can be multiple competitions at different reward percentages we can't just check biggest.
@@ -93,6 +93,7 @@ DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.M772_MODEL: pt.dataset.SubsetFalconLoader,
     CompetitionId.B3_MODEL: pt.dataset.SubsetFalconLoader,
     CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
+    CompetitionId.B14_MODEL: pt.dataset.SubsetFineWebEdu2Loader,    
 }
 
 # Defined model constraints by competition id to ensure they are constant across blocks.
@@ -132,6 +133,19 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         eval_block_delay=0,
         epsilon_func=FixedEpsilon(0.005),
     ),
+    CompetitionId.B14_MODEL: ModelConstraints(
+        max_model_parameter_size=13_900_000_000,
+        min_model_parameter_size=13_000_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+    ),
+    
 }
 
 
@@ -148,7 +162,7 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         ],
     ),
     (
-        3_565_190,
+        3_565,#_190,
         [
             Competition(
                 CompetitionId.M772_MODEL,
@@ -182,6 +196,34 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
             ),
         ],
     ),
+    (
+        1_000_000,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
+                0.14,
+            ),
+            Competition(
+                CompetitionId.B3_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
+                0.29,
+            ),
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                0.07,
+            ),
+            Competition(
+                CompetitionId.B14_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
+                0.5,
+            )
+            
+
+        ],
+    ),
+    
 ]
 
 for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
