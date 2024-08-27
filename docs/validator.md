@@ -51,7 +51,7 @@ It is important to note that this affects the game theoretics of the incentive l
 
 # System Requirements
 
-Validators will need enough disk space to store the models of miners being evaluated. Each model has a max size by block defined in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py#L57) and the validator has cleanup logic to remove old models. It is recommended to have at least 2 TB of disk space and 80GB for systerm memory.
+Validators will need enough disk space to store the models of miners being evaluated. Each model has a max size by block defined in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py#L57) and the validator has cleanup logic to remove old models. It is recommended to have at least 2 TB of disk space and 80GB of system memory.
 
 Validators will need enough processing power to evaluate their model. As of Apr 1st, 2024 it is required to have a GPU that supports [flash attention 2](https://github.com/Dao-AILab/flash-attention) with atleast 48 GB of VRAM and at least 38 TFLOPs for half precision (bfloat 16) operations.
 
