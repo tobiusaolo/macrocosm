@@ -1,11 +1,13 @@
 import asyncio
 import os
 import shutil
-from unittest import mock
-import bittensor as bt
 import unittest
+from unittest import mock
 
-from model.data import Model, ModelId
+import bittensor as bt
+from taoverse.model.data import Model, ModelId
+
+from competitions.data import CompetitionId
 import pretrain as pt
 from pretrain.model import get_model
 from tests.model.storage.fake_model_metadata_store import FakeModelMetadataStore
@@ -34,7 +36,7 @@ class TestMining(unittest.TestCase):
         """Tests that saving a model to disk and loading it gets the same model."""
 
         pt.mining.save(model=self.tiny_model, model_dir=self.model_dir)
-        model = pt.mining.load_local_model(model_dir=self.model_dir)
+        model = pt.mining.load_local_model(model_dir=self.model_dir, kwargs={})
 
         assert_model_equality(self, self.tiny_model, model)
 
@@ -43,6 +45,7 @@ class TestMining(unittest.TestCase):
             pt.mining.push(
                 model=self.tiny_model,
                 wallet=self.wallet,
+                competition_id=CompetitionId.B7_MODEL,
                 repo="namespace/name",
                 retry_delay_secs=1,
                 metadata_store=self.metadata_store,
@@ -59,7 +62,12 @@ class TestMining(unittest.TestCase):
             self.metadata_store.retrieve_model_metadata(self.wallet.hotkey.ss58_address)
         )
         self.assertGreaterEqual(model_metadata.block, min_expected_block)
-        self.assertEqual(model_metadata.id, model.id)
+
+        # Check certain properties of the model metadata.
+        self.assertEqual(model_metadata.id.commit, model.id.commit)
+        self.assertEqual(model_metadata.id.name, model.id.name)
+        self.assertEqual(model_metadata.id.namespace, model.id.namespace)
+        self.assertEqual(model_metadata.id.competition_id, model.id.competition_id)
 
         self.metadata_store.reset()
         self.remote_store.reset()
@@ -106,7 +114,11 @@ class TestMining(unittest.TestCase):
         metagraph.hotkeys.return_value = [hotkey]
 
         model_id = ModelId(
-            namespace="namespace", name="name", hash="hash", commit="commit"
+            namespace="namespace",
+            name="name",
+            hash="hash",
+            commit="commit",
+            competition_id=0,
         )
         self.metadata_store.store_model_metadata(hotkey, model_id)
 
