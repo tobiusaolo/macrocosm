@@ -37,7 +37,7 @@ from typing import Dict, List, Tuple
 __version__ = "4.2.0"
 
 # Validator schema version
-__validator_version__ = "3.0.0"
+__validator_version__ = "3.1.0"
 version_split = __validator_version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -106,6 +106,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         tokenizer="distilgpt2",
         eval_block_delay=0,
         epsilon_func=FixedEpsilon(0.005),
+        max_bytes=5 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B7_MODEL: ModelConstraints(
         max_model_parameter_size=6_900_000_000,
@@ -119,6 +120,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         },
         eval_block_delay=0,
         epsilon_func=FixedEpsilon(0.005),
+        max_bytes=15 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B3_MODEL: ModelConstraints(
         max_model_parameter_size=3_400_000_000,
@@ -132,6 +134,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         },
         eval_block_delay=0,
         epsilon_func=FixedEpsilon(0.005),
+        max_bytes=15 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B14_MODEL: ModelConstraints(
         max_model_parameter_size=13_900_000_000,
@@ -145,6 +148,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         },
         eval_block_delay=0,
         epsilon_func=FixedEpsilon(0.005),
+        max_bytes=29 * 1024 * 1024 * 1024,
     ),
 
 }
@@ -218,7 +222,7 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
             Competition(
                 CompetitionId.B14_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
-                0,42,
+                0.42,
             )
 
         ],
