@@ -46,6 +46,7 @@ from taoverse.model.competition.competition_tracker import CompetitionTracker
 from taoverse.model.competition.data import Competition
 from taoverse.model.model_tracker import ModelTracker
 from taoverse.model.model_updater import MinerMisconfiguredError, ModelUpdater
+from taoverse.model.competition.epsilon import FixedEpsilon
 from taoverse.model.storage.chain.chain_model_metadata_store import (
     ChainModelMetadataStore,
 )
@@ -826,7 +827,12 @@ class Validator:
 
         # Compute wins and win rates per uid.
         wins, win_rate = pt.validation.compute_wins(
-            uids, losses_per_uid, batches, uid_to_block, constants.timestamp_epsilon
+            uids,
+            losses_per_uid,
+            batches,
+            uid_to_block,
+            competition.constraints.epsilon_func,
+            cur_block,
         )
 
         # Compute softmaxed weights based on win rate.
@@ -846,7 +852,8 @@ class Validator:
                     losses_per_uid,
                     batches,
                     uid_to_block,
-                    constants.timestamp_epsilon_experiment,
+                    FixedEpsilon(0.001),
+                    cur_block,
                 )
             )
 
