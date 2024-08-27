@@ -106,7 +106,6 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         tokenizer="distilgpt2",
         eval_block_delay=0,
         epsilon_func=FixedEpsilon(0.005),
-        max_bytes=5 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B7_MODEL: ModelConstraints(
         max_model_parameter_size=6_900_000_000,
@@ -120,7 +119,6 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         },
         eval_block_delay=0,
         epsilon_func=FixedEpsilon(0.005),
-        max_bytes=15 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B3_MODEL: ModelConstraints(
         max_model_parameter_size=3_400_000_000,
@@ -134,7 +132,6 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         },
         eval_block_delay=0,
         epsilon_func=FixedEpsilon(0.005),
-        max_bytes=15 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B14_MODEL: ModelConstraints(
         max_model_parameter_size=13_900_000_000,
