@@ -839,6 +839,7 @@ class Validator:
         if (
             competition.id == CompetitionId.B7_MODEL
             and cur_block >= constants.timestamp_epsilon_experiment_start_block
+            and cur_block < constants.timestamp_epsilon_experiment_end_block
         ):
             wins_epsilon_experiment, win_rate_epsilon_experiment = (
                 pt.validation.compute_wins(

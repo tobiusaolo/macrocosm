@@ -219,6 +219,7 @@ pages_per_eval_unpack = 5  # With sample unpacking
 pages_per_eval_pack = 18
 
 timestamp_epsilon_experiment_start_block = BLOCK_3B_7BSTAR_UNPACK
+timestamp_epsilon_experiment_end_block = 3_750_683
 timestamp_epsilon_experiment = 0.001
 timestamp_epsilon_experiment_weight_percent = 0.123
 
