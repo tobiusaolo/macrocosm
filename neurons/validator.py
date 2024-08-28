@@ -379,7 +379,7 @@ class Validator:
                 # We have space to add more models for eval. Process the next UID.
                 next_uid = next(self.miner_iterator)
 
-                # Confirm that we haven't already checked it in the chain update cadence.
+                # Confirm that we haven't already checked it within the chain update cadence.
                 time_diff = (
                     dt.datetime.now() - uid_last_checked_sequential[next_uid]
                     if next_uid in uid_last_checked_sequential
@@ -396,29 +396,57 @@ class Validator:
                     time.sleep(time_to_sleep)
 
                 uid_last_checked_sequential[next_uid] = dt.datetime.now()
+                curr_block = self._get_current_block()
 
                 # Get their hotkey from the metagraph.
                 with self.metagraph_lock:
                     hotkey = self.metagraph.hotkeys[next_uid]
-                    curr_block = self.metagraph.block.item()
 
                 # Check if we should retry this model and force a sync if necessary.
                 force_sync = False
                 model_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
                     hotkey
                 )
+                # TODO: Check if we should force a download to retry this model.
+
+                bt.logging.trace("About to check if model should be retried.")
                 if model_metadata:
-                    eval_history = self.model_tracker.get_eval_results_for_miner_hotkey(
-                        hotkey
-                    )
+                    # Check if the model is already queued for eval.
+                    is_queued_for_eval = False
+                    with self.pending_uids_to_eval_lock:
+                        is_queued_for_eval = (
+                            next_uid
+                            in self.pending_uids_to_eval[
+                                model_metadata.id.competition_id
+                            ]
+                            or next_uid
+                            in self.uids_to_eval[model_metadata.id.competition_id]
+                        )
+
                     competition = competition_utils.get_competition_for_block(
-                        model_metadata.block,
+                        model_metadata.id.competition_id,
                         curr_block,
                         constants.COMPETITION_SCHEDULE_BY_BLOCK,
                     )
-                    force_sync = should_retry_model(
-                        competition.epsilon_func, curr_block, eval_history
+                    bt.logging.trace(
+                        f"Found competition: {competition}. is_queued={is_queued_for_eval}"
                     )
+                    if competition is not None and not is_queued_for_eval:
+                        eval_history = (
+                            self.model_tracker.get_eval_results_for_miner_hotkey(hotkey)
+                        )
+                        bt.logging.trace(
+                            f"For model {next_uid} found eval history: {eval_history}"
+                        )
+                        force_sync = should_retry_model(
+                            competition.constraints.epsilon_func,
+                            curr_block,
+                            eval_history,
+                        )
+                        # TODO: Remove
+                        bt.logging.trace(
+                            f"Finished checking if model {next_uid} should be retried. force_sync={force_sync}. Eval_history={eval_history}"
+                        )
 
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
                 try:
@@ -517,7 +545,7 @@ class Validator:
             hotkey = metagraph.hotkeys[uid]
             eval_history = self.model_tracker.get_eval_results_for_miner_hotkey(hotkey)
             last_eval_block = eval_history[-1].block if eval_history else 0
-            curr_block = metagraph.block.item()
+            curr_block = self._get_current_block()
             if curr_block - last_eval_block >= constants.model_retry_cadence:
                 try:
                     # It's been long enough - redownload this model and schedule it for eval.
@@ -629,13 +657,12 @@ class Validator:
 
         bt.logging.info("Exiting clean models loop.")
 
-    async def try_set_weights(self, ttl: int):
+    async def try_set_weights(self, block: int, ttl: int):
         """Sets the weights on the chain with ttl, without raising exceptions if it times out."""
 
         async def _try_set_weights():
             with self.metagraph_lock:
                 uids = self.metagraph.uids
-                cur_block = self.metagraph.block.item()
             try:
                 self.weights.nan_to_num(0.0)
                 self.subtensor.set_weights(
@@ -647,7 +674,7 @@ class Validator:
                     version_key=constants.weights_version_key,
                 )
                 # We only update the last epoch when we successfully set weights.
-                self.last_epoch = cur_block
+                self.last_epoch = block
             except:
                 bt.logging.warning("Failed to set weights. Trying again later.")
 
@@ -666,6 +693,19 @@ class Validator:
             bt.logging.debug(f"Finished setting weights.")
         except asyncio.TimeoutError:
             bt.logging.error(f"Failed to set weights after {ttl} seconds")
+
+    def _get_current_block(self) -> int:
+        """Returns the current block."""
+        try:
+            return self.subtensor.block
+        except:
+            bt.logging.debug(
+                "Failed to get the latest block from the chain. Using the block from the cached metagraph."
+            )
+            # Network call failed. Fallback to using the block from the metagraph,
+            # even though it'll be a little stale.
+            with self.metagraph_lock:
+                return self.metagraph.block.item()
 
     def _on_subnet_metagraph_updated(
         self, metagraph: bt.metagraph, netuid: int
@@ -708,12 +748,7 @@ class Validator:
             7. Logs all relevant data for the step, including model IDs, pages, batches, wins, win rates, and losses.
         """
 
-        # Take the current block.
-        # Note from Finetuning repo:
-        # block on the metagraph only updates on sync operations.
-        # Therefore validators may not start evaluating on a new competition schedule immediately.
-        with self.metagraph_lock:
-            cur_block = self.metagraph.block.item()
+        cur_block = self._get_current_block()
 
         # Get the competition schedule for the current block.
         # This is a list of competitions
@@ -1279,16 +1314,14 @@ class Validator:
                 await self.try_run_step(ttl=60 * 60)
                 self.global_step += 1
 
-                # Note we currently sync metagraph every ~100 blocks and so the granularity here is only to that point.
-                with self.metagraph_lock:
-                    block = self.metagraph.block.item()
+                block = self._get_current_block()
 
                 # Then check if we should set weights and do so if needed.
                 if not self.config.dont_set_weights and not self.config.offline:
                     blocks_until_epoch = block - self.last_epoch
 
                     if blocks_until_epoch >= self.config.blocks_per_epoch:
-                        await self.try_set_weights(ttl=60)
+                        await self.try_set_weights(block=block, ttl=60)
                     else:
                         bt.logging.debug(
                             f"{blocks_until_epoch} / {self.config.blocks_per_epoch} blocks until next epoch."

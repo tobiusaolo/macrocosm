@@ -159,31 +159,6 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         0,
         [
             Competition(
-                CompetitionId.B7_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
-                1.0,
-            )
-        ],
-    ),
-    (
-        3_565_190,
-        [
-            Competition(
-                CompetitionId.M772_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
-                0.35,
-            ),
-            Competition(
-                CompetitionId.B7_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
-                0.65,
-            ),
-        ],
-    ),
-    (
-        BLOCK_3B_7BSTAR_UNPACK,
-        [
-            Competition(
                 CompetitionId.M772_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
                 0.14,
@@ -192,36 +167,11 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
                 CompetitionId.B3_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
                 0.29,
-            ),
-            Competition(
-                CompetitionId.B7_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
-                0.57,
-            ),
-        ],
-    ),
-    (
-        3_750_683,
-        [
-            Competition(
-                CompetitionId.M772_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
-                0.14,
-            ),
-            Competition(
-                CompetitionId.B3_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
-                0.29,
-            ),
-            Competition(
-                CompetitionId.B7_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
-                0.15,
             ),
             Competition(
                 CompetitionId.B14_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
-                0.42,
+                0.57,
             ),
         ],
     ),
@@ -271,11 +221,9 @@ sample_min = 5
 # We allow the sample_min per competition + 10 additional models to be held at any one time.
 updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID) + 10
 # time required between updates to the chain.
-chain_update_cadence = dt.timedelta(minutes=20)
+# TODO: Undo this testing change
+chain_update_cadence = dt.timedelta(minutes=1)
 # Number of blocks required between retrying evaluation of a model
 model_retry_cadence = 300  # Roughly 1 hour
 # How frequently to check the models given weights by other large validators.
 scan_top_model_cadence = dt.timedelta(minutes=30)
-# How close a model's loss must be to the best model's loss to be considered for a later reevaluation.
-# Must be within 0.01% (accounting for epsilon advantage).
-reevaluation_threshold = 0.999
