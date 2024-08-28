@@ -1019,7 +1019,7 @@ class Validator:
                 "hf": uid_to_hf[uid],
                 "competition_id": int(competition_id),
                 "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
-                "epsilon": competition_epsilon_func.compute_epsilon(
+                "epsilon_adv": competition_epsilon_func.compute_epsilon(
                     current_block, uid_to_block[uid]
                 ),
                 "win_rate": win_rate[uid],
@@ -1030,8 +1030,8 @@ class Validator:
         table = Table(title="Step", expand=True)
         table.add_column("uid", justify="right", style="cyan", no_wrap=True)
         table.add_column("hf", style="magenta", overflow="fold")
-        table.add_column("average_loss", style="magenta", overflow="fold")
-        table.add_column("epsilon", style="magenta", overflow="fold")
+        table.add_column("avg_loss", style="magenta", overflow="fold")
+        table.add_column("epsilon_adv", style="magenta", overflow="fold")
         table.add_column("win_rate", style="magenta", overflow="fold")
         table.add_column("win_total", style="magenta", overflow="fold")
         table.add_column("total_weight", style="magenta", overflow="fold")
@@ -1044,7 +1044,7 @@ class Validator:
                     str(uid),
                     str(step_log["uid_data"][str(uid)]["hf"]),
                     str(round(step_log["uid_data"][str(uid)]["average_loss"], 4)),
-                    str(round(step_log["uid_data"][str(uid)]["epsilon"], 4)),
+                    str(round(step_log["uid_data"][str(uid)]["epsilon_adv"], 4)),
                     str(round(step_log["uid_data"][str(uid)]["win_rate"], 4)),
                     str(step_log["uid_data"][str(uid)]["win_total"]),
                     str(round(self.weights[uid].item(), 4)),
@@ -1099,8 +1099,8 @@ class Validator:
                 "uid_data": {
                     str(uid): uid_data[str(uid)]["average_loss"] for uid in uids
                 },
-                "uid_epsilon": {
-                    str(uid): uid_data[str(uid)]["epsilon"] for uid in uids
+                "uid_epsilon_adv": {
+                    str(uid): uid_data[str(uid)]["epsilon_adv"] for uid in uids
                 },
                 "win_rate_data": {
                     str(uid): uid_data[str(uid)]["win_rate"] for uid in uids
