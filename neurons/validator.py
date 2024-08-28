@@ -1090,12 +1090,10 @@ class Validator:
             uid_data = step_log["uid_data"]
 
             # Create a new dictionary with the required format
-            with self.metagraph_lock:
-                block = self.metagraph.block.item()
             graphed_data = {
                 "time": time.time(),
                 "step_competition_id": competition_id,
-                "block": block,
+                "block": current_block,
                 "uid_data": {
                     str(uid): uid_data[str(uid)]["average_loss"] for uid in uids
                 },
