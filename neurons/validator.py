@@ -1017,9 +1017,11 @@ class Validator:
                 "uid": uid,
                 "block": uid_to_block[uid],
                 "hf": uid_to_hf[uid],
-                "competition_id": competition_id,
+                "competition_id": int(competition_id),
                 "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
-                "epsilon": competition_epsilon_func.compute_epsilon(current_block, uid_to_block[uid]),
+                "epsilon": competition_epsilon_func.compute_epsilon(
+                    current_block, uid_to_block[uid]
+                ),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
                 "weight": self.weights[uid].item(),
@@ -1111,7 +1113,7 @@ class Validator:
                     str(uid): sub_competition_weights[i].item()
                     for i, uid in enumerate(uids)
                 },
-                "competition_id": {str(uid): competition_id},
+                "competition_id": {str(uid): int(competition_id)},
                 "load_model_perf": {
                     "min": load_model_perf.min(),
                     "median": load_model_perf.median(),
