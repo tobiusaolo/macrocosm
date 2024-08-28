@@ -48,6 +48,7 @@ from taoverse.model.competition.data import Competition
 from taoverse.model.model_tracker import ModelTracker
 from taoverse.model.data import EvalResult
 from taoverse.model.model_updater import MinerMisconfiguredError, ModelUpdater
+from taoverse.model.competition.epsilon import EpsilonFunc, FixedEpsilon
 from taoverse.model.storage.chain.chain_model_metadata_store import (
     ChainModelMetadataStore,
 )
@@ -878,7 +879,12 @@ class Validator:
         losses_per_uid = {uid: state.losses for uid, state in uid_to_state.items()}
         uid_to_block = {uid: state.block for uid, state in uid_to_state.items()}
         wins, win_rate = pt.validation.compute_wins(
-            uids, losses_per_uid, batches, uid_to_block, constants.timestamp_epsilon
+            uids,
+            losses_per_uid,
+            batches,
+            uid_to_block,
+            competition.constraints.epsilon_func,
+            cur_block,
         )
 
         top_uid = max(win_rate, key=win_rate.get)
@@ -896,13 +902,15 @@ class Validator:
             and cur_block >= constants.timestamp_epsilon_experiment_start_block
             and cur_block < constants.timestamp_epsilon_experiment_end_block
         ):
+            epsilon_experiment_func = FixedEpsilon(0.001)
             wins_epsilon_experiment, win_rate_epsilon_experiment = (
                 pt.validation.compute_wins(
                     uids,
                     losses_per_uid,
                     batches,
                     uid_to_block,
-                    constants.timestamp_epsilon_experiment,
+                    epsilon_experiment_func,
+                    cur_block,
                 )
             )
 
@@ -941,6 +949,8 @@ class Validator:
             )
             self.log_step(
                 CompetitionId.B7_MODEL_LOWER_EPSILON,
+                epsilon_experiment_func,
+                cur_block,
                 uids,
                 uid_to_state,
                 uids_to_competition_ids_epsilon_experiment,
@@ -1007,6 +1017,8 @@ class Validator:
         # Log to screen and wandb.
         self.log_step(
             competition.id,
+            competition.constraints.epsilon_func,
+            cur_block,
             uids,
             uid_to_state,
             self._get_uids_to_competition_ids(),
@@ -1089,6 +1101,8 @@ class Validator:
     def log_step(
         self,
         competition_id: CompetitionId,
+        competition_epsilon_func: EpsilonFunc,
+        current_block: int,
         uids: typing.List[int],
         uid_to_state: typing.Dict[int, PerUIDEvalState],
         uid_to_competition_id: typing.Dict[int, typing.Optional[int]],
@@ -1114,13 +1128,17 @@ class Validator:
             model_weights / constants.temperature, dim=0
         )
 
+        # All uids in the competition step log are from the same competition.
         for idx, uid in enumerate(uids):
             step_log["uid_data"][str(uid)] = {
                 "uid": uid,
                 "block": uid_to_state[uid].block,
                 "hf": uid_to_state[uid].repo_name,
-                "competition_id": uid_to_competition_id[uid],
+                "competition_id": competition_id,
                 "average_loss": self._compute_avg_loss(uid_to_state[uid].losses),
+                "epsilon": competition_epsilon_func(
+                    current_block, uid_to_state[uid].block
+                ),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
                 "weight": self.weights[uid].item(),
@@ -1130,6 +1148,7 @@ class Validator:
         table.add_column("uid", justify="right", style="cyan", no_wrap=True)
         table.add_column("hf", style="magenta", overflow="fold")
         table.add_column("average_loss", style="magenta", overflow="fold")
+        table.add_column("epsilon", style="magenta", overflow="fold")
         table.add_column("win_rate", style="magenta", overflow="fold")
         table.add_column("win_total", style="magenta", overflow="fold")
         table.add_column("total_weight", style="magenta", overflow="fold")
@@ -1142,6 +1161,7 @@ class Validator:
                     str(uid),
                     str(step_log["uid_data"][str(uid)]["hf"]),
                     str(round(step_log["uid_data"][str(uid)]["average_loss"], 4)),
+                    str(round(step_log["uid_data"][str(uid)]["epsilon"], 4)),
                     str(round(step_log["uid_data"][str(uid)]["win_rate"], 4)),
                     str(step_log["uid_data"][str(uid)]["win_total"]),
                     str(round(self.weights[uid].item(), 4)),
@@ -1158,11 +1178,13 @@ class Validator:
         table = Table(title="Weights > 0.001")
         table.add_column("uid", justify="right", style="cyan", no_wrap=True)
         table.add_column("weight", style="magenta")
+        table.add_column("comp", style="magenta")
         for index, weight in list(zip(ui.tolist(), ws.tolist())):
             if weight > 0.001:
                 table.add_row(
                     str(index),
                     str(round(weight, 4)),
+                    str(uid_to_competition_id[index]),
                 )
         console = Console()
         console.print(table)
@@ -1187,14 +1209,15 @@ class Validator:
             uid_data = step_log["uid_data"]
 
             # Create a new dictionary with the required format
-            with self.metagraph_lock:
-                block = self.metagraph.block.item()
             graphed_data = {
                 "time": time.time(),
                 "step_competition_id": competition_id,
-                "block": block,
+                "block": current_block,
                 "uid_data": {
                     str(uid): uid_data[str(uid)]["average_loss"] for uid in uids
+                },
+                "uid_epsilon": {
+                    str(uid): uid_data[str(uid)]["epsilon"] for uid in uids
                 },
                 "win_rate_data": {
                     str(uid): uid_data[str(uid)]["win_rate"] for uid in uids
@@ -1207,11 +1230,7 @@ class Validator:
                     str(uid): sub_competition_weights[i].item()
                     for i, uid in enumerate(uids)
                 },
-                "competition_id": {
-                    str(uid): uid_to_competition_id[uid]
-                    for uid in uids
-                    if uid_to_competition_id[uid] is not None
-                },
+                "competition_id": {str(uid): competition_id},
                 "load_model_perf": {
                     "min": load_model_perf.min(),
                     "median": load_model_perf.median(),
