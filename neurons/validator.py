@@ -1136,7 +1136,7 @@ class Validator:
                 "hf": uid_to_state[uid].repo_name,
                 "competition_id": competition_id,
                 "average_loss": self._compute_avg_loss(uid_to_state[uid].losses),
-                "epsilon": competition_epsilon_func(
+                "epsilon": competition_epsilon_func.compute_epsilon(
                     current_block, uid_to_state[uid].block
                 ),
                 "win_rate": win_rate[uid],
