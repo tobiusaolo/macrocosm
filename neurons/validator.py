@@ -1019,7 +1019,7 @@ class Validator:
                 "hf": uid_to_hf[uid],
                 "competition_id": competition_id,
                 "average_loss": sum(losses_per_uid[uid]) / len(losses_per_uid[uid]),
-                "epsilon": competition_epsilon_func(current_block, uid_to_block[uid]),
+                "epsilon": competition_epsilon_func.compute_epsilon(current_block, uid_to_block[uid]),
                 "win_rate": win_rate[uid],
                 "win_total": wins[uid],
                 "weight": self.weights[uid].item(),
