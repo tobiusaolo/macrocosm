@@ -19,12 +19,12 @@
 # Tools for performing validation over models.
 
 import math
-import torch
-import typing
-import constants
 import traceback
-import numpy as np
+import typing
+
 import bittensor as bt
+import numpy as np
+import torch
 from taoverse.model.competition.epsilon import EpsilonFunc
 
 

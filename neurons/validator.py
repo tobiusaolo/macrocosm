@@ -18,12 +18,11 @@
 
 import asyncio
 import copy
-import datetime as dt
 import dataclasses
+import datetime as dt
 import functools
 import json
 import math
-import multiprocessing
 import os
 import pickle
 import threading
@@ -45,10 +44,10 @@ from taoverse.model import utils as model_utils
 from taoverse.model.competition import utils as competition_utils
 from taoverse.model.competition.competition_tracker import CompetitionTracker
 from taoverse.model.competition.data import Competition
-from taoverse.model.model_tracker import ModelTracker
-from taoverse.model.data import EvalResult
-from taoverse.model.model_updater import MinerMisconfiguredError, ModelUpdater
 from taoverse.model.competition.epsilon import EpsilonFunc, FixedEpsilon
+from taoverse.model.data import EvalResult
+from taoverse.model.model_tracker import ModelTracker
+from taoverse.model.model_updater import MinerMisconfiguredError, ModelUpdater
 from taoverse.model.storage.chain.chain_model_metadata_store import (
     ChainModelMetadataStore,
 )
@@ -60,9 +59,9 @@ from taoverse.utilities import utils
 from taoverse.utilities.perf_monitor import PerfMonitor
 
 import constants
-from model.retry import should_retry_model
 import pretrain as pt
 from competitions.data import CompetitionId
+from model.retry import should_retry_model
 from neurons import config
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -407,9 +406,7 @@ class Validator:
                 model_metadata = self.model_tracker.get_model_metadata_for_miner_hotkey(
                     hotkey
                 )
-                # TODO: Check if we should force a download to retry this model.
 
-                bt.logging.trace("About to check if model should be retried.")
                 if model_metadata:
                     # Check if the model is already queued for eval.
                     is_queued_for_eval = False
@@ -428,25 +425,19 @@ class Validator:
                         curr_block,
                         constants.COMPETITION_SCHEDULE_BY_BLOCK,
                     )
-                    bt.logging.trace(
-                        f"Found competition: {competition}. is_queued={is_queued_for_eval}"
-                    )
                     if competition is not None and not is_queued_for_eval:
                         eval_history = (
                             self.model_tracker.get_eval_results_for_miner_hotkey(hotkey)
-                        )
-                        bt.logging.trace(
-                            f"For model {next_uid} found eval history: {eval_history}"
                         )
                         force_sync = should_retry_model(
                             competition.constraints.epsilon_func,
                             curr_block,
                             eval_history,
                         )
-                        # TODO: Remove
-                        bt.logging.trace(
-                            f"Finished checking if model {next_uid} should be retried. force_sync={force_sync}. Eval_history={eval_history}"
-                        )
+                        if force_sync:
+                            bt.logging.debug(
+                                f"Force downloading model for UID {next_uid} because it should be retried. Eval_history={eval_history}"
+                            )
 
                 # Compare metadata and tracker, syncing new model from remote store to local if necessary.
                 try:
@@ -506,7 +497,7 @@ class Validator:
         while pending_uid_count + current_uid_count >= self.config.updated_models_limit:
             # Wait 5 minutes for the eval loop to process them.
             bt.logging.info(
-                f"Update loop: Already {pending_uid_count + current_uid_count} synced models pending eval. Checking again in 5 minutes."
+                f"Update loop: There are already {pending_uid_count + current_uid_count} synced models pending eval. Checking again in 5 minutes."
             )
             time.sleep(300)
             # Check to see if the pending uids have been cleared yet.

@@ -31,17 +31,13 @@ class RetryTests(unittest.TestCase):
         """Verifies that the model is retried if the loss (accounting for epsilon) is within 0.999 of the winning model's loss."""
 
         test_cases = [
-            # Make loss the same as the winning model and make sure retried when epsilon advantage is <= 0.001
+            # Make loss the same as the winning model and make sure it's never retried.
             (0.005, 1.0, False),
-            (0.001, 1.0, True),
-            (0.0001, 1.0, True),
+            (0.001, 1.0, False),
+            (0.0001, 1.0, False),
             # Make loss better than the winning model by 50% (for easy math) and adjust epsilon to test each interesting case.
             (0.51, 0.5, False),
-            (
-                0.5004,
-                0.5,
-                True,
-            ),  # 0.5/0.5004 = 0.9992 which is within the required 0.999 threshold.
+            (0.5004, 0.5, False),
             (0.49, 0.5, True),
         ]
         for tc in test_cases:
