@@ -34,7 +34,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.2.0"
+__version__ = "4.3.0"
 
 # Validator schema version
 __validator_version__ = "3.1.0"
@@ -150,7 +150,6 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         epsilon_func=FixedEpsilon(0.005),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
-
 }
 
 
@@ -223,11 +222,9 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
                 CompetitionId.B14_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
                 0.42,
-            )
-
+            ),
         ],
     ),
-
 ]
 
 for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
@@ -275,5 +272,7 @@ sample_min = 5
 updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID) + 10
 # time required between updates to the chain.
 chain_update_cadence = dt.timedelta(minutes=20)
-# time required between retrying evaluation of a stale model. (First retry will be immediate).
-model_retry_cadence = dt.timedelta(hours=4)
+# Number of blocks required between retrying evaluation of a model.
+model_retry_cadence = 300  # Roughly 1 hour
+# How frequently to check the models given weights by other large validators.
+scan_top_model_cadence = dt.timedelta(minutes=30)
