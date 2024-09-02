@@ -307,8 +307,6 @@ alpha = 0.5
 # validator scoring exponential temperature
 # 0.01 gives ~96% to best model with only ~3 receiving any weights.
 temperature = 0.01
-# validator score boosting for earlier models.
-timestamp_epsilon = 0.005
 
 # block to activate sample unpacking
 sample_unpack_block = BLOCK_3B_7BSTAR_UNPACK
