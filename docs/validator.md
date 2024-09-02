@@ -38,12 +38,12 @@ You can view the entire validation system by reading the code in `neurons/valida
         set_weights( weight )
 ```
 
-The behaviour of `iswin( loss_a, loss_b, block_a, block_b, epsilon)` function intentionally skews the win function to reward models which have been hosted earlier such that newer models are only better than others iff their loss is `epsilon` percent lower accoring to the following function. Currently `epsilon` is set to 1% and is a hyper parameter of the mechanism
+The behaviour of `iswin( loss_a, loss_b, block_a, block_b, epsilon_func, curr_block)` function intentionally skews the win function to reward models which have been hosted earlier such that newer models are only better than others iff their loss is `epsilon` percent lower accoring to the following function. `epsilon` is calculated based on a per-competition specified function based on the distance from the earlier model block to the current block.
 
 ```python
-def iswin( loss_a, loss_b, block_a, block_b, epsilon):
-    loss_a = (1 - epsilon) * loss_a if block_a < block_b else loss_a
-    loss_b = (1 - epsilon) * loss_b if block_b < block_a else loss_b
+def iswin(loss_a, loss_b, block_a, block_b, epsilon_func, curr_block):
+    loss_a = (1 - epsilon_func(curr_block, block_a)) * loss_a if block_a < block_b else loss_a
+    loss_b = (1 - epsilon_func(curr_block, block_b)) * loss_b if block_b < block_a else loss_b
     return loss_a < loss_b
 ```
 
@@ -53,7 +53,7 @@ It is important to note that this affects the game theoretics of the incentive l
 
 Validators will need enough disk space to store the models of miners being evaluated. Each model has a max size by block defined in [constants/__init__.py](https://github.com/macrocosm-os/pretraining/blob/main/constants/__init__.py#L57) and the validator has cleanup logic to remove old models. It is recommended to have at least 2 TB of disk space and 80GB of system memory.
 
-Validators will need enough processing power to evaluate their model. As of Apr 1st, 2024 it is required to have a GPU that supports [flash attention 2](https://github.com/Dao-AILab/flash-attention) with atleast 48 GB of VRAM and at least 38 TFLOPs for half precision (bfloat 16) operations.
+Validators will need enough processing power to evaluate their model. As of Sept 2nd, 2024, an upgrade to the Nvidia A100 GPU with 80GB of VRAM is required. This GPU's high throughput and FLOPs enable the running of 14B models without impacting the speed of the validation cycle. Although only 40GB of VRAM is necessary, we have observed that A100 GPUs with 80GB are more readily available and are offered at a comparable price to the 40GB variants. The additional VRAM provided by this GPU will allows more flexibility for optimization in future releases, enabling larger validation batch sizes to enhance the stability of the validation process by reducing scoring variance.
 
 # Getting Started
 

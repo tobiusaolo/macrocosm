@@ -24,7 +24,10 @@ from taoverse.model.competition.data import (
     ModelConstraints,
     NormValidationConstraints,
 )
-from taoverse.model.competition.epsilon import FixedEpsilon
+from taoverse.model.competition.epsilon import (
+    FixedEpsilon,
+    LinearDecay
+)
 from competitions.data import CompetitionId
 
 from typing import Dict, List, Tuple
@@ -34,7 +37,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.2.0"
+__version__ = "4.3.0"
 
 # Validator schema version
 __validator_version__ = "3.1.0"
@@ -150,7 +153,62 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         epsilon_func=FixedEpsilon(0.005),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
+}
 
+# Defined model constraints by competition id with decaying epsilon
+MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY: Dict[CompetitionId, ModelConstraints] = {
+    CompetitionId.M772_MODEL: ModelConstraints(
+        max_model_parameter_size=772_000_000,
+        min_model_parameter_size=572_000_000,
+        sequence_length=1024,
+        allowed_architectures=ALLOWED_MODEL_TYPES_1,
+        tokenizer="distilgpt2",
+        eval_block_delay=0,
+        epsilon_func=LinearDecay(0.005, 0.001, 50400),
+        max_bytes=5 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B7_MODEL: ModelConstraints(
+        max_model_parameter_size=6_900_000_000,
+        min_model_parameter_size=6_700_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+        epsilon_func=LinearDecay(0.005, 0.001, 50400),
+        max_bytes=15 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B3_MODEL: ModelConstraints(
+        max_model_parameter_size=3_400_000_000,
+        min_model_parameter_size=3_200_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+        epsilon_func=LinearDecay(0.005, 0.001, 50400),
+        max_bytes=15 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B14_MODEL: ModelConstraints(
+        max_model_parameter_size=13_900_000_000,
+        min_model_parameter_size=13_700_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+        epsilon_func=LinearDecay(0.005, 0.001, 100800),
+        max_bytes=29 * 1024 * 1024 * 1024,
+    ),
 }
 
 
@@ -206,28 +264,26 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         [
             Competition(
                 CompetitionId.M772_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.M772_MODEL],
                 0.14,
             ),
             Competition(
                 CompetitionId.B3_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B3_MODEL],
                 0.29,
             ),
             Competition(
                 CompetitionId.B7_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B7_MODEL],
                 0.15,
             ),
             Competition(
                 CompetitionId.B14_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B14_MODEL],
                 0.42,
-            )
-
+            ),
         ],
     ),
-
 ]
 
 for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
@@ -251,8 +307,6 @@ alpha = 0.5
 # validator scoring exponential temperature
 # 0.01 gives ~96% to best model with only ~3 receiving any weights.
 temperature = 0.01
-# validator score boosting for earlier models.
-timestamp_epsilon = 0.005
 
 # block to activate sample unpacking
 sample_unpack_block = BLOCK_3B_7BSTAR_UNPACK
@@ -275,5 +329,7 @@ sample_min = 5
 updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID) + 10
 # time required between updates to the chain.
 chain_update_cadence = dt.timedelta(minutes=20)
-# time required between retrying evaluation of a stale model. (First retry will be immediate).
-model_retry_cadence = dt.timedelta(hours=4)
+# Number of blocks required between retrying evaluation of a model.
+model_retry_cadence = 300  # Roughly 1 hour
+# How frequently to check the models given weights by other large validators.
+scan_top_model_cadence = dt.timedelta(minutes=30)
