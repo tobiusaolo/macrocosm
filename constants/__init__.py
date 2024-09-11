@@ -37,7 +37,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.3.0"
+__version__ = "4.4.0"
 
 # Validator schema version
 __validator_version__ = "3.1.0"
@@ -284,6 +284,27 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
             ),
         ],
     ),
+    (
+        3_849_722,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.M772_MODEL],
+                0.14,
+            ),
+            Competition(
+                CompetitionId.B3_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B3_MODEL],
+                0.29,
+            ),
+            Competition(
+                CompetitionId.B14_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B14_MODEL],
+                0.57,
+            ),
+        ],
+    ),
+
 ]
 
 for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
@@ -308,17 +329,9 @@ alpha = 0.5
 # 0.01 gives ~96% to best model with only ~3 receiving any weights.
 temperature = 0.01
 
-# block to activate sample unpacking
-sample_unpack_block = BLOCK_3B_7BSTAR_UNPACK
-
 # validators number of pages to eval over miners on each step.
 pages_per_eval_unpack = 5  # With sample unpacking
 pages_per_eval_pack = 18
-
-timestamp_epsilon_experiment_start_block = BLOCK_3B_7BSTAR_UNPACK
-timestamp_epsilon_experiment_end_block = 3_750_683
-timestamp_epsilon_experiment = 0.001
-timestamp_epsilon_experiment_weight_percent = 0.123
 
 # validator eval batch size.
 batch_size = 1
