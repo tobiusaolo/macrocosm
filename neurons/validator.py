@@ -796,12 +796,9 @@ class Validator:
             competition.constraints, cache_dir=self.config.model_dir
         )
 
-        if cur_block >= constants.sample_unpack_block:
-            pack_samples = False
-            pages_per_eval = constants.pages_per_eval_unpack
-        else:
-            pack_samples = True
-            pages_per_eval = constants.pages_per_eval_pack
+        pack_samples = False
+        pages_per_eval = constants.pages_per_eval_unpack
+
 
         # If the option is set in the config, override
         pages_per_eval = (
@@ -927,72 +924,6 @@ class Validator:
             [win_rate[uid] for uid in uids], dtype=torch.float32
         )
         step_weights = torch.softmax(model_weights / constants.temperature, dim=0)
-
-        # If we are running the epsilon experiment for competition 7B then also try the experiment epsilon.
-        if (
-            competition.id == CompetitionId.B7_MODEL
-            and cur_block >= constants.timestamp_epsilon_experiment_start_block
-            and cur_block < constants.timestamp_epsilon_experiment_end_block
-        ):
-            epsilon_experiment_func = FixedEpsilon(0.001)
-            wins_epsilon_experiment, win_rate_epsilon_experiment = (
-                pt.validation.compute_wins(
-                    uids,
-                    losses_per_uid,
-                    batches,
-                    uid_to_block,
-                    epsilon_experiment_func,
-                    cur_block,
-                )
-            )
-
-            # Compute softmaxed weights based on win rate.
-            model_weights_epsilon_experiment = torch.tensor(
-                [win_rate_epsilon_experiment[uid] for uid in uids], dtype=torch.float32
-            )
-            step_weights_epsilon_experiment = torch.softmax(
-                model_weights_epsilon_experiment / constants.temperature, dim=0
-            )
-
-            # Overwrite step weights using a ratio between regular and experiment model weights.
-            # We do this after the original softmax and temperature division so we still get two distinct '1st places'.
-            regular_weight = 1 - constants.timestamp_epsilon_experiment_weight_percent
-            experiment_weight = constants.timestamp_epsilon_experiment_weight_percent
-            step_weights = (
-                step_weights * regular_weight
-                + step_weights_epsilon_experiment * experiment_weight
-            )
-
-            # Since we have different win rates for this experimental competition, we need to log it separately.
-            # Update the uids to competition ids map to replace B7_MODEL with B7_MODEL_LOWER_EPSILON for logging.
-            # Note that mapping uids to competition ids uses raw ints from the metadata.
-            # Competition Names could be used with handling in the conversion and a larger table column.
-            uids_to_competition_ids_epsilon_experiment = {
-                k: (
-                    CompetitionId.B7_MODEL_LOWER_EPSILON.value
-                    if v == CompetitionId.B7_MODEL
-                    else v
-                )
-                for k, v in self._get_uids_to_competition_ids().items()
-            }
-
-            bt.logging.info(
-                "Logging step for Epsilon Experiment. Weights are not final."
-            )
-            self.log_step(
-                CompetitionId.B7_MODEL_LOWER_EPSILON,
-                epsilon_experiment_func,
-                cur_block,
-                uids,
-                uid_to_state,
-                uids_to_competition_ids_epsilon_experiment,
-                pages,
-                model_weights_epsilon_experiment,
-                wins_epsilon_experiment,
-                win_rate_epsilon_experiment,
-                load_model_perf,
-                compute_loss_perf,
-            )
 
         # Fill in metagraph sized tensor with the step weights of the evaluated models.
         with self.metagraph_lock:
