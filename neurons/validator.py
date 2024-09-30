@@ -799,7 +799,6 @@ class Validator:
         pack_samples = False
         pages_per_eval = constants.pages_per_eval_unpack
 
-
         # If the option is set in the config, override
         pages_per_eval = (
             self.config.pages_per_eval
@@ -905,7 +904,12 @@ class Validator:
             )
 
         # Compute wins and win rates per uid.
-        losses_per_uid = {uid: state.losses for uid, state in uid_to_state.items()}
+        # Take the average loss across all batches for comparison of best model.
+        # Keep it as a list of 1 for later calculations.
+        losses_per_uid = {
+            uid: [self._compute_avg_loss(state.losses)]
+            for uid, state in uid_to_state.items()
+        }
         uid_to_block = {uid: state.block for uid, state in uid_to_state.items()}
         wins, win_rate = pt.validation.compute_wins(
             uids,
