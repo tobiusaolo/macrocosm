@@ -917,7 +917,6 @@ class Validator:
         wins, win_rate = pt.validation.compute_wins(
             uids,
             losses_per_uid,
-            batches,
             uid_to_block,
             competition.constraints.epsilon_func,
             cur_block,
