@@ -796,10 +796,14 @@ class Validator:
             competition.constraints, cache_dir=self.config.model_dir
         )
 
-        pack_samples = False
-        pages_per_eval = constants.pages_per_eval_unpack
+        if cur_block >= constants.sample_pack_block:
+            pack_samples = True
+            pages_per_eval = constants.pages_per_eval_pack
+        else:
+            pack_samples = False
+            pages_per_eval = constants.pages_per_eval_unpack
 
-
+            
         # If the option is set in the config, override
         pages_per_eval = (
             self.config.pages_per_eval
