@@ -37,10 +37,10 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.4.0"
+__version__ = "4.5.0"
 
 # Validator schema version
-__validator_version__ = "3.1.0"
+__validator_version__ = "3.2.0"
 version_split = __validator_version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -63,6 +63,9 @@ WEIGHT_SYNC_VALI_MIN_STAKE = 200_000
 
 # Starting block for 3B, 7B* (epsilon experiment) and sample unpacking
 BLOCK_3B_7BSTAR_UNPACK = 3_601_190
+
+# Starting block for activating sample unpacking
+BLOCK_SAMPLE_PACK = 4_001_017
 
 # Minimum percent of weight on a vali for a miner to be considered a top miner.
 # Since there can be multiple competitions at different reward percentages we can't just check biggest.
@@ -95,7 +98,7 @@ ALLOWED_MODEL_TYPES_2 = {
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.M772_MODEL: pt.dataset.SubsetFalconLoader,
     CompetitionId.B3_MODEL: pt.dataset.SubsetFalconLoader,
-    CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
+    CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,    
     CompetitionId.B14_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
 }
 
@@ -167,9 +170,9 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY: Dict[CompetitionId, ModelConst
         epsilon_func=LinearDecay(0.005, 0.001, 50400),
         max_bytes=5 * 1024 * 1024 * 1024,
     ),
-    CompetitionId.B7_MODEL: ModelConstraints(
-        max_model_parameter_size=6_900_000_000,
-        min_model_parameter_size=6_700_000_000,
+    CompetitionId.B3_MODEL: ModelConstraints(
+        max_model_parameter_size=3_400_000_000,
+        min_model_parameter_size=3_200_000_000,
         sequence_length=4096,
         allowed_architectures=ALLOWED_MODEL_TYPES_2,
         tokenizer="Xenova/gpt-4",
@@ -181,9 +184,9 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY: Dict[CompetitionId, ModelConst
         epsilon_func=LinearDecay(0.005, 0.001, 50400),
         max_bytes=15 * 1024 * 1024 * 1024,
     ),
-    CompetitionId.B3_MODEL: ModelConstraints(
-        max_model_parameter_size=3_400_000_000,
-        min_model_parameter_size=3_200_000_000,
+    CompetitionId.B7_MODEL: ModelConstraints(
+        max_model_parameter_size=6_900_000_000,
+        min_model_parameter_size=6_700_000_000,
         sequence_length=4096,
         allowed_architectures=ALLOWED_MODEL_TYPES_2,
         tokenizer="Xenova/gpt-4",
@@ -207,6 +210,48 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY: Dict[CompetitionId, ModelConst
         },
         eval_block_delay=0,
         epsilon_func=LinearDecay(0.005, 0.001, 100800),
+        max_bytes=29 * 1024 * 1024 * 1024,
+    ),
+}
+
+# Defined model constraints by competition id with decaying epsilon
+MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2: Dict[CompetitionId, ModelConstraints] = {
+    CompetitionId.M772_MODEL: ModelConstraints(
+        max_model_parameter_size=772_000_000,
+        min_model_parameter_size=572_000_000,
+        sequence_length=1024,
+        allowed_architectures=ALLOWED_MODEL_TYPES_1,
+        tokenizer="distilgpt2",
+        eval_block_delay=0,
+        epsilon_func=LinearDecay(0.005, 0.0001, 50400),
+        max_bytes=5 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B3_MODEL: ModelConstraints(
+        max_model_parameter_size=3_400_000_000,
+        min_model_parameter_size=3_200_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+        epsilon_func=LinearDecay(0.005, 0.0001, 50400),
+        max_bytes=15 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B14_MODEL: ModelConstraints(
+        max_model_parameter_size=13_900_000_000,
+        min_model_parameter_size=13_700_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+        epsilon_func=LinearDecay(0.005, 0.0001, 100800),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
 }
@@ -304,6 +349,27 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
             ),
         ],
     ),
+    (
+        BLOCK_SAMPLE_PACK,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2[CompetitionId.M772_MODEL],
+                0.14,
+            ),
+            Competition(
+                CompetitionId.B3_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2[CompetitionId.B3_MODEL],
+                0.29,
+            ),
+            Competition(
+                CompetitionId.B14_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2[CompetitionId.B14_MODEL],
+                0.57,
+            ),
+        ],
+    ),
+    
 
 ]
 
@@ -329,6 +395,9 @@ alpha = 0.5
 # 0.01 gives ~96% to best model with only ~3 receiving any weights.
 temperature = 0.01
 
+# block to activate sample packing
+sample_pack_block = BLOCK_SAMPLE_PACK
+
 # validators number of pages to eval over miners on each step.
 pages_per_eval_unpack = 5  # With sample unpacking
 pages_per_eval_pack = 18
@@ -339,7 +408,7 @@ batch_size = 1
 sample_min = 5
 # Max number of uids that can be either pending eval or currently being evaluated.
 # We allow the sample_min per competition + 10 additional models to be held at any one time.
-updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID) + 10
+updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2) + 10
 # time required between updates to the chain.
 chain_update_cadence = dt.timedelta(minutes=20)
 # Number of blocks required between retrying evaluation of a model.
