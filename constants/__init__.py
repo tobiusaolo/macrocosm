@@ -98,6 +98,7 @@ ALLOWED_MODEL_TYPES_2 = {
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.M772_MODEL: pt.dataset.SubsetFalconLoader,
     CompetitionId.B3_MODEL: pt.dataset.SubsetFalconLoader,
+    CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,    
     CompetitionId.B14_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
 }
 
