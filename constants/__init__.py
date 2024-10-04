@@ -61,6 +61,9 @@ ROOT_DIR = Path(__file__).parent.parent
 # This corresponded to top-10 validator on july 31st, 2024
 WEIGHT_SYNC_VALI_MIN_STAKE = 200_000
 
+# Starting block for 3B, 7B* (epsilon experiment) and sample unpacking
+BLOCK_3B_7BSTAR_UNPACK = 3_601_190
+
 # Starting block for activating sample unpacking
 BLOCK_SAMPLE_PACK = 4_001_017
 
@@ -98,6 +101,62 @@ DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.B14_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
 }
 
+# Defined model constraints by competition id to ensure they are constant across blocks.
+MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
+    CompetitionId.M772_MODEL: ModelConstraints(
+        max_model_parameter_size=772_000_000,
+        min_model_parameter_size=572_000_000,
+        sequence_length=1024,
+        allowed_architectures=ALLOWED_MODEL_TYPES_1,
+        tokenizer="distilgpt2",
+        eval_block_delay=0,
+        epsilon_func=FixedEpsilon(0.005),
+        max_bytes=5 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B7_MODEL: ModelConstraints(
+        max_model_parameter_size=6_900_000_000,
+        min_model_parameter_size=6_700_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+        epsilon_func=FixedEpsilon(0.005),
+        max_bytes=15 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B3_MODEL: ModelConstraints(
+        max_model_parameter_size=3_400_000_000,
+        min_model_parameter_size=3_200_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+        epsilon_func=FixedEpsilon(0.005),
+        max_bytes=15 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B14_MODEL: ModelConstraints(
+        max_model_parameter_size=13_900_000_000,
+        min_model_parameter_size=13_700_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+        epsilon_func=FixedEpsilon(0.005),
+        max_bytes=29 * 1024 * 1024 * 1024,
+    ),
+}
+
 # Defined model constraints by competition id with decaying epsilon
 MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY: Dict[CompetitionId, ModelConstraints] = {
     CompetitionId.M772_MODEL: ModelConstraints(
@@ -113,6 +172,20 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY: Dict[CompetitionId, ModelConst
     CompetitionId.B3_MODEL: ModelConstraints(
         max_model_parameter_size=3_400_000_000,
         min_model_parameter_size=3_200_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=0,
+        epsilon_func=LinearDecay(0.005, 0.001, 50400),
+        max_bytes=15 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B7_MODEL: ModelConstraints(
+        max_model_parameter_size=6_900_000_000,
+        min_model_parameter_size=6_700_000_000,
         sequence_length=4096,
         allowed_architectures=ALLOWED_MODEL_TYPES_2,
         tokenizer="Xenova/gpt-4",
@@ -185,6 +258,76 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2: Dict[CompetitionId, ModelCon
 
 # Schedule of competitions by block.
 COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
+    (
+        0,
+        [
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                1.0,
+            )
+        ],
+    ),
+    (
+        3_565_190,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
+                0.35,
+            ),
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                0.65,
+            ),
+        ],
+    ),
+    (
+        BLOCK_3B_7BSTAR_UNPACK,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
+                0.14,
+            ),
+            Competition(
+                CompetitionId.B3_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
+                0.29,
+            ),
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+                0.57,
+            ),
+        ],
+    ),
+    (
+        3_750_683,
+        [
+            Competition(
+                CompetitionId.M772_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.M772_MODEL],
+                0.14,
+            ),
+            Competition(
+                CompetitionId.B3_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B3_MODEL],
+                0.29,
+            ),
+            Competition(
+                CompetitionId.B7_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B7_MODEL],
+                0.15,
+            ),
+            Competition(
+                CompetitionId.B14_MODEL,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B14_MODEL],
+                0.42,
+            ),
+        ],
+    ),
     (
         3_849_722,
         [
@@ -264,7 +407,7 @@ batch_size = 1
 sample_min = 5
 # Max number of uids that can be either pending eval or currently being evaluated.
 # We allow the sample_min per competition + 10 additional models to be held at any one time.
-updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID) + 10
+updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2) + 10
 # time required between updates to the chain.
 chain_update_cadence = dt.timedelta(minutes=20)
 # Number of blocks required between retrying evaluation of a model.
