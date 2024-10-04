@@ -89,6 +89,10 @@ class PerUIDEvalState:
     # The losses per batch.
     losses: typing.List[float] = dataclasses.field(default=None)
 
+    def avg_loss(self) -> float:
+        """Safely computes the average loss from a list of losses."""
+        return sum(self.losses) / len(self.losses) if self.losses else math.inf
+
 
 class Validator:
     MODEL_TRACKER_FILENAME = "model_tracker.pickle"
@@ -795,11 +799,14 @@ class Validator:
         tokenizer = pt.model.load_tokenizer(
             competition.constraints, cache_dir=self.config.model_dir
         )
-
-        pack_samples = False
-        pages_per_eval = constants.pages_per_eval_unpack
-
-
+        
+        if cur_block >= constants.sample_pack_block:
+            pack_samples = True
+            pages_per_eval = constants.pages_per_eval_pack
+        else:
+            pack_samples = False
+            pages_per_eval = constants.pages_per_eval_unpack
+        
         # If the option is set in the config, override
         pages_per_eval = (
             self.config.pages_per_eval
@@ -905,12 +912,15 @@ class Validator:
             )
 
         # Compute wins and win rates per uid.
-        losses_per_uid = {uid: state.losses for uid, state in uid_to_state.items()}
+        # Take the average loss across all batches for comparison of best model.
+        # Keep it as a list of 1 for later calculations.
+        losses_per_uid = {
+            uid: [state.avg_loss()] for uid, state in uid_to_state.items()
+        }
         uid_to_block = {uid: state.block for uid, state in uid_to_state.items()}
         wins, win_rate = pt.validation.compute_wins(
             uids,
             losses_per_uid,
-            batches,
             uid_to_block,
             competition.constraints.epsilon_func,
             cur_block,
@@ -1038,28 +1048,17 @@ class Validator:
             curr_block (int): The current block.
             uid_to_state (typing.Dict[int, PerUIDEvalState]): A dictionary mapping uids to their eval state.
         """
-        top_model_loss = self._compute_avg_loss(uid_to_state[top_uid].losses)
+        top_model_loss = uid_to_state[top_uid].avg_loss()
         for _, state in uid_to_state.items():
             self.model_tracker.on_model_evaluated(
                 state.hotkey,
                 EvalResult(
                     block=curr_block,
-                    score=self._compute_avg_loss(state.losses),
+                    score=state.avg_loss(),
                     winning_model_block=uid_to_state[top_uid].block,
                     winning_model_score=top_model_loss,
                 ),
             )
-
-    def _compute_avg_loss(self, losses: typing.List[float]) -> float:
-        """Safely computes the average loss from a list of losses.
-
-        Args:
-            losses (typing.List[float]): A list of losses.
-
-        Returns:
-            float: The average loss.
-        """
-        return sum(losses) / len(losses) if losses else math.inf
 
     def log_step(
         self,
@@ -1098,7 +1097,7 @@ class Validator:
                 "block": uid_to_state[uid].block,
                 "hf": uid_to_state[uid].repo_name,
                 "competition_id": int(competition_id),
-                "average_loss": self._compute_avg_loss(uid_to_state[uid].losses),
+                "average_loss": uid_to_state[uid].avg_loss(),
                 "epsilon_adv": competition_epsilon_func.compute_epsilon(
                     current_block, uid_to_state[uid].block
                 ),
