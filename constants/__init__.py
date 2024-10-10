@@ -252,7 +252,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2: Dict[
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=0,
-        epsilon_func=LinearDecay(0.005, 0.0001, 100800),
+        epsilon_func=LinearDecay(0.005, 0.0001, 50400),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
 }
@@ -419,7 +419,7 @@ sample_pack_block = BLOCK_SAMPLE_PACK
 
 # validators number of pages to eval over miners on each step.
 pages_per_eval_unpack = 5  # With sample unpacking
-pages_per_eval_pack = 18
+pages_per_eval_pack = 11
 
 # validator eval batch size.
 batch_size = 1
