@@ -278,7 +278,7 @@ async def main(config: bt.config):
             
     # Init model.
     # Init model.
-    tokenizer = ft.model.load_tokenizer(model_constraints, cache_dir=config.model_dir)
+    tokenizer = pt.model.load_tokenizer(model_constraints, cache_dir=config.model_dir)
     model = await load_starting_model(config, metagraph, chain_metadata_store, kwargs)
     model = model.train()
     model = model.to(config.device)
@@ -410,11 +410,11 @@ async def main(config: bt.config):
                 )
 
                 # First, reload the best model from the training run.
-                model_to_upload = ft.mining.load_local_model(
+                model_to_upload = pt.mining.load_local_model(
                     model_dir, model_constraints.kwargs
                 )
                 
-                await ft.mining.push(
+                await pt.mining.push(
                     model_to_upload,
                     config.hf_repo_id,
                     wallet,                    

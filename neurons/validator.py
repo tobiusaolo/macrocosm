@@ -648,7 +648,7 @@ class Validator:
 
                 self.local_store.delete_unreferenced_models(
                     valid_models_by_hotkey=evaluated_hotkeys_to_model_id,
-                    grace_period_seconds=300,
+                    grace_period_seconds=600,
                 )
             except Exception as e:
                 bt.logging.error(f"Error in clean loop: {e}")
@@ -891,11 +891,12 @@ class Validator:
                                 tokenizer.eos_token_id,
                                 pack_samples,
                             ),
-                            ttl=400,
+                            ttl=430,
                             mode="spawn",
                         )
 
                     del model_i
+                    
                 except Exception as e:
                     bt.logging.error(
                         f"Error in eval loop: {e}. Setting losses for uid: {uid_i} to infinity."

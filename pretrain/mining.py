@@ -46,6 +46,7 @@ from taoverse.model.utils import get_hash_of_two_strings
 
 from competitions.data import CompetitionId
 
+
 def model_path(base_dir: str, run_id: str) -> str:
     """
     Constructs a file path for storing the model relating to a training run.
@@ -96,7 +97,8 @@ async def push(
 
     bt.logging.debug("Started uploading model to hugging face...")
     model_id = await remote_model_store.upload_model(
-        Model(id=model_id, pt_model=model), model_constraints)
+        Model(id=model_id, pt_model=model), model_constraints
+    )
 
     bt.logging.success("Uploaded model to hugging face.")
 
@@ -190,6 +192,7 @@ def load_local_model(model_dir: str, kwargs: Dict[str, Any]) -> PreTrainedModel:
         **kwargs,
     )
 
+
 async def load_remote_model(
     uid: int,
     download_dir: str,
@@ -245,7 +248,7 @@ async def load_best_model(
     remote_model_store: Optional[RemoteModelStore] = None,
 ) -> PreTrainedModel:
     """Loads the model from the best performing miner to download_dir"""
-    best_uid = ft.graph.best_uid(competition_id=competition_id)
+    best_uid = pt.graph.best_uid(competition_id=competition_id)
     if best_uid is None:
         raise ValueError(f"No best models found for {competition_id}")
 

@@ -24,10 +24,7 @@ from taoverse.model.competition.data import (
     ModelConstraints,
     NormValidationConstraints,
 )
-from taoverse.model.competition.epsilon import (
-    FixedEpsilon,
-    LinearDecay
-)
+from taoverse.model.competition.epsilon import FixedEpsilon, LinearDecay
 from competitions.data import CompetitionId
 
 from typing import Dict, List, Tuple
@@ -37,7 +34,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.5.0"
+__version__ = "4.5.1"
 
 # Validator schema version
 __validator_version__ = "3.2.0"
@@ -98,7 +95,7 @@ ALLOWED_MODEL_TYPES_2 = {
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.M772_MODEL: pt.dataset.SubsetFalconLoader,
     CompetitionId.B3_MODEL: pt.dataset.SubsetFalconLoader,
-    CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,    
+    CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
     CompetitionId.B14_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
 }
 
@@ -159,7 +156,9 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
 }
 
 # Defined model constraints by competition id with decaying epsilon
-MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY: Dict[CompetitionId, ModelConstraints] = {
+MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY: Dict[
+    CompetitionId, ModelConstraints
+] = {
     CompetitionId.M772_MODEL: ModelConstraints(
         max_model_parameter_size=772_000_000,
         min_model_parameter_size=572_000_000,
@@ -215,7 +214,9 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY: Dict[CompetitionId, ModelConst
 }
 
 # Defined model constraints by competition id with decaying epsilon
-MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2: Dict[CompetitionId, ModelConstraints] = {
+MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2: Dict[
+    CompetitionId, ModelConstraints
+] = {
     CompetitionId.M772_MODEL: ModelConstraints(
         max_model_parameter_size=772_000_000,
         min_model_parameter_size=572_000_000,
@@ -251,7 +252,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2: Dict[CompetitionId, ModelCon
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=0,
-        epsilon_func=LinearDecay(0.005, 0.0001, 100800),
+        epsilon_func=LinearDecay(0.005, 0.0001, 50400),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
 }
@@ -309,22 +310,30 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         [
             Competition(
                 CompetitionId.M772_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.M772_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[
+                    CompetitionId.M772_MODEL
+                ],
                 0.14,
             ),
             Competition(
                 CompetitionId.B3_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B3_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[
+                    CompetitionId.B3_MODEL
+                ],
                 0.29,
             ),
             Competition(
                 CompetitionId.B7_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B7_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[
+                    CompetitionId.B7_MODEL
+                ],
                 0.15,
             ),
             Competition(
                 CompetitionId.B14_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B14_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[
+                    CompetitionId.B14_MODEL
+                ],
                 0.42,
             ),
         ],
@@ -334,17 +343,23 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         [
             Competition(
                 CompetitionId.M772_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.M772_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[
+                    CompetitionId.M772_MODEL
+                ],
                 0.14,
             ),
             Competition(
                 CompetitionId.B3_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B3_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[
+                    CompetitionId.B3_MODEL
+                ],
                 0.29,
             ),
             Competition(
                 CompetitionId.B14_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[CompetitionId.B14_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY[
+                    CompetitionId.B14_MODEL
+                ],
                 0.57,
             ),
         ],
@@ -354,23 +369,27 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         [
             Competition(
                 CompetitionId.M772_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2[CompetitionId.M772_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2[
+                    CompetitionId.M772_MODEL
+                ],
                 0.14,
             ),
             Competition(
                 CompetitionId.B3_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2[CompetitionId.B3_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2[
+                    CompetitionId.B3_MODEL
+                ],
                 0.29,
             ),
             Competition(
                 CompetitionId.B14_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2[CompetitionId.B14_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2[
+                    CompetitionId.B14_MODEL
+                ],
                 0.57,
             ),
         ],
     ),
-    
-
 ]
 
 for block_and_competitions in COMPETITION_SCHEDULE_BY_BLOCK:
@@ -400,7 +419,7 @@ sample_pack_block = BLOCK_SAMPLE_PACK
 
 # validators number of pages to eval over miners on each step.
 pages_per_eval_unpack = 5  # With sample unpacking
-pages_per_eval_pack = 18
+pages_per_eval_pack = 11
 
 # validator eval batch size.
 batch_size = 1
@@ -408,7 +427,9 @@ batch_size = 1
 sample_min = 5
 # Max number of uids that can be either pending eval or currently being evaluated.
 # We allow the sample_min per competition + 10 additional models to be held at any one time.
-updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2) + 10
+updated_models_limit = (
+    sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2) + 10
+)
 # time required between updates to the chain.
 chain_update_cadence = dt.timedelta(minutes=20)
 # Number of blocks required between retrying evaluation of a model.
