@@ -34,10 +34,10 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.5.1"
+__version__ = "4.5.2"
 
 # Validator schema version
-__validator_version__ = "3.2.0"
+__validator_version__ = "3.3.0"
 version_split = __validator_version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -252,7 +252,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_LINEAR_DECAY_2: Dict[
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=0,
-        epsilon_func=LinearDecay(0.005, 0.0001, 50400),
+        epsilon_func=LinearDecay(0.005, 0.0001, 72000),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
 }
