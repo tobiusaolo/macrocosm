@@ -799,14 +799,14 @@ class Validator:
         tokenizer = pt.model.load_tokenizer(
             competition.constraints, cache_dir=self.config.model_dir
         )
-        
+
         if cur_block >= constants.sample_pack_block:
             pack_samples = True
             pages_per_eval = constants.pages_per_eval_pack
         else:
             pack_samples = False
             pages_per_eval = constants.pages_per_eval_unpack
-        
+
         # If the option is set in the config, override
         pages_per_eval = (
             self.config.pages_per_eval
@@ -896,7 +896,7 @@ class Validator:
                         )
 
                     del model_i
-                    
+
                 except Exception as e:
                     bt.logging.error(
                         f"Error in eval loop: {e}. Setting losses for uid: {uid_i} to infinity."
@@ -914,14 +914,27 @@ class Validator:
 
         # Compute wins and win rates per uid.
         # Take the average loss across all batches for comparison of best model.
-        # Keep it as a list of 1 for later calculations.
-        losses_per_uid = {
-            uid: [state.avg_loss()] for uid, state in uid_to_state.items()
+        uid_to_average_loss = {
+            uid: state.avg_loss() for uid, state in uid_to_state.items()
         }
         uid_to_block = {uid: state.block for uid, state in uid_to_state.items()}
+
+        # Filter to the list of uids that may at one point be a top model.
+        competitive_uids = pt.validation.compute_competitive_uids(
+            uid_to_average_loss, uid_to_block, competition.constraints.epsilon_func
+        )
+
+        # Log which models got dropped for the second pass.
+        dropped_uids = [uid for uid in uids if uid not in competitive_uids]
+        if dropped_uids:
+            bt.logging.info(
+                f"The following uids were not included in the win rate calculation because they did not beat the fully decayed loss of any previously submitted model in this eval batch: {dropped_uids}."
+            )
+
+        # Calculate new wins and win_rate with only the competitive uids considered.
         wins, win_rate = pt.validation.compute_wins(
-            uids,
-            losses_per_uid,
+            competitive_uids,
+            uid_to_average_loss,
             uid_to_block,
             competition.constraints.epsilon_func,
             cur_block,
@@ -932,7 +945,7 @@ class Validator:
 
         # Compute softmaxed weights based on win rate.
         model_weights = torch.tensor(
-            [win_rate[uid] for uid in uids], dtype=torch.float32
+            [win_rate.get(uid, 0) for uid in uids], dtype=torch.float32
         )
         step_weights = torch.softmax(model_weights / constants.temperature, dim=0)
 
@@ -977,6 +990,13 @@ class Validator:
                 : self.config.sample_min
             ]
         )
+        # Make sure we always keep around sample_min number of models to maintain previous behavior.
+        if len(models_to_keep) < self.config.sample_min:
+            for uid in sorted(uid_to_average_loss, key=uid_to_average_loss.get):
+                if len(models_to_keep) >= self.config.sample_min:
+                    break
+                models_to_keep.add(uid)
+
         self._update_uids_to_eval(
             competition.id, models_to_keep, active_competition_ids
         )
@@ -1102,8 +1122,9 @@ class Validator:
                 "epsilon_adv": competition_epsilon_func.compute_epsilon(
                     current_block, uid_to_state[uid].block
                 ),
-                "win_rate": win_rate[uid],
-                "win_total": wins[uid],
+                # We use 0 in the case where a uid was not competitive and therefore not used in win rate calcs.
+                "win_rate": win_rate[uid] if uid in win_rate else 0,
+                "win_total": wins[uid] if uid in wins else 0,
                 "weight": self.weights[uid].item(),
                 "norm_weight": sub_competition_weights[idx].item(),
             }
