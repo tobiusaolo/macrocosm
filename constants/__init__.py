@@ -34,10 +34,10 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.5.2"
+__version__ = "4.5.3"
 
 # Validator schema version
-__validator_version__ = "3.3.0"
+__validator_version__ = "3.4.0"
 version_split = __validator_version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
