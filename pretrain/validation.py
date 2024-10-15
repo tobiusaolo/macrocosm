@@ -66,7 +66,7 @@ def iswin(
 
 def compute_wins(
     uids: typing.List[int],
-    losses_per_uid: typing.Dict[int, typing.List[float]],
+    uid_to_average_loss: typing.Dict[int, float],
     uid_to_block: typing.Dict[int, int],
     epsilon_func: EpsilonFunc,
     current_block: int,
@@ -76,7 +76,7 @@ def compute_wins(
 
     Parameters:
         uids (list): A list of uids to compare.
-        losses_per_uid (dict): A dictionary of losses for each uid by batch.
+        uid_to_average_loss (dict): A dictionary of average loss for each uid over all batches.
         uid_to_block (dict): A dictionary of blocks for each uid.
         epsilon_func (EpsilonFunc): Function that determines how much advantage to give to the earlier block.
         current_block: The current block.
@@ -92,24 +92,66 @@ def compute_wins(
             if uid_i == uid_j:
                 continue
 
-            for loss_i, loss_j in zip(losses_per_uid[uid_i], losses_per_uid[uid_j]):
-                wins[uid_i] += (
-                    1
-                    if iswin(
-                        loss_i,
-                        loss_j,
-                        uid_to_block[uid_i],
-                        uid_to_block[uid_j],
-                        epsilon_func,
-                        current_block,
-                    )
-                    else 0
+            wins[uid_i] += (
+                1
+                if iswin(
+                    uid_to_average_loss[uid_i],
+                    uid_to_average_loss[uid_j],
+                    uid_to_block[uid_i],
+                    uid_to_block[uid_j],
+                    epsilon_func,
+                    current_block,
                 )
-                total_matches += 1
-        # Calculate win rate for uid i
-        win_rate[uid_i] = wins[uid_i] / total_matches if total_matches > 0 else 0
+                else 0
+            )
+            total_matches += 1
+        # Calculate win rate for uid i. Default win_rate to 1 for the case of no matches.
+        win_rate[uid_i] = wins[uid_i] / total_matches if total_matches > 0 else 1
 
     return wins, win_rate
+
+
+def compute_competitive_uids(
+    uid_to_average_loss: typing.Dict[int, float],
+    uid_to_block: typing.Dict[int, int],
+    epsilon_func: EpsilonFunc,
+) -> typing.List[int]:
+    """
+    Computes the list of any uids that may at one point be the top model.
+
+    Parameters:
+        uid_to_average_loss (dict): A dictionary of average loss for each uid over all batches.
+        uid_to_block (dict): A dictionary of blocks for each uid.
+        epsilon_func (EpsilonFunc): Function that determines how much advantage to give to the earlier block.
+
+    Returns:
+        list: A list of uids that may at one point be the top model.
+    """
+    # Get fully decayed loss for every model.
+    fully_decayed_epsilon = 1 - epsilon_func.compute_epsilon(
+        current_block=math.inf, model_block=0
+    )
+    fully_decayed_losses = {
+        uid: uid_to_average_loss[uid] * fully_decayed_epsilon for uid in uid_to_block
+    }
+
+    # Iterate through the models and only keep models who's loss is better than
+    # all models uploaded at an earlier block, after they've fully decayed.
+    # If the model cannot, then there exists at least one model at an earlier block which
+    # will always have a better epislon adjusted loss, thus it will never be the top model.
+    competitive_uids = []
+    for uid, loss in uid_to_average_loss.items():
+        # Check if the current UID beats all earlier (or same block) models at full decay.
+        # all([]) is true so we always keep the earliest model.
+        earlier_uids = [
+            i
+            for i, block in uid_to_block.items()
+            if i != uid and block <= uid_to_block[uid]
+        ]
+        if all(loss < fully_decayed_losses[uid_other] for uid_other in earlier_uids):
+            competitive_uids.append(uid)
+
+    return competitive_uids
 
 
 def check_for_reasonable_output(
