@@ -23,7 +23,7 @@ class TestDataset(unittest.TestCase):
 
         # Load a tokenizer
         tokenizer = pt.model.load_tokenizer(
-            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
             cache_dir=config.model_dir,
         )
 
@@ -57,7 +57,7 @@ class TestDataset(unittest.TestCase):
 
         # Load a tokenizer
         tokenizer = pt.model.load_tokenizer(
-            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
             cache_dir=config.model_dir,
         )
 
@@ -98,7 +98,7 @@ class TestDataset(unittest.TestCase):
 
         # Load a tokenizer
         tokenizer = pt.model.load_tokenizer(
-            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
             cache_dir=config.model_dir,
         )
 
@@ -136,7 +136,7 @@ class TestDataset(unittest.TestCase):
         """Tests that the fineweb loader will only generate page starts that are num rows per pages apart."""
         # Load a tokenizer.
         tokenizer = pt.model.load_tokenizer(
-            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
             cache_dir=config.model_dir,
         )
 
@@ -182,7 +182,7 @@ class TestDataset(unittest.TestCase):
         """Tests that the fineweb loader correctly applies an initial offset to the page starts."""
         # Load a tokenizer
         tokenizer = pt.model.load_tokenizer(
-            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B7_MODEL],
+            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
             cache_dir=config.model_dir,
         )
 
@@ -225,3 +225,85 @@ class TestDataset(unittest.TestCase):
             page_starts_2[page_start] += 1
 
         self.assertEqual(set(page_starts_2.keys()), expected_page_starts_2)
+
+    def test_fineweb_loader_seed(self):
+        """Tests that the fineweb data loader fetches the same data with the same seed (barring retries)."""
+
+        # Use the same seed for each loader.
+        RANDOM_SEED = 1
+        # Fetch just two pages to keep the test reasonably fast.
+        NUM_PAGES = 2
+
+        # Load a tokenizer
+        tokenizer = pt.model.load_tokenizer(
+            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
+            cache_dir=config.model_dir,
+        )
+
+        # First dataloader.
+        dataloader_1 = pt.dataset.SubsetFineWebEdu2Loader(
+            batch_size=4,
+            sequence_length=4092,
+            num_pages=NUM_PAGES,
+            tokenizer=tokenizer,
+            random_seed=RANDOM_SEED,
+        )
+
+        # Assert that the number of pages requested were loaded.
+        self.assertEqual(len(dataloader_1.pages), NUM_PAGES)
+
+        # Now create a second loader with the same seed.
+        dataloader_2 = pt.dataset.SubsetFineWebEdu2Loader(
+            batch_size=4,
+            sequence_length=4092,
+            num_pages=NUM_PAGES,
+            tokenizer=tokenizer,
+            random_seed=RANDOM_SEED,
+        )
+
+        # Assert both dataloaders have the same pages
+        self.assertEqual(set(dataloader_1.pages), set(dataloader_2.pages))
+
+        # Assert that both have the same buffers
+        self.assertTrue(np.array_equal(dataloader_1.buffer, dataloader_2.buffer))
+
+    def test_falcon_loader_seed(self):
+        """Tests that the falcon data loader fetches the same data with the same seed."""
+
+        # Use the same seed for each loader.
+        RANDOM_SEED = 1
+        # Fetch just two pages to keep the test reasonably fast.
+        NUM_PAGES = 2
+
+        # Load a tokenizer
+        tokenizer = pt.model.load_tokenizer(
+            MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
+            cache_dir=config.model_dir,
+        )
+
+        # First dataloader.
+        dataloader_1 = pt.dataset.SubsetFalconLoader(
+            batch_size=4,
+            sequence_length=4092,
+            num_pages=NUM_PAGES,
+            tokenizer=tokenizer,
+            random_seed=RANDOM_SEED,
+        )
+
+        # Assert that the number of pages requested were loaded.
+        self.assertEqual(len(dataloader_1.pages), NUM_PAGES)
+
+        # Now create a second loader with the same seed.
+        dataloader_2 = pt.dataset.SubsetFalconLoader(
+            batch_size=4,
+            sequence_length=4092,
+            num_pages=NUM_PAGES,
+            tokenizer=tokenizer,
+            random_seed=RANDOM_SEED,
+        )
+
+        # Assert both dataloaders have the same pages
+        self.assertEqual(set(dataloader_1.pages), set(dataloader_2.pages))
+
+        # Assert that both have the same buffers
+        self.assertTrue(np.array_equal(dataloader_1.buffer, dataloader_2.buffer))
