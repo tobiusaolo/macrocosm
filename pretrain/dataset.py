@@ -183,10 +183,13 @@ class SubsetFineWebEdu2Loader(SubsetLoader):
         attempts = 0
         duplicates = 0
 
+        # Choose a consistent initial offset for the random pages so we do not overlap on each page get.
+        initial_offset = random.randint(0, self.num_rows_per_page - 1)
+
         while len(self.pages) < num_pages:
 
             # randomly sample one page
-            page = self.get_random_pages(num_pages=1)[0]
+            page = self.get_random_pages(num_pages=1, initial_offset=initial_offset)[0]
 
             # skip the page if we already have it
             if page in self.pages:
@@ -252,11 +255,13 @@ class SubsetFineWebEdu2Loader(SubsetLoader):
         rows = []
         attempts = 0
         duplicates = 0
+        # Choose a consistent initial offset for the random pages so we do not overlap on each page get.
+        initial_offset = random.randint(0, self.num_rows_per_page - 1)
 
         while len(downloaded_pages) < num_pages:
 
             # randomly sample one page
-            page = self.get_random_pages(num_pages=1)[0]
+            page = self.get_random_pages(num_pages=1, initial_offset=initial_offset)[0]
 
             # skip the page if we already have it
             if page in downloaded_pages:
@@ -306,9 +311,9 @@ class SubsetFineWebEdu2Loader(SubsetLoader):
 
         return rows
 
-    def get_random_pages(self, num_pages):
+    def get_random_pages(self, num_pages, initial_offset):
         """
-        Randomly sample num_pages.
+        Randomly sample num_pages with an intiial offset.
         A page is a row number of a given split of a given dataset dump offset by num_rows_per_page.
         """
         pages = []
@@ -320,11 +325,12 @@ class SubsetFineWebEdu2Loader(SubsetLoader):
 
             # Choose a random page start.
             # We do so by chunking the rows of the config data into N pages of length num_rows_per_page.
-            data_row_count = self.configs_data[config_name]["num_rows"]
+            # We remove the initial offset from the total rows in doing this calculation to ensure we don't go over.
+            data_row_count = self.configs_data[config_name]["num_rows"] - initial_offset
             # Add 1 to the row count as we are 0 indexed.
             data_page_count = (data_row_count + 1) // self.num_rows_per_page
             # Select a random page start by taking the randomly selected page and multiplying by num_rows_per_page.
-            selected_page_start = (
+            selected_page_start = initial_offset + (
                 random.randint(0, data_page_count - 1) * self.num_rows_per_page
             )
 
