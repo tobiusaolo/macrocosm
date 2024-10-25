@@ -827,7 +827,7 @@ class Validator:
             num_pages=pages_per_eval,
             tokenizer=tokenizer,
             pack_samples=pack_samples,
-            seed=seed,
+            random_seed=seed,
         )
 
         batches = list(dataloader)
