@@ -41,12 +41,17 @@ class SubsetLoader(IterableDataset):
         num_pages=None,
         tokenizer: AutoTokenizer = None,
         pack_samples: bool = False,
+        random_seed: typing.Optional[int] = None,
     ):
         self.batch_size = batch_size
         self.sequence_length = sequence_length
         self.num_pages = num_pages
         self.tokenizer = tokenizer
         self.pack_samples = pack_samples
+
+        # Initialize with seed if provided.
+        if random_seed is not None:
+            random.seed(random_seed)
 
         self.num_rows_per_page = 100
         self.duplicate_page_threshold = 100
@@ -158,9 +163,10 @@ class SubsetFineWebEdu2Loader(SubsetLoader):
         num_pages=None,
         tokenizer: AutoTokenizer = None,
         pack_samples: bool = False,
+        random_seed: typing.Optional[int] = None,
     ):
         super().__init__(
-            batch_size, sequence_length, num_pages, tokenizer, pack_samples
+            batch_size, sequence_length, num_pages, tokenizer, pack_samples, random_seed
         )
 
         # Get the dataset configs and their row sizes
@@ -458,9 +464,10 @@ class SubsetFalconLoader(SubsetLoader):
         num_pages=None,
         tokenizer: AutoTokenizer = None,
         pack_samples: bool = False,
+        random_seed: typing.Optional[int] = None,
     ):
         super().__init__(
-            batch_size, sequence_length, num_pages, tokenizer, pack_samples
+            batch_size, sequence_length, num_pages, tokenizer, pack_samples, random_seed
         )
 
         self.params = {
