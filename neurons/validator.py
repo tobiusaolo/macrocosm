@@ -489,9 +489,7 @@ class Validator:
                             f"Failed to find metadata for uid {next_uid} with hotkey {hotkey}"
                         )
 
-            except RepositoryNotFoundError as e:
-                bt.logging.trace(e)
-            except RevisionNotFoundError as e:
+            except (RepositoryNotFoundError, RevisionNotFoundError) as e:
                 bt.logging.trace(e)
             except MinerMisconfiguredError as e:
                 bt.logging.trace(e)
