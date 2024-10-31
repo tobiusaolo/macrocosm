@@ -17,21 +17,13 @@
 # DEALINGS IN THE SOFTWARE.
 
 import os
-import sys
 import time
-import torch
-import constants
+from dataclasses import replace
+from typing import Any, Dict, Optional
 
 import bittensor as bt
 import huggingface_hub
-import pretrain as pt
-
-from dataclasses import replace
-from typing import Optional, Dict, Any
-
-from transformers import PreTrainedModel, AutoModelForCausalLM
 from safetensors.torch import load_model
-
 from taoverse.model import utils as model_utils
 from taoverse.model.data import Model, ModelId
 from taoverse.model.storage.chain.chain_model_metadata_store import (
@@ -43,8 +35,10 @@ from taoverse.model.storage.hugging_face.hugging_face_model_store import (
 from taoverse.model.storage.model_metadata_store import ModelMetadataStore
 from taoverse.model.storage.remote_model_store import RemoteModelStore
 from taoverse.model.utils import get_hash_of_two_strings
+from transformers import AutoModelForCausalLM, PreTrainedModel
 
-
+import constants
+import pretrain as pt
 from competitions.data import CompetitionId
 
 
