@@ -23,6 +23,7 @@ import torch
 import constants
 
 import bittensor as bt
+import huggingface_hub
 import pretrain as pt
 
 from dataclasses import replace
@@ -60,6 +61,7 @@ async def push(
     wallet: bt.wallet,
     competition_id: CompetitionId,
     retry_delay_secs: int = 60,
+    update_repo_visibility: bool = False,
     metadata_store: Optional[ModelMetadataStore] = None,
     remote_model_store: Optional[RemoteModelStore] = None,
 ):
@@ -71,6 +73,7 @@ async def push(
         competition_id (CompetitionId): The competition the miner is participating in.
         wallet (bt.wallet): The wallet of the Miner uploading the model.
         retry_delay_secs (int): The number of seconds to wait before retrying to push the model to the chain.
+        update_repo_visibility (bool): Whether to make the repo public after pushing the model.
         metadata_store (Optional[ModelMetadataStore]): The metadata store. If None, defaults to writing to the
             chain.
         remote_model_store (Optional[RemoteModelStore]): The remote model store. If None, defaults to writing to HuggingFace
@@ -140,6 +143,15 @@ async def push(
             bt.logging.error(f"Failed to advertise model on the chain: {e}")
             bt.logging.error(f"Retrying in {retry_delay_secs} seconds...")
             time.sleep(retry_delay_secs)
+
+    if update_repo_visibility:
+        bt.logging.debug("Making repo public.")
+        huggingface_hub.update_repo_visibility(
+            repo,
+            private=False,
+            token=HuggingFaceModelStore.assert_access_token_exists(),
+        )
+        bt.logging.success("Model set to public")
 
 
 def save(model: PreTrainedModel, model_dir: str):

@@ -63,6 +63,11 @@ def get_config():
     parser.add_argument(
         "--list_competitions", action="store_true", help="Print out all competitions"
     )
+    parser.add_argument(
+        "--update_repo_visibility",
+        action="store_true",
+        help="If true, the repo will be made public after uploading.",
+    )
 
     # Include wallet and logging arguments from bittensor
     bt.wallet.add_args(parser)
@@ -111,6 +116,7 @@ async def main(config: bt.config):
         wallet,
         config.competition_id,
         metadata_store=chain_metadata_store,
+        update_repo_visibility=config.update_repo_visibility,
     )
 
 
