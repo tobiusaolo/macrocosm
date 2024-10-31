@@ -48,6 +48,7 @@ class TestMining(unittest.TestCase):
                 competition_id=CompetitionId.B14_MODEL,
                 repo="namespace/name",
                 retry_delay_secs=1,
+                update_repo_visibility=False,
                 metadata_store=self.metadata_store,
                 remote_model_store=self.remote_store,
             )
