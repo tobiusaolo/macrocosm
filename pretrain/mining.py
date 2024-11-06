@@ -17,20 +17,13 @@
 # DEALINGS IN THE SOFTWARE.
 
 import os
-import sys
 import time
-import torch
-import constants
+from dataclasses import replace
+from typing import Any, Dict, Optional
 
 import bittensor as bt
-import pretrain as pt
-
-from dataclasses import replace
-from typing import Optional, Dict, Any
-
-from transformers import PreTrainedModel, AutoModelForCausalLM
+import huggingface_hub
 from safetensors.torch import load_model
-
 from taoverse.model import utils as model_utils
 from taoverse.model.data import Model, ModelId
 from taoverse.model.storage.chain.chain_model_metadata_store import (
@@ -42,8 +35,10 @@ from taoverse.model.storage.hugging_face.hugging_face_model_store import (
 from taoverse.model.storage.model_metadata_store import ModelMetadataStore
 from taoverse.model.storage.remote_model_store import RemoteModelStore
 from taoverse.model.utils import get_hash_of_two_strings
+from transformers import AutoModelForCausalLM, PreTrainedModel
 
-
+import constants
+import pretrain as pt
 from competitions.data import CompetitionId
 
 
@@ -60,6 +55,7 @@ async def push(
     wallet: bt.wallet,
     competition_id: CompetitionId,
     retry_delay_secs: int = 60,
+    update_repo_visibility: bool = False,
     metadata_store: Optional[ModelMetadataStore] = None,
     remote_model_store: Optional[RemoteModelStore] = None,
 ):
@@ -71,6 +67,7 @@ async def push(
         competition_id (CompetitionId): The competition the miner is participating in.
         wallet (bt.wallet): The wallet of the Miner uploading the model.
         retry_delay_secs (int): The number of seconds to wait before retrying to push the model to the chain.
+        update_repo_visibility (bool): Whether to make the repo public after pushing the model.
         metadata_store (Optional[ModelMetadataStore]): The metadata store. If None, defaults to writing to the
             chain.
         remote_model_store (Optional[RemoteModelStore]): The remote model store. If None, defaults to writing to HuggingFace
@@ -140,6 +137,15 @@ async def push(
             bt.logging.error(f"Failed to advertise model on the chain: {e}")
             bt.logging.error(f"Retrying in {retry_delay_secs} seconds...")
             time.sleep(retry_delay_secs)
+
+    if update_repo_visibility:
+        bt.logging.debug("Making repo public.")
+        huggingface_hub.update_repo_visibility(
+            repo,
+            private=False,
+            token=HuggingFaceModelStore.assert_access_token_exists(),
+        )
+        bt.logging.success("Model set to public")
 
 
 def save(model: PreTrainedModel, model_dir: str):
