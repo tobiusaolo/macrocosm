@@ -40,7 +40,7 @@ import bittensor as bt
 import torch
 import wandb
 
-from huggingface_hub.utils import RepositoryNotFoundError
+from huggingface_hub.utils import RepositoryNotFoundError, RevisionNotFoundError
 from rich.console import Console
 from rich.table import Table
 from taoverse.metagraph import utils as metagraph_utils
@@ -489,7 +489,7 @@ class Validator:
                             f"Failed to find metadata for uid {next_uid} with hotkey {hotkey}"
                         )
 
-            except RepositoryNotFoundError as e:
+            except (RepositoryNotFoundError, RevisionNotFoundError) as e:
                 bt.logging.trace(e)
             except MinerMisconfiguredError as e:
                 bt.logging.trace(e)
