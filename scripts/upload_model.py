@@ -63,6 +63,11 @@ def get_config():
     parser.add_argument(
         "--list_competitions", action="store_true", help="Print out all competitions"
     )
+    parser.add_argument(
+        "--update_repo_visibility",
+        action="store_true",
+        help="If true, the repo will be made public after uploading.",
+    )
 
     # Include wallet and logging arguments from bittensor
     bt.wallet.add_args(parser)
@@ -78,7 +83,7 @@ def get_config():
 async def main(config: bt.config):
     # Create bittensor objects.
     bt.logging(config=config)
-    
+
     wallet = bt.wallet(config=config)
     subtensor = bt.subtensor(config=config)
     metagraph = subtensor.metagraph(config.netuid)
@@ -108,9 +113,10 @@ async def main(config: bt.config):
     await pt.mining.push(
         model,
         config.hf_repo_id,
-        wallet,        
+        wallet,
         config.competition_id,
         metadata_store=chain_metadata_store,
+        update_repo_visibility=config.update_repo_visibility,
     )
 
 
@@ -122,4 +128,3 @@ if __name__ == "__main__":
     else:
         print(config)
         asyncio.run(main(config))
-
