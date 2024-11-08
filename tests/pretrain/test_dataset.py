@@ -94,6 +94,7 @@ class TestDataset(unittest.TestCase):
         # Try to get 6 pages from a set that only contains 5 pages worth.
         NUM_PAGES = 6
         NUM_PAGES_ACTUAL = 5
+        NUM_ROWS_PER_PAGE = 100        
         CONFIG_DATA = {"CC-MAIN-2013-20": {"num_rows": 499, "split": "train"}}
 
         # Load a tokenizer
@@ -107,6 +108,7 @@ class TestDataset(unittest.TestCase):
         )
 
         dataloader.configs_data = CONFIG_DATA
+        dataloader.num_rows_per_page = NUM_ROWS_PER_PAGE
 
         # Only fetch these once for performance, although for better correctness should consider running in a loop.
         # We check for actual pages or actual pages - 1 to handle the random offset.
