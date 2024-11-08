@@ -46,7 +46,7 @@ class SubsetLoader(IterableDataset):
         if random_seed is not None:
             random.seed(random_seed)
 
-        self.num_rows_per_page = 100
+        self.num_rows_per_page = 50
         self.duplicate_page_threshold = 100
         self.retry_limit = 10
         self.retry_delay = 5
@@ -116,7 +116,7 @@ class SubsetLoader(IterableDataset):
         else:
             self.params["offset"] = page
             
-        self.params["limit"] = self.num_rows_per_page
+        self.params["length"] = self.num_rows_per_page
         
         attempt = 0
         while attempt < self.retry_limit:
@@ -292,7 +292,7 @@ class SubsetFineWebEdu2Loader(SubsetLoader):
                 "config": config_name,
                 "split": split,
                 "offset": page_row_start,
-                "limit": self.num_rows_per_page,
+                "length": self.num_rows_per_page,
             }
 
             try:
@@ -356,7 +356,7 @@ class SubsetFineWebEdu2Loader(SubsetLoader):
                 "config": config_name,
                 "split": split,
                 "offset": page_row_start,
-                "limit": self.num_rows_per_page,
+                "length": self.num_rows_per_page,
             }
 
             try:

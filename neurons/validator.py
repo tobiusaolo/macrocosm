@@ -877,14 +877,8 @@ class Validator:
 
         # Use sample packing.
         pack_samples = True
-
-        # If the option is set in the config, override.
-        pages_per_eval = (
-            self.config.pages_per_eval
-            if self.config.pages_per_eval is not None
-            else constants.pages_per_eval_pack
-        )
-
+        pages_per_eval = constants.pages_per_eval_pack
+        
         # Try to synchronize the data used by validators.
         try:
             seed = metagraph_utils.get_hash_of_sync_block(
@@ -919,7 +913,7 @@ class Validator:
             dataloader_14b_star = SubsetDataLoader_14b_star(
                 batch_size=constants.batch_size,
                 sequence_length=competition_14b_star.constraints.sequence_length,
-                num_pages=int(pages_per_eval * constants.PAGE_RATIO_14B_STAR),
+                num_pages=constants.pages_per_eval_14bstar_pack,
                 tokenizer=tokenizer,
                 pack_samples=pack_samples,
                 random_seed=seed,
@@ -931,7 +925,7 @@ class Validator:
             )
             bt.logging.debug(f"14b* Batch size is {len(batches_14b_star[0])}")
 
-            # This is useful for logging to wandb
+            #This is useful for logging to wandb
             pages_14b_star = dataloader_14b_star.get_page_names()
 
             bt.logging.debug(f"14b* Pages used are {pages_14b_star}")
@@ -1332,13 +1326,16 @@ class Validator:
                 "win_total": wins[uid] if uid in wins else 0,
                 "weight": self.weights[uid].item(),
                 "norm_weight": sub_competition_weights[uid].item(),
+                "dataset_perf": {},
             }
+
+            # Log performance per dataset
             for dataset_name, avg_loss in (
                 uid_to_state[uid].avg_loss_per_dataset().items()
             ):
-                step_log["uid_data"][str(uid)][
-                    f"{dataset_name}_average_loss"
-                ] = avg_loss
+                step_log["uid_data"][str(uid)]["dataset_perf"][
+                    f"{dataset_name}"
+                ] = {'average_loss': avg_loss}
         table = Table(title="Step", expand=True)
         table.add_column("uid", justify="right", style="cyan", no_wrap=True)
         table.add_column("hf", style="magenta", overflow="fold")

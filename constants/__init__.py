@@ -34,10 +34,10 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.5.4"
+__version__ = "4.6.0"
 
 # Validator schema version
-__validator_version__ = "4.5.4"
+__validator_version__ = "4.6.0"
 version_split = __validator_version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))
@@ -101,17 +101,8 @@ DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
     CompetitionId.B14_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
     # B14 model multi dataset adds the following dataset to the baseline b14 competition.
-    CompetitionId.B14_MODEL_MULTI_DATASET: pt.dataset.SubsetFalconLoader,
+    CompetitionId.B14_MODEL_MULTI_DATASET: pt.dataset.SubsetStackV1DedupLoader,
 }
-
-# In a future release we will update the loaders to be able to load a certain number of tokens rather than pages.
-# Until then we can use this ratio to approximate the correct ratio for B14*. Token counts using Xenova/gpt-4.
-ESTIMATED_TOKENS_PER_PAGE_FALCON = 55419
-ESTIMATED_TOKENS_PER_PAGE_FINEWEB = 87490
-# To make the additional data be 1/4 of the total we need a 1:3 ratio.
-PAGE_RATIO_14B_STAR = (
-    0.33 * ESTIMATED_TOKENS_PER_PAGE_FINEWEB / ESTIMATED_TOKENS_PER_PAGE_FALCON
-)
 
 # Synchronize on blocks roughly every 30 minutes.
 SYNC_BLOCK_CADENCE = 150
@@ -160,6 +151,47 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
     ),
 }
 
+MODEL_CONSTRAINTS_BY_COMPETITION_ID_2: Dict[CompetitionId, ModelConstraints] = {
+    CompetitionId.M772_MODEL: ModelConstraints(
+        max_model_parameter_size=772_000_000,
+        min_model_parameter_size=572_000_000,
+        sequence_length=1024,
+        allowed_architectures=ALLOWED_MODEL_TYPES_1,
+        tokenizer="distilgpt2",
+        eval_block_delay=EVAL_BLOCK_DELAY,
+        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
+        max_bytes=5 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B3_MODEL: ModelConstraints(
+        max_model_parameter_size=3_400_000_000,
+        min_model_parameter_size=3_200_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=EVAL_BLOCK_DELAY,
+        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
+        max_bytes=15 * 1024 * 1024 * 1024,
+    ),
+    CompetitionId.B14_MODEL: ModelConstraints(
+        max_model_parameter_size=13_900_000_000,
+        min_model_parameter_size=13_700_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=EVAL_BLOCK_DELAY,
+        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
+        max_bytes=29 * 1024 * 1024 * 1024,
+    ),
+}
+
 # Schedule of competitions by block.
 COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
     (
@@ -187,19 +219,18 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
         [
             Competition(
                 CompetitionId.B3_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B3_MODEL],
                 0.29,
             ),
             Competition(
                 CompetitionId.B14_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
-                0.66,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B14_MODEL],
+                0.57,
             ),
-            # TODO decide specific weight.
             Competition(
                 CompetitionId.B14_MODEL_MULTI_DATASET,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
-                0.05,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B14_MODEL],
+                0.14,
             ),
         ],
     ),
@@ -231,8 +262,12 @@ temperature = 0.01
 sample_pack_block = BLOCK_SAMPLE_PACK
 
 # validators number of pages to eval over miners on each step.
-pages_per_eval_unpack = 5  # With sample unpacking
-pages_per_eval_pack = 11
+pages_per_eval_unpack = 10  # With sample unpacking
+pages_per_eval_pack = 22
+
+# In a future release we will update the loaders to be able to load a certain number of tokens rather than pages.
+# Until then we need to set this manually
+pages_per_eval_14bstar_pack = 1
 
 # validator eval batch size.
 batch_size = 1
