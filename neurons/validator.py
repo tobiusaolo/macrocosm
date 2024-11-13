@@ -878,7 +878,7 @@ class Validator:
         # Use sample packing.
         pack_samples = True
         pages_per_eval = constants.pages_per_eval_pack
-        
+
         # Try to synchronize the data used by validators.
         try:
             seed = metagraph_utils.get_hash_of_sync_block(
@@ -925,7 +925,7 @@ class Validator:
             )
             bt.logging.debug(f"14b* Batch size is {len(batches_14b_star[0])}")
 
-            #This is useful for logging to wandb
+            # This is useful for logging to wandb
             pages_14b_star = dataloader_14b_star.get_page_names()
 
             bt.logging.debug(f"14b* Pages used are {pages_14b_star}")
@@ -1056,6 +1056,11 @@ class Validator:
                     uid_to_state=uid_to_state_14b_star,
                     competition=competition_14b_star,
                 )
+            )
+            # Since we choose the models to keep based on weight only if they are in the win_rate dict,
+            # We need to add anything only winning in 14B* to it. We use a wr of 0 so it is only based on weight.
+            win_rate.update(
+                {key: 0.0 for key in win_rate_14b_star if key not in win_rate}
             )
 
         # Get ids for all competitions in the schedule.
@@ -1333,9 +1338,9 @@ class Validator:
             for dataset_name, avg_loss in (
                 uid_to_state[uid].avg_loss_per_dataset().items()
             ):
-                step_log["uid_data"][str(uid)]["dataset_perf"][
-                    f"{dataset_name}"
-                ] = {'average_loss': avg_loss}
+                step_log["uid_data"][str(uid)]["dataset_perf"][f"{dataset_name}"] = {
+                    "average_loss": avg_loss
+                }
         table = Table(title="Step", expand=True)
         table.add_column("uid", justify="right", style="cyan", no_wrap=True)
         table.add_column("hf", style="magenta", overflow="fold")
