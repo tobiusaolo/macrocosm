@@ -34,7 +34,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.6.0"
+__version__ = "4.6.1"
 
 # Validator schema version
 __validator_version__ = "4.6.0"
