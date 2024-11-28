@@ -182,21 +182,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_2: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.003, 0.0001, 36000),
-        max_bytes=29 * 1024 * 1024 * 1024,
-    ),
-    CompetitionId.B14_MODEL_MULTI_DATASET: ModelConstraints(
-        max_model_parameter_size=13_900_000_000,
-        min_model_parameter_size=13_700_000_000,
-        sequence_length=4096,
-        allowed_architectures=ALLOWED_MODEL_TYPES_2,
-        tokenizer="Xenova/gpt-4",
-        kwargs={
-            "torch_dtype": torch.bfloat16,
-            "attn_implementation": "flash_attention_2",
-        },
-        eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.005, 0.0003, 50400),
+        epsilon_func=LinearDecay(0.005, 0.0001, 50400),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
 
@@ -239,7 +225,7 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
             ),
             Competition(
                 CompetitionId.B14_MODEL_MULTI_DATASET,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B14_MODEL_MULTI_DATASET],
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B14_MODEL],
                 0.36,
             ),
         ],
