@@ -269,9 +269,6 @@ alpha = 0.5
 # 0.01 gives ~96% to best model with only ~3 receiving any weights.
 temperature = 0.01
 
-# block to activate sample packing
-sample_pack_block = BLOCK_SAMPLE_PACK
-
 # validators number of pages to eval over miners on each step.
 pages_per_eval_unpack = 10  # With sample unpacking
 pages_per_eval_pack = 22
