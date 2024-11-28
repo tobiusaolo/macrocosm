@@ -854,12 +854,16 @@ class Validator:
 
         bt.logging.trace(f"Current block: {cur_block}")
 
-        # Get the dataloader for this competition
+
 
         if cur_block < constants.BLOCK_STACK_V2_DEDUP:
-            SubsetDataLoader = constants.DATASET_BY_COMPETITION_ID[competition.id]
+            dataset_by_competition_id = constants.DATASET_BY_COMPETITION_ID
         else:
-            SubsetDataLoader = constants.DATASET_BY_COMPETITION_ID_2[competition.id]
+            dataset_by_competition_id = constants.DATASET_BY_COMPETITION_ID_2
+
+        # Get the dataloader for this competition
+        SubsetDataLoader = dataset_by_competition_id[competition.id]
+
         bt.logging.trace(f"Dataset in use: {SubsetDataLoader.name}.")
 
         if running_14b_star:
@@ -867,7 +871,7 @@ class Validator:
             uid_to_state_14b_star = defaultdict(PerUIDEvalState)
 
             # Also get the dataloader for 14b_star.
-            SubsetDataLoader_14b_star = constants.DATASET_BY_COMPETITION_ID[
+            SubsetDataLoader_14b_star = dataset_by_competition_id[
                 CompetitionId.B14_MODEL_MULTI_DATASET
             ]
             bt.logging.trace(

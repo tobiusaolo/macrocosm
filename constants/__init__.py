@@ -262,7 +262,7 @@ pages_per_eval_pack = 22
 # In a future release we will update the loaders to be able to load a certain number of tokens rather than pages.
 # Until then we need to set this manually
 pages_per_eval_stack_v1_dedup = 1
-pages_per_eval_stack_v2_dedup = 10
+pages_per_eval_stack_v2_dedup = 9
 
 # validator eval batch size.
 batch_size = 1
