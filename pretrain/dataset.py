@@ -2,6 +2,8 @@ import typing
 import random
 import time
 import requests
+import boto3
+import smart_open
 import numpy as np
 import bittensor as bt
 from torch.utils.data import IterableDataset
@@ -67,8 +69,30 @@ class SubsetLoader(IterableDataset):
         self.params = self._get_default_params()
 
         # Fetch pages if specified
+        # If the fetched pages are empty, try again until
+        # we hit the retry limit.
+        fetch_attempt = 1
+
         if self.num_pages:
-            self._initialize_pages()
+            while fetch_attempt < self.retry_limit:
+                self._initialize_pages()
+                fetch_attempt += 1
+
+                # Exit if the buffer has at least one batch            
+                if len(self.buffer) >= self.sequence_length:
+                    break  
+
+                bt.logging.warning(
+                    f"All fetched pages seem to be empty or have an extremely low token count. "
+                    f"Trying to fetch a new set of pages... (attempt {fetch_attempt}/{self.retry_limit})"
+                )
+
+            # If we exhaust all attempts and still don't have enough data, raise an error
+            if len(self.buffer) < self.sequence_length:
+                raise ValueError(
+                    "Maximum retry limit for fetching pages reached. "
+                    "All fetched pages seem to be empty or have an extremely low token count."
+                )
 
     def _get_default_params(self):
         """Get default request parameters. Override if needed."""
@@ -221,6 +245,39 @@ class SubsetStackV1DedupLoader(SubsetLoader):
     def __init__(self, **kwargs):
         super().__init__(requires_auth=True, **kwargs)
 
+class SubsetStackV2DedupLoader(SubsetLoader):
+    max_pages: int = 5_451_114_734
+    name: str = "bigcode/the-stack-v2-dedup"
+
+    def __init__(self, **kwargs):
+
+        # Create an AWS S3 session to enable reading data
+        session = boto3.Session(
+            aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+            aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"])
+
+        self.s3_sess = session.client("s3")
+        
+        super().__init__(requires_auth=True, **kwargs)
+        
+
+    def _download_row_content(self, blob_id, src_encoding):
+        """Download the row content from S3.
+        """
+        
+        s3_url = f"s3://softwareheritage/content/{blob_id}"
+
+        with smart_open.open(s3_url, "rb", compression=".gz", transport_params={"client": self.s3_sess}) as fin:
+            content = fin.read().decode(src_encoding)
+
+        return content
+
+    def _get_content_from_row(self, row):
+        """Extract row content by downloading from S3 """
+
+        content = self._download_row_content(row['row']['blob_id'], row['row']['src_encoding'])
+        return content
+        
 
 class SubsetFalconLoader(SubsetLoader):
     max_pages: int = 968000015

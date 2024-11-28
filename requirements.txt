@@ -11,4 +11,5 @@ transformers==4.44.1
 wandb
 datasets
 flash-attn
+smart-open==7.0.5
 taoverse==1.0.9

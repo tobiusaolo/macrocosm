@@ -34,7 +34,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.6.1"
+__version__ = "4.6.2"
 
 # Validator schema version
 __validator_version__ = "4.6.0"
@@ -58,14 +58,9 @@ ROOT_DIR = Path(__file__).parent.parent
 # This corresponded to top-10 validator on july 31st, 2024
 WEIGHT_SYNC_VALI_MIN_STAKE = 200_000
 
-# Starting block for 3B, 7B* (epsilon experiment) and sample unpacking
-BLOCK_3B_7BSTAR_UNPACK = 3_601_190
 
-# Starting block for activating sample unpacking
-BLOCK_SAMPLE_PACK = 4_001_017
-
-# Starting block for 14B* (multi dataset experiment).
-BLOCK_14B_STAR = 4_252_646
+# Activation block for using The Stack V2 Dedup
+BLOCK_STACK_V2_DEDUP = 4_453_709
 
 # Minimum percent of weight on a vali for a miner to be considered a top miner.
 # Since there can be multiple competitions at different reward percentages we can't just check biggest.
@@ -104,6 +99,16 @@ DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
     CompetitionId.B14_MODEL_MULTI_DATASET: pt.dataset.SubsetStackV1DedupLoader,
 }
 
+# This is to be used at block for the Stack V2
+DATASET_BY_COMPETITION_ID_2: Dict[CompetitionId, str] = {
+    CompetitionId.M772_MODEL: pt.dataset.SubsetFalconLoader,
+    CompetitionId.B3_MODEL: pt.dataset.SubsetFalconLoader,
+    CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
+    CompetitionId.B14_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
+    # B14 model multi dataset adds the following dataset to the baseline b14 competition.
+    CompetitionId.B14_MODEL_MULTI_DATASET: pt.dataset.SubsetStackV2DedupLoader,
+}
+
 # Synchronize on blocks roughly every 30 minutes.
 SYNC_BLOCK_CADENCE = 150
 # Delay at least as long as the sync block cadence with an additional buffer.
@@ -118,7 +123,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
         allowed_architectures=ALLOWED_MODEL_TYPES_1,
         tokenizer="distilgpt2",
         eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.005, 0.0001, 50400),
+        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
         max_bytes=5 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B3_MODEL: ModelConstraints(
@@ -132,7 +137,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.005, 0.0001, 50400),
+        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
         max_bytes=15 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B14_MODEL: ModelConstraints(
@@ -146,22 +151,12 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.005, 0.0001, 72000),
+        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
 }
 
 MODEL_CONSTRAINTS_BY_COMPETITION_ID_2: Dict[CompetitionId, ModelConstraints] = {
-    CompetitionId.M772_MODEL: ModelConstraints(
-        max_model_parameter_size=772_000_000,
-        min_model_parameter_size=572_000_000,
-        sequence_length=1024,
-        allowed_architectures=ALLOWED_MODEL_TYPES_1,
-        tokenizer="distilgpt2",
-        eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
-        max_bytes=5 * 1024 * 1024 * 1024,
-    ),
     CompetitionId.B3_MODEL: ModelConstraints(
         max_model_parameter_size=3_400_000_000,
         min_model_parameter_size=3_200_000_000,
@@ -173,7 +168,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_2: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
+        epsilon_func=LinearDecay(0.003, 0.0001, 36000),
         max_bytes=15 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B14_MODEL: ModelConstraints(
@@ -187,9 +182,24 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_2: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
+        epsilon_func=LinearDecay(0.003, 0.0001, 36000),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
+    CompetitionId.B14_MODEL_MULTI_DATASET: ModelConstraints(
+        max_model_parameter_size=13_900_000_000,
+        min_model_parameter_size=13_700_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=EVAL_BLOCK_DELAY,
+        epsilon_func=LinearDecay(0.005, 0.0003, 50400),
+        max_bytes=29 * 1024 * 1024 * 1024,
+    ),
+
 }
 
 # Schedule of competitions by block.
@@ -197,11 +207,6 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
     (
         0,
         [
-            Competition(
-                CompetitionId.M772_MODEL,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.M772_MODEL],
-                0.14,
-            ),
             Competition(
                 CompetitionId.B3_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B3_MODEL],
@@ -212,27 +217,33 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
                 0.57,
             ),
+            Competition(
+                CompetitionId.B14_MODEL_MULTI_DATASET,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID[CompetitionId.B14_MODEL],
+                0.14,
+            ),
         ],
     ),
     (
-        BLOCK_14B_STAR,
+        BLOCK_STACK_V2_DEDUP,
         [
             Competition(
                 CompetitionId.B3_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B3_MODEL],
-                0.29,
+                0.28,
             ),
             Competition(
                 CompetitionId.B14_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B14_MODEL],
-                0.57,
+                0.36,
             ),
             Competition(
                 CompetitionId.B14_MODEL_MULTI_DATASET,
-                MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B14_MODEL],
-                0.14,
+                MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B14_MODEL_MULTI_DATASET],
+                0.36,
             ),
         ],
+
     ),
 ]
 
@@ -267,7 +278,8 @@ pages_per_eval_pack = 22
 
 # In a future release we will update the loaders to be able to load a certain number of tokens rather than pages.
 # Until then we need to set this manually
-pages_per_eval_14bstar_pack = 1
+pages_per_eval_stack_v1_dedup = 1
+pages_per_eval_stack_v2_dedup = 10
 
 # validator eval batch size.
 batch_size = 1

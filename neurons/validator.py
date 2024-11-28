@@ -855,7 +855,11 @@ class Validator:
         bt.logging.trace(f"Current block: {cur_block}")
 
         # Get the dataloader for this competition
-        SubsetDataLoader = constants.DATASET_BY_COMPETITION_ID[competition.id]
+
+        if cur_block < constants.BLOCK_STACK_V2_DEDUP:
+            SubsetDataLoader = constants.DATASET_BY_COMPETITION_ID[competition.id]
+        else:
+            SubsetDataLoader = constants.DATASET_BY_COMPETITION_ID_2[competition.id]
         bt.logging.trace(f"Dataset in use: {SubsetDataLoader.name}.")
 
         if running_14b_star:
@@ -910,10 +914,16 @@ class Validator:
         bt.logging.debug(f"Pages used are {pages}")
 
         if running_14b_star:
+
+            if cur_block < constants.BLOCK_STACK_V2_DEDUP:
+                num_pages_code_dataset = constants.pages_per_eval_stack_v1_dedup
+            else:
+                num_pages_code_dataset = constants.pages_per_eval_stack_v2_dedup
+
             dataloader_14b_star = SubsetDataLoader_14b_star(
                 batch_size=constants.batch_size,
                 sequence_length=competition_14b_star.constraints.sequence_length,
-                num_pages=constants.pages_per_eval_14bstar_pack,
+                num_pages=num_pages_code_dataset
                 tokenizer=tokenizer,
                 pack_samples=pack_samples,
                 random_seed=seed,
