@@ -91,7 +91,6 @@ ALLOWED_MODEL_TYPES_2 = {
 
 # Defined dataset by competition id
 DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
-    CompetitionId.M772_MODEL: pt.dataset.SubsetFalconLoader,
     CompetitionId.B3_MODEL: pt.dataset.SubsetFalconLoader,
     CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
     CompetitionId.B14_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
@@ -101,7 +100,6 @@ DATASET_BY_COMPETITION_ID: Dict[CompetitionId, str] = {
 
 # This is to be used at block for the Stack V2
 DATASET_BY_COMPETITION_ID_2: Dict[CompetitionId, str] = {
-    CompetitionId.M772_MODEL: pt.dataset.SubsetFalconLoader,
     CompetitionId.B3_MODEL: pt.dataset.SubsetFalconLoader,
     CompetitionId.B7_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
     CompetitionId.B14_MODEL: pt.dataset.SubsetFineWebEdu2Loader,
@@ -116,16 +114,6 @@ EVAL_BLOCK_DELAY = SYNC_BLOCK_CADENCE + 100
 
 # Defined model constraints by competition id with decaying epsilon
 MODEL_CONSTRAINTS_BY_COMPETITION_ID: Dict[CompetitionId, ModelConstraints] = {
-    CompetitionId.M772_MODEL: ModelConstraints(
-        max_model_parameter_size=772_000_000,
-        min_model_parameter_size=572_000_000,
-        sequence_length=1024,
-        allowed_architectures=ALLOWED_MODEL_TYPES_1,
-        tokenizer="distilgpt2",
-        eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.005, 0.0005, 50400),
-        max_bytes=5 * 1024 * 1024 * 1024,
-    ),
     CompetitionId.B3_MODEL: ModelConstraints(
         max_model_parameter_size=3_400_000_000,
         min_model_parameter_size=3_200_000_000,
@@ -216,17 +204,17 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
             Competition(
                 CompetitionId.B3_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B3_MODEL],
-                0.28,
+                0.2,
             ),
             Competition(
                 CompetitionId.B14_MODEL,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B14_MODEL],
-                0.36,
+                0.4,
             ),
             Competition(
                 CompetitionId.B14_MODEL_MULTI_DATASET,
                 MODEL_CONSTRAINTS_BY_COMPETITION_ID_2[CompetitionId.B14_MODEL],
-                0.36,
+                0.4,
             ),
         ],
 
