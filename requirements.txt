@@ -5,7 +5,7 @@ pydantic==1.10
 python-dotenv
 rich
 safetensors
-torch
+torch==2.4.1
 numpy
 transformers==4.44.1
 wandb
