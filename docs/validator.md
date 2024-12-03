@@ -99,7 +99,7 @@ docker compose up --detach
 
 ## Obtaining your Hugging Face and AWS access and secret tokens
 
-The dataset for code, `The Stack V2-dedup`, requires a **Hugging Face access token**. Follow these steps to obtain and configure one:
+The dataset for code, `The Stack V2-dedup`, requires a **Hugging Face access token** as well as **AWS access and secret keys**. Follow these steps to obtain and configure them:
 
 **Step 1: Get Your Hugging Face Access Token**
 
@@ -134,13 +134,10 @@ The dataset for code, `The Stack V2-dedup`, requires a **Hugging Face access tok
       - The new **Access Key ID** and **Secret Access Key** will be displayed.
       - View them on the screen or download them as a `.csv` file by clicking **"Download Key File"**.
       - Ensure you store these keys securely, as the **Secret Access Key** will not be retrievable after this point.
+      - **Note:** If you do not save the **Secret Access Key** before closing the dialog, you will need to delete the access key and create a new one to retrieve the **Secret Access Key** again.
+      - **Note:** AWS recommends avoiding the use of root access keys for everyday tasks. Instead, create IAM users with specific permissions to enhance security.
 
-**Important Notes**
-
-- If you do not save the **Secret Access Key** before closing the dialog, you will need to delete the access key and create a new one to retrieve the **Secret Access Key** again.
-- AWS recommends avoiding the use of root access keys for everyday tasks. Instead, create IAM users with specific permissions to enhance security.
-
-For more information, visit [this guide](https://www.msp360.com/resources/blog/how-to-find-your-aws-access-key-id-and-secret-access-key/).
+    For more information, visit [this guide](https://www.msp360.com/resources/blog/how-to-find-your-aws-access-key-id-and-secret-access-key/).
 
 **Step 3: Create a `.env` file in the `pretraining` Directory**
 
@@ -154,9 +151,9 @@ For more information, visit [this guide](https://www.msp360.com/resources/blog/h
 3. Open the `.env` file with your preferred text editor and add the following lines:
 
     ```bash
-    HF_TOKEN=YOUR_HF_TOKEN_HERE
-    AWS_ACCESS_KEY_ID=YOUR_AWS_ACCESS_KEY_HERE
-    AWS_SECRET_ACCESS_KEY=YOUR_AWS_SECRET_KEY_HERE
+    HF_TOKEN="<YOUR_HF_TOKEN_HERE>"
+    AWS_ACCESS_KEY_ID="<YOUR_AWS_ACCESS_KEY_HERE>"
+    AWS_SECRET_ACCESS_KEY="<YOUR_AWS_SECRET_KEY_HERE>"
     ```
 
 4. Save and close the file.
