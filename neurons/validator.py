@@ -854,8 +854,16 @@ class Validator:
 
         bt.logging.trace(f"Current block: {cur_block}")
 
+
+
+        if cur_block < constants.BLOCK_STACK_V2_DEDUP:
+            dataset_by_competition_id = constants.DATASET_BY_COMPETITION_ID
+        else:
+            dataset_by_competition_id = constants.DATASET_BY_COMPETITION_ID_2
+
         # Get the dataloader for this competition
-        SubsetDataLoader = constants.DATASET_BY_COMPETITION_ID[competition.id]
+        SubsetDataLoader = dataset_by_competition_id[competition.id]
+
         bt.logging.trace(f"Dataset in use: {SubsetDataLoader.name}.")
 
         if running_14b_star:
@@ -863,7 +871,7 @@ class Validator:
             uid_to_state_14b_star = defaultdict(PerUIDEvalState)
 
             # Also get the dataloader for 14b_star.
-            SubsetDataLoader_14b_star = constants.DATASET_BY_COMPETITION_ID[
+            SubsetDataLoader_14b_star = dataset_by_competition_id[
                 CompetitionId.B14_MODEL_MULTI_DATASET
             ]
             bt.logging.trace(
@@ -910,10 +918,16 @@ class Validator:
         bt.logging.debug(f"Pages used are {pages}")
 
         if running_14b_star:
+
+            if cur_block < constants.BLOCK_STACK_V2_DEDUP:
+                num_pages_code_dataset = constants.pages_per_eval_stack_v1_dedup
+            else:
+                num_pages_code_dataset = constants.pages_per_eval_stack_v2_dedup
+
             dataloader_14b_star = SubsetDataLoader_14b_star(
                 batch_size=constants.batch_size,
                 sequence_length=competition_14b_star.constraints.sequence_length,
-                num_pages=constants.pages_per_eval_14bstar_pack,
+                num_pages=num_pages_code_dataset,
                 tokenizer=tokenizer,
                 pack_samples=pack_samples,
                 random_seed=seed,
@@ -1502,4 +1516,11 @@ class Validator:
 
 
 if __name__ == "__main__":
+    # Set an output width explicitly for rich table output (affects the pm2 tables that we use).
+    try:
+        width = os.get_terminal_size().columns
+    except:
+        width = 0
+    os.environ["COLUMNS"] = str(max(200, width))
+
     asyncio.run(Validator().run())
