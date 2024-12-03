@@ -156,7 +156,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_2: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.003, 0.0001, 36000),
+        epsilon_func=LinearDecay(0.005, 0.0002, 28800),
         max_bytes=15 * 1024 * 1024 * 1024,
     ),
     CompetitionId.B14_MODEL: ModelConstraints(
@@ -170,7 +170,7 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_2: Dict[CompetitionId, ModelConstraints] = {
             "attn_implementation": "flash_attention_2",
         },
         eval_block_delay=EVAL_BLOCK_DELAY,
-        epsilon_func=LinearDecay(0.005, 0.0001, 50400),
+        epsilon_func=LinearDecay(0.005, 0.0002, 36000),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
 
