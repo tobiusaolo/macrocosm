@@ -99,13 +99,13 @@ docker compose up --detach
 
 ## Obtaining your Hugging Face token
 
-The dataset for code, `The Stack V1-dedup`, requires a **Hugging Face access token**. Follow these steps to obtain and configure one:
+The dataset for code, `The Stack V2-dedup`, requires a **Hugging Face access token**. Follow these steps to obtain and configure one:
 
 ### Step 1: Get Your Hugging Face Access Token
 
 1. Go to the [Hugging Face website](https://huggingface.co/).
 2. If you don’t already have an account, create one. Otherwise, log in.
-3. Go to the [dataset's website](https://huggingface.co/datasets/bigcode/the-stack-dedup) and agree to their terms of use. You should immediately gain access to their dataset.
+3. Go to the [dataset's website](https://huggingface.co/datasets/bigcode/the-stack-v2-dedup) and agree to their terms of use. You should immediately gain access to their dataset.
 4. Click on your profile icon in the top-right corner, and select **Settings**.
 5. In the settings menu, locate and click on **Access Tokens**.
 6. Under the Access Tokens section, click **New token** and generate a token with write permissions.
@@ -129,6 +129,48 @@ The dataset for code, `The Stack V1-dedup`, requires a **Hugging Face access tok
 4. Save and close the file.
 
 This `.env` file now securely holds your Hugging Face token, allowing scripts in the `pretraining` directory to load it automatically if they’re set up to read environment variables.
+
+## Obtaining your AWS Access and Secret keys
+
+### Step 1: Getting the keys
+
+1. Create a AWS account.
+2. Follow these steps to retrieve your AWS root access keys
+
+   1. **Access the AWS Management Console**  
+      Navigate to the [AWS Management Console](https://aws.amazon.com/console/) and sign in using your root account credentials.
+
+   2. **Navigate to Security Credentials**  
+      Click on your account name located at the top right corner of the console. From the dropdown menu, select **"Security Credentials"**.
+
+   3. **Proceed to Security Credentials**  
+      A prompt may appear warning about accessing sensitive information. Click on **"Continue to Security Credentials"** to proceed.
+
+   4. **Locate Access Keys**  
+      In the **Security Credentials** section, expand the **"Access Keys (Access Key ID and Secret Access Key)"** tab to view your existing access keys.
+
+   5. **Create a New Access Key**  
+      To generate a new access key pair:
+      - Click on **"Create New Access Key"**.
+      - The new **Access Key ID** and **Secret Access Key** will be displayed.
+      - View them on the screen or download them as a `.csv` file by clicking **"Download Key File"**.
+      - Ensure you store these keys securely, as the **Secret Access Key** will not be retrievable after this point.
+
+#### Important Notes
+
+- If you do not save the **Secret Access Key** before closing the dialog, you will need to delete the access key and create a new one to retrieve the **Secret Access Key** again.
+- AWS recommends avoiding the use of root access keys for everyday tasks. Instead, create IAM users with specific permissions to enhance security.
+
+For more information, visit [this guide](https://www.msp360.com/resources/blog/how-to-find-your-aws-access-key-id-and-secret-access-key/).
+
+### Step 2: Updating your environment file
+
+1. Update your `.env` file, (created in the previous section "HF Token"):
+
+    ```bash
+    AWS_ACCESS_KEY_ID="<**Your**>"
+    AWS_SECRET_ACCESS_KEY=""
+    ```
 
 ## Running the Validator
 
