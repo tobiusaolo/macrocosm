@@ -97,11 +97,11 @@ cd subtensor
 docker compose up --detach
 ```
 
-## Obtaining your Hugging Face token
+## Obtaining your Hugging Face and AWS access and secret tokens
 
 The dataset for code, `The Stack V2-dedup`, requires a **Hugging Face access token**. Follow these steps to obtain and configure one:
 
-### Step 1: Get Your Hugging Face Access Token
+**Step 1: Get Your Hugging Face Access Token**
 
 1. Go to the [Hugging Face website](https://huggingface.co/).
 2. If you don’t already have an account, create one. Otherwise, log in.
@@ -111,28 +111,7 @@ The dataset for code, `The Stack V2-dedup`, requires a **Hugging Face access tok
 6. Under the Access Tokens section, click **New token** and generate a token with write permissions.
 7. Copy the generated token.
 
-### Step 2: Create a `.env` File in the `pretraining` Directory
-
-1. Navigate to your `pretraining` directory where you want to save the environment file.
-2. Create a new file named `.env` in this directory (if it doesn’t already exist). You can do this from the command line using:
-
-   ```bash
-   touch .env
-   ```
-
-3. Open the `.env` file with your preferred text editor and add the following line, replacing `YOUR_HF_TOKEN_HERE` with your actual Hugging Face token:
-
-    ```bash
-    HF_TOKEN=YOUR_HF_TOKEN_HERE
-    ```
-
-4. Save and close the file.
-
-This `.env` file now securely holds your Hugging Face token, allowing scripts in the `pretraining` directory to load it automatically if they’re set up to read environment variables.
-
-## Obtaining your AWS Access and Secret keys
-
-### Step 1: Getting the keys
+**Step 2: Obtaining your AWS Access and Secret keys**
 
 1. Create a AWS account.
 2. Follow these steps to retrieve your AWS root access keys
@@ -156,21 +135,33 @@ This `.env` file now securely holds your Hugging Face token, allowing scripts in
       - View them on the screen or download them as a `.csv` file by clicking **"Download Key File"**.
       - Ensure you store these keys securely, as the **Secret Access Key** will not be retrievable after this point.
 
-#### Important Notes
+**Important Notes**
 
 - If you do not save the **Secret Access Key** before closing the dialog, you will need to delete the access key and create a new one to retrieve the **Secret Access Key** again.
 - AWS recommends avoiding the use of root access keys for everyday tasks. Instead, create IAM users with specific permissions to enhance security.
 
 For more information, visit [this guide](https://www.msp360.com/resources/blog/how-to-find-your-aws-access-key-id-and-secret-access-key/).
 
-### Step 2: Updating your environment file
+**Step 3: Create a `.env` file in the `pretraining` Directory**
 
-1. Update your `.env` file, (created in the previous section "HF Token"):
+1. Navigate to your `pretraining` directory where you want to save the environment file.
+2. Create a new file named `.env` in this directory (if it doesn’t already exist). You can do this from the command line using:
+
+   ```bash
+   touch .env
+   ```
+
+3. Open the `.env` file with your preferred text editor and add the following lines:
 
     ```bash
-    AWS_ACCESS_KEY_ID="<**Your**>"
-    AWS_SECRET_ACCESS_KEY=""
+    HF_TOKEN=YOUR_HF_TOKEN_HERE
+    AWS_ACCESS_KEY_ID=YOUR_AWS_ACCESS_KEY_HERE
+    AWS_SECRET_ACCESS_KEY=YOUR_AWS_SECRET_KEY_HERE
     ```
+
+4. Save and close the file.
+
+This `.env` file now securely holds your access tokens, allowing scripts in the `pretraining` directory to load it automatically if they’re set up to read environment variables.
 
 ## Running the Validator
 
