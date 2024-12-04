@@ -27,6 +27,7 @@ import dataclasses
 import datetime as dt
 import functools
 import json
+import logging
 import math
 import os
 import pickle
@@ -37,6 +38,8 @@ import typing
 from collections import defaultdict
 
 import bittensor as bt
+from bittensor.utils.btlogging.helpers import all_loggers
+from bittensor.utils.btlogging.defines import BITTENSOR_LOGGER_NAME
 import torch
 import wandb
 
@@ -130,6 +133,11 @@ class Validator:
         # If this is not done then info logging does not work in the cases where other modes are not specified.
         bt.logging.set_info()
         bt.logging(config=self.config)
+
+        # Setting logging level on bittensor messes with all loggers, which we don't want, so set explicitly to warning here.
+        for logger in all_loggers():
+            if not logger.name.startswith(BITTENSOR_LOGGER_NAME):
+                logger.setLevel(logging.WARNING)
 
         bt.logging.info(f"Starting validator with config: {self.config}")
 
