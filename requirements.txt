@@ -6,7 +6,7 @@ pydantic==1.10
 python-dotenv==1.0.1
 rich==13.9.2
 safetensors==0.4.5
-numpy==2.1.2
+numpy==2.0.1
 transformers==4.44.1
 wandb==0.18.3
 datasets==3.0.1
