@@ -173,6 +173,13 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_2: Dict[CompetitionId, ModelConstraints] = {
         epsilon_func=LinearDecay(0.005, 0.0002, 36000),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
+    # This constraint is not actually used, it is added as a copy
+    # of the 14B-model competition constraint entry.
+    # This is just to keep the size of the constraint dict equal
+    # to the number of competitions so `update_models_limit` is
+    # set correctly below.
+    # This hack will be removed once native support for multi datasets
+    # is implemented in a future release.
     CompetitionId.B14_MODEL_MULTI_DATASET: ModelConstraints(
         max_model_parameter_size=13_900_000_000,
         min_model_parameter_size=13_700_000_000,
