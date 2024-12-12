@@ -34,7 +34,7 @@ from typing import Dict, List, Tuple
 # ---------------------------------
 
 # Release
-__version__ = "4.6.2"
+__version__ = "4.6.3"
 
 # Validator schema version
 __validator_version__ = "4.6.0"
@@ -173,7 +173,27 @@ MODEL_CONSTRAINTS_BY_COMPETITION_ID_2: Dict[CompetitionId, ModelConstraints] = {
         epsilon_func=LinearDecay(0.005, 0.0002, 36000),
         max_bytes=29 * 1024 * 1024 * 1024,
     ),
-
+    # This constraint is not actually used, it is added as a copy
+    # of the 14B-model competition constraint entry.
+    # This is just to keep the size of the constraint dict equal
+    # to the number of competitions so `update_models_limit` is
+    # set correctly below.
+    # This hack will be removed once native support for multi datasets
+    # is implemented in a future release.
+    CompetitionId.B14_MODEL_MULTI_DATASET: ModelConstraints(
+        max_model_parameter_size=13_900_000_000,
+        min_model_parameter_size=13_700_000_000,
+        sequence_length=4096,
+        allowed_architectures=ALLOWED_MODEL_TYPES_2,
+        tokenizer="Xenova/gpt-4",
+        kwargs={
+            "torch_dtype": torch.bfloat16,
+            "attn_implementation": "flash_attention_2",
+        },
+        eval_block_delay=EVAL_BLOCK_DELAY,
+        epsilon_func=LinearDecay(0.005, 0.0002, 36000),
+        max_bytes=29 * 1024 * 1024 * 1024,
+    ),
 }
 
 # Schedule of competitions by block.
@@ -217,7 +237,6 @@ COMPETITION_SCHEDULE_BY_BLOCK: List[Tuple[int, List[Competition]]] = [
                 0.4,
             ),
         ],
-
     ),
 ]
 
@@ -258,7 +277,7 @@ batch_size = 1
 sample_min = 5
 # Max number of uids that can be either pending eval or currently being evaluated.
 # We allow the sample_min per competition + 10 additional models to be held at any one time.
-updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID) + 10
+updated_models_limit = sample_min * len(MODEL_CONSTRAINTS_BY_COMPETITION_ID_2) + 10
 # time required between updates to the chain.
 chain_update_cadence = dt.timedelta(minutes=20)
 # Number of blocks required between retrying evaluation of a model.
