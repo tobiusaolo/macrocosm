@@ -346,7 +346,7 @@ async def main(config: bt.config):
             # Change this loader if you wish to use a different dataset
             loader = pt.dataset.SubsetFineWebEdu2Loader(
                 batch_size=config.bs,
-                sequence_length=config.sl
+                sequence_length=config.sl,
                 num_pages=config.pages_per_epoch,
                 tokenizer=tokenizer,
             )
